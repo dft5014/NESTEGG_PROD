@@ -29,7 +29,10 @@ import {
 } from 'lucide-react';
 import ReactDOM from 'react-dom';
 
-// Account categories definition
+// ============================================================================
+// CONSTANTS & CONFIGURATION
+// ============================================================================
+
 const ACCOUNT_CATEGORIES = [
   { id: "brokerage", name: "Brokerage", icon: Briefcase },
   { id: "retirement", name: "Retirement", icon: Building },
@@ -39,16 +42,18 @@ const ACCOUNT_CATEGORIES = [
   { id: "real_estate", name: "Real Estate", icon: Home }
 ];
 
-// pure constant – safe to define above; doesn’t change per render
 export const REQUIRED_BY_TYPE = {
   security: ["ticker","shares","price","cost_basis","purchase_date","account_id"],
   crypto:   ["symbol","quantity","purchase_price","current_price","purchase_date","account_id"],
   metal:    ["metal_type","symbol","quantity","purchase_price","current_price_per_unit","purchase_date","account_id"],
   cash:     ["cash_type","amount","account_id"],
-  other:    ["asset_name","current_value"], // maps your “otherAssets”
+  other:    ["asset_name","current_value"],
 };
 
-// Enhanced AnimatedNumber with smooth transitions
+// ============================================================================
+// UTILITY COMPONENTS
+// ============================================================================
+
 const AnimatedNumber = ({ value, prefix = '', suffix = '', decimals = 0, duration = 600 }) => {
   const [displayValue, setDisplayValue] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
@@ -62,7 +67,6 @@ const AnimatedNumber = ({ value, prefix = '', suffix = '', decimals = 0, duratio
     const animate = () => {
       const now = Date.now();
       const progress = Math.min((now - startTime) / duration, 1);
-      
       const easeOutQuart = 1 - Math.pow(1 - progress, 4);
       const currentValue = startValue + (endValue - startValue) * easeOutQuart;
       
@@ -89,68 +93,34 @@ const AnimatedNumber = ({ value, prefix = '', suffix = '', decimals = 0, duratio
   );
 };
 
-// Progress indicator component
 const ProgressIndicator = ({ current, total, className = '' }) => {
   const percentage = total > 0 ? (current / total) * 100 : 0;
   
   return (
     <div className={`relative ${className}`}>
-      <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+      <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
         <div 
-          className="h-full bg-gradient-to-r from-blue-500 to-blue-600 transition-all duration-500 ease-out"
+          className="h-full bg-gradient-to-r from-blue-500 via-blue-600 to-indigo-600 transition-all duration-500 ease-out shadow-sm"
           style={{ width: `${percentage}%` }}
         />
       </div>
       <div className="absolute -top-1 transition-all duration-500 ease-out" 
            style={{ left: `${percentage}%`, transform: 'translateX(-50%)' }}>
-        <div className="w-3 h-3 bg-blue-600 rounded-full ring-2 ring-white shadow-sm" />
+        <div className="w-3.5 h-3.5 bg-blue-600 rounded-full ring-4 ring-white shadow-md" />
       </div>
     </div>
   );
 };
 
-// Asset type badge component
-const AssetTypeBadge = ({ type, count, icon: Icon, color, active = false, onClick }) => {
-  return (
-    <button
-      onClick={onClick}
-      className={`
-        relative px-3 py-1.5 rounded-lg transition-all duration-300 transform
-        ${active 
-          ? `${color.bg} text-white shadow-lg scale-105 ring-2 ring-${color.main}-400 ring-opacity-50` 
-          : 'bg-white text-gray-700 hover:shadow-md hover:scale-102 border border-gray-200'
-        }
-      `}
-    >
-      <div className="flex items-center space-x-2">
-        <Icon className={`w-4 h-4 ${active ? 'animate-pulse' : ''}`} />
-        <span className="font-medium text-sm">{type}</span>
-        {count > 0 && (
-          <span className={`
-            px-1.5 py-0.5 text-xs rounded-full font-bold
-            ${active ? 'bg-white/20 text-white' : `${color.lightBg} ${color.text}`}
-          `}>
-            {count}
-          </span>
-        )}
-      </div>
-      {count > 0 && !active && (
-        <div className={`absolute -top-1 -right-1 w-2 h-2 ${color.bg} rounded-full animate-ping`} />
-      )}
-    </button>
-  );
-};
-
-// Toggle switch component
 const ToggleSwitch = ({ value, onChange, leftLabel, rightLabel, leftIcon: LeftIcon, rightIcon: RightIcon }) => {
   return (
-    <div className="flex items-center space-x-3 bg-gray-100 rounded-lg p-1">
+    <div className="flex items-center space-x-3 bg-gray-100 rounded-xl p-1.5 shadow-inner">
       <button
         onClick={() => onChange(false)}
         className={`
-          flex items-center space-x-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-200
+          flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200
           ${!value 
-            ? 'bg-white text-gray-900 shadow-sm' 
+            ? 'bg-white text-gray-900 shadow-sm scale-105' 
             : 'text-gray-600 hover:text-gray-900'
           }
         `}
@@ -161,9 +131,9 @@ const ToggleSwitch = ({ value, onChange, leftLabel, rightLabel, leftIcon: LeftIc
       <button
         onClick={() => onChange(true)}
         className={`
-          flex items-center space-x-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-200
+          flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200
           ${value 
-            ? 'bg-white text-gray-900 shadow-sm' 
+            ? 'bg-white text-gray-900 shadow-sm scale-105' 
             : 'text-gray-600 hover:text-gray-900'
           }
         `}
@@ -175,8 +145,6 @@ const ToggleSwitch = ({ value, onChange, leftLabel, rightLabel, leftIcon: LeftIc
   );
 };
 
-// Enhanced Account filter component with institution support
-// Enhanced Account filter component with institution support
 const AccountFilter = ({ accounts, selectedAccounts, onChange, filterType = 'accounts' }) => {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
@@ -191,7 +159,6 @@ const AccountFilter = ({ accounts, selectedAccounts, onChange, filterType = 'acc
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
   
-  // Get unique institutions
   const uniqueInstitutions = useMemo(() => {
     const institutions = [...new Set(accounts.map(acc => acc.institution).filter(Boolean))];
     return institutions.sort();
@@ -220,24 +187,16 @@ const AccountFilter = ({ accounts, selectedAccounts, onChange, filterType = 'acc
     return `${selectedCount} Account${selectedCount !== 1 ? 's' : ''}`;
   };
   
-  const getFilterIcon = () => {
-    return filterType === 'institutions' ? Building2 : Filter;
-  };
+  const FilterIcon = filterType === 'institutions' ? Building2 : Filter;
   
-  const FilterIcon = getFilterIcon();
-  
-  // New handler for Select All
   const handleSelectAll = () => {
     if (filterType === 'institutions') {
-      const allInstitutions = new Set(uniqueInstitutions);
-      onChange(allInstitutions);
+      onChange(new Set(uniqueInstitutions));
     } else {
-      const allAccountIds = new Set(accounts.map(acc => acc.id));
-      onChange(allAccountIds);
+      onChange(new Set(accounts.map(acc => acc.id)));
     }
   };
   
-  // New handler for Select None
   const handleSelectNone = () => {
     onChange(new Set());
   };
@@ -247,11 +206,11 @@ const AccountFilter = ({ accounts, selectedAccounts, onChange, filterType = 'acc
       <button
         onClick={() => setIsOpen(!isOpen)}
         className={`
-          flex items-center px-4 py-2 bg-white rounded-lg shadow-sm
-          transition-all duration-200 text-sm border
-          ${isOpen ? 'ring-2 ring-blue-500 border-blue-300' : ''}
+          flex items-center px-4 py-2.5 bg-white rounded-xl shadow-sm
+          transition-all duration-200 text-sm border-2
+          ${isOpen ? 'ring-2 ring-blue-500 border-blue-300 shadow-md' : ''}
           ${selectedCount > 0 && !isAllSelected 
-            ? 'border-blue-300 text-blue-700 bg-blue-50 hover:bg-blue-100' 
+            ? 'border-blue-300 text-blue-700 bg-blue-50 hover:bg-blue-100 hover:shadow-md' 
             : 'border-gray-200 text-gray-700 hover:bg-gray-50 hover:border-gray-300'
           }
           transform hover:scale-[1.02] active:scale-[0.98]
@@ -261,34 +220,35 @@ const AccountFilter = ({ accounts, selectedAccounts, onChange, filterType = 'acc
         <span className="font-medium">{getFilterLabel()}</span>
         <ChevronDown className={`w-4 h-4 ml-3 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
         {selectedCount > 0 && !isAllSelected && (
-          <span className="absolute -top-1 -right-1 w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
+          <span className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-blue-500 text-white text-xs font-bold rounded-full flex items-center justify-center animate-pulse shadow-lg">
+            {selectedCount}
+          </span>
         )}
       </button>
       
       {isOpen && (
-        <div className="absolute z-50 right-0 mt-2 w-96 bg-white border border-gray-200 rounded-xl shadow-2xl animate-in slide-in-from-top-2 duration-200">
-          <div className="p-4 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
-            <div className="flex items-center justify-between mb-2">
+        <div className="absolute z-50 right-0 mt-2 w-96 bg-white border-2 border-gray-200 rounded-2xl shadow-2xl animate-in slide-in-from-top-2 duration-200 overflow-hidden">
+          <div className="p-4 border-b border-gray-100 bg-gradient-to-r from-gray-50 via-white to-gray-50">
+            <div className="flex items-center justify-between mb-3">
               <div className="flex items-center space-x-2">
                 <FilterIcon className="w-5 h-5 text-gray-700" />
                 <span className="text-sm font-semibold text-gray-800">
                   Filter by {filterType === 'institutions' ? 'Institution' : 'Account'}
                 </span>
               </div>
-              {/* New Select All/None buttons */}
               <div className="flex items-center space-x-2">
                 <button
                   onClick={handleSelectAll}
-                  className="text-xs text-blue-600 hover:text-blue-700 font-medium px-2 py-1 hover:bg-blue-50 rounded transition-all duration-200"
+                  className="text-xs text-blue-600 hover:text-blue-700 font-medium px-3 py-1.5 hover:bg-blue-50 rounded-lg transition-all duration-200"
                 >
-                  Select All
+                  All
                 </button>
                 <span className="text-gray-300">|</span>
                 <button
                   onClick={handleSelectNone}
-                  className="text-xs text-blue-600 hover:text-blue-700 font-medium px-2 py-1 hover:bg-blue-50 rounded transition-all duration-200"
+                  className="text-xs text-blue-600 hover:text-blue-700 font-medium px-3 py-1.5 hover:bg-blue-50 rounded-lg transition-all duration-200"
                 >
-                  Select None
+                  None
                 </button>
               </div>
             </div>
@@ -303,9 +263,8 @@ const AccountFilter = ({ accounts, selectedAccounts, onChange, filterType = 'acc
             </div>
           </div>
           
-          <div className="max-h-96 overflow-y-auto p-2">
+          <div className="max-h-96 overflow-y-auto p-3">
             {filterType === 'institutions' ? (
-              // Institution filter view
               <div className="space-y-1">
                 {uniqueInstitutions.map(institution => {
                   const isSelected = selectedAccounts.has(institution);
@@ -324,17 +283,17 @@ const AccountFilter = ({ accounts, selectedAccounts, onChange, filterType = 'acc
                         onChange(newSelection);
                       }}
                       className={`
-                        w-full px-3 py-2.5 flex items-center justify-between rounded-lg
+                        w-full px-3 py-3 flex items-center justify-between rounded-xl
                         transition-all duration-200 text-sm group
                         ${isSelected 
-                          ? 'bg-gradient-to-r from-blue-50 to-blue-100 hover:from-blue-100 hover:to-blue-200' 
+                          ? 'bg-gradient-to-r from-blue-50 to-blue-100 hover:from-blue-100 hover:to-blue-200 shadow-sm' 
                           : 'hover:bg-gray-50'
                         }
                       `}
                     >
                       <div className="flex items-center flex-1 mr-2">
                         <div className={`
-                          w-5 h-5 rounded-md border-2 mr-3 flex items-center justify-center
+                          w-5 h-5 rounded-lg border-2 mr-3 flex items-center justify-center
                           transition-all duration-200 group-hover:scale-110
                           ${isSelected 
                             ? 'bg-blue-600 border-blue-600 shadow-sm' 
@@ -344,7 +303,7 @@ const AccountFilter = ({ accounts, selectedAccounts, onChange, filterType = 'acc
                           {isSelected && <Check className="w-3 h-3 text-white" />}
                         </div>
                         <div className="flex-1 text-left">
-                          <div className="font-medium text-gray-900 group-hover:text-gray-800">
+                          <div className="font-semibold text-gray-900 group-hover:text-gray-800">
                             {institution}
                           </div>
                           <div className="text-xs text-gray-500">
@@ -358,7 +317,6 @@ const AccountFilter = ({ accounts, selectedAccounts, onChange, filterType = 'acc
                 })}
               </div>
             ) : (
-              // Account filter view (existing)
               Object.entries(accountsByCategory).map(([categoryId, categoryAccounts]) => {
                 if (categoryAccounts.length === 0) return null;
                 const category = ACCOUNT_CATEGORIES.find(c => c.id === categoryId);
@@ -366,7 +324,7 @@ const AccountFilter = ({ accounts, selectedAccounts, onChange, filterType = 'acc
                 
                 return (
                   <div key={categoryId} className="mb-4">
-                    <div className="flex items-center px-3 py-2 text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    <div className="flex items-center px-3 py-2 text-xs font-bold text-gray-600 uppercase tracking-wider">
                       <Icon className="w-3.5 h-3.5 mr-2" />
                       {category?.name}
                     </div>
@@ -386,17 +344,17 @@ const AccountFilter = ({ accounts, selectedAccounts, onChange, filterType = 'acc
                               onChange(newSelection);
                             }}
                             className={`
-                              w-full px-3 py-2.5 flex items-center justify-between rounded-lg
+                              w-full px-3 py-3 flex items-center justify-between rounded-xl
                               transition-all duration-200 text-sm group
                               ${isSelected 
-                                ? 'bg-gradient-to-r from-blue-50 to-blue-100 hover:from-blue-100 hover:to-blue-200' 
+                                ? 'bg-gradient-to-r from-blue-50 to-blue-100 hover:from-blue-100 hover:to-blue-200 shadow-sm' 
                                 : 'hover:bg-gray-50'
                               }
                             `}
                           >
                             <div className="flex items-center flex-1 mr-2">
                               <div className={`
-                                w-5 h-5 rounded-md border-2 mr-3 flex items-center justify-center
+                                w-5 h-5 rounded-lg border-2 mr-3 flex items-center justify-center
                                 transition-all duration-200 group-hover:scale-110
                                 ${isSelected 
                                   ? 'bg-blue-600 border-blue-600 shadow-sm' 
@@ -406,7 +364,7 @@ const AccountFilter = ({ accounts, selectedAccounts, onChange, filterType = 'acc
                                 {isSelected && <Check className="w-3 h-3 text-white" />}
                               </div>
                               <div className="flex-1 text-left">
-                                <div className="font-medium text-gray-900 group-hover:text-gray-800">
+                                <div className="font-semibold text-gray-900 group-hover:text-gray-800">
                                   {account.account_name}
                                 </div>
                                 <div className="text-xs text-gray-500">{account.institution}</div>
@@ -427,40 +385,30 @@ const AccountFilter = ({ accounts, selectedAccounts, onChange, filterType = 'acc
   );
 };
 
-// Queue modal component
 const QueueModal = ({ isOpen, onClose, positions, assetTypes, accounts, onClearCompleted }) => {
   const getStatusBadge = (status) => {
-    switch (status) {
-      case 'success':
-        return (
-          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-            <CheckCircle className="w-3 h-3 mr-1" />
-            Added
-          </span>
-        );
-      case 'error':
-        return (
-          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
-            <XCircle className="w-3 h-3 mr-1" />
-            Error
-          </span>
-        );
-      case 'pending':
-      default:
-        return (
-          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-            <Clock className="w-3 h-3 mr-1" />
-            Not Submitted
-          </span>
-        );
-    }
+    const badges = {
+      success: { icon: CheckCircle, color: 'bg-emerald-100 text-emerald-800 border-emerald-200', label: 'Added' },
+      error: { icon: XCircle, color: 'bg-red-100 text-red-800 border-red-200', label: 'Error' },
+      submitting: { icon: Loader2, color: 'bg-blue-100 text-blue-800 border-blue-200', label: 'Adding...', spin: true },
+      pending: { icon: Clock, color: 'bg-gray-100 text-gray-800 border-gray-200', label: 'Pending' }
+    };
+    
+    const badge = badges[status] || badges.pending;
+    const Icon = badge.icon;
+    
+    return (
+      <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold border ${badge.color}`}>
+        <Icon className={`w-3.5 h-3.5 mr-1.5 ${badge.spin ? 'animate-spin' : ''}`} />
+        {badge.label}
+      </span>
+    );
   };
 
   const allPositions = useMemo(() => {
     const result = [];
     Object.entries(positions).forEach(([type, typePositions]) => {
       typePositions.forEach(pos => {
-        // Include otherAssets even without account_id
         const isValid = type === 'otherAssets' 
           ? (pos.data.asset_name && pos.data.current_value)
           : pos.data.account_id;
@@ -474,7 +422,7 @@ const QueueModal = ({ isOpen, onClose, positions, assetTypes, accounts, onClearC
   }, [positions]);
 
   const stats = useMemo(() => {
-    const counts = { total: 0, success: 0, error: 0, pending: 0 };
+    const counts = { total: 0, success: 0, error: 0, pending: 0, submitting: 0 };
     allPositions.forEach(pos => {
       counts.total++;
       counts[pos.status || 'pending']++;
@@ -485,47 +433,53 @@ const QueueModal = ({ isOpen, onClose, positions, assetTypes, accounts, onClearC
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-xl shadow-xl max-w-4xl w-full max-h-[80vh] flex flex-col">
-        <div className="px-6 py-4 border-b border-gray-200">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-5xl w-full max-h-[85vh] flex flex-col animate-in slide-in-from-bottom-4 duration-300">
+        <div className="px-6 py-5 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-white">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-gray-900 flex items-center">
-              <ClipboardList className="w-5 h-5 mr-2" />
-              Position Queue
-            </h2>
+            <div>
+              <h2 className="text-xl font-bold text-gray-900 flex items-center">
+                <ClipboardList className="w-6 h-6 mr-2 text-blue-600" />
+                Position Queue
+              </h2>
+              <p className="text-sm text-gray-500 mt-1">Review and manage your import queue</p>
+            </div>
             <button
               onClick={onClose}
-              className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
+              className="p-2 hover:bg-gray-100 rounded-xl transition-colors"
             >
               <X className="w-5 h-5 text-gray-500" />
             </button>
           </div>
           
-          <div className="mt-3 flex items-center space-x-6 text-sm">
-            <div className="flex items-center space-x-2">
-              <span className="text-gray-500">Total:</span>
-              <span className="font-semibold">{stats.total}</span>
+          <div className="mt-4 grid grid-cols-4 gap-4">
+            <div className="bg-white rounded-lg p-3 border border-gray-200">
+              <div className="text-xs text-gray-500 mb-1">Total</div>
+              <div className="text-2xl font-bold text-gray-900">{stats.total}</div>
             </div>
-            <div className="flex items-center space-x-2">
-              <span className="text-gray-500">Added:</span>
-              <span className="font-semibold text-green-600">{stats.success}</span>
+            <div className="bg-emerald-50 rounded-lg p-3 border border-emerald-200">
+              <div className="text-xs text-emerald-700 mb-1">Added</div>
+              <div className="text-2xl font-bold text-emerald-700">{stats.success}</div>
             </div>
-            <div className="flex items-center space-x-2">
-              <span className="text-gray-500">Errors:</span>
-              <span className="font-semibold text-red-600">{stats.error}</span>
+            <div className="bg-red-50 rounded-lg p-3 border border-red-200">
+              <div className="text-xs text-red-700 mb-1">Errors</div>
+              <div className="text-2xl font-bold text-red-700">{stats.error}</div>
             </div>
-            <div className="flex items-center space-x-2">
-              <span className="text-gray-500">Pending:</span>
-              <span className="font-semibold text-gray-600">{stats.pending}</span>
+            <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+              <div className="text-xs text-gray-700 mb-1">Pending</div>
+              <div className="text-2xl font-bold text-gray-700">{stats.pending}</div>
             </div>
           </div>
         </div>
         
         <div className="flex-1 overflow-y-auto p-6">
           {allPositions.length === 0 ? (
-            <div className="text-center py-12">
-              <ClipboardList className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-              <p className="text-gray-500">No positions in queue</p>
+            <div className="text-center py-16">
+              <div className="inline-flex p-6 rounded-2xl bg-gray-100 mb-4">
+                <ClipboardList className="w-16 h-16 text-gray-300" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">No positions in queue</h3>
+              <p className="text-sm text-gray-500">Add positions to see them here</p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -538,33 +492,34 @@ const QueueModal = ({ isOpen, onClose, positions, assetTypes, accounts, onClearC
                   <div 
                     key={`${position.assetType}-${position.id}`}
                     className={`
-                      p-4 rounded-lg border transition-all duration-200
-                      ${position.status === 'success' ? 'bg-green-50 border-green-200' :
+                      p-4 rounded-xl border-2 transition-all duration-200 hover:shadow-md
+                      ${position.status === 'success' ? 'bg-emerald-50 border-emerald-200' :
                         position.status === 'error' ? 'bg-red-50 border-red-200' :
+                        position.status === 'submitting' ? 'bg-blue-50 border-blue-200' :
                         'bg-white border-gray-200'}
                     `}
                   >
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-3">
-                        <div className={`p-2 rounded-lg ${config.color.lightBg}`}>
+                      <div className="flex items-center space-x-3 flex-1">
+                        <div className={`p-3 rounded-xl ${config.color.lightBg} shadow-sm`}>
                           <Icon className={`w-5 h-5 ${config.color.text}`} />
                         </div>
-                        <div>
-                          <div className="font-medium text-gray-900">
+                        <div className="flex-1">
+                          <div className="font-semibold text-gray-900 text-base">
                             {position.data.ticker || position.data.symbol || position.data.asset_name || 
                             position.data.metal_type || position.data.currency || 'Position'}
                           </div>
-                            <div className="text-sm text-gray-500">
-                              {position.assetType === 'otherAssets' 
-                                ? 'Other Assets (No Account)' 
-                                : (account?.account_name || 'Unknown Account')
-                              } • {config.name}
-                            </div>
+                          <div className="text-sm text-gray-500 mt-0.5">
+                            {position.assetType === 'otherAssets' 
+                              ? 'Other Assets (No Account)' 
+                              : (account?.account_name || 'Unknown Account')
+                            } • {config.name}
+                          </div>
                         </div>
                       </div>
-                      <div className="flex items-center space-x-3">
+                      <div className="flex items-center space-x-4">
                         <div className="text-right">
-                          <div className="font-medium text-gray-900">
+                          <div className="font-bold text-gray-900 text-lg">
                             {formatCurrency(calculatePositionValue(position.assetType, position))}
                           </div>
                           <div className="text-xs text-gray-500">
@@ -575,8 +530,8 @@ const QueueModal = ({ isOpen, onClose, positions, assetTypes, accounts, onClearC
                       </div>
                     </div>
                     {position.errorMessage && (
-                      <div className="mt-2 text-sm text-red-600 bg-red-100 rounded p-2">
-                        {position.errorMessage}
+                      <div className="mt-3 text-sm text-red-700 bg-red-100 rounded-lg p-3 border border-red-200">
+                        <span className="font-semibold">Error: </span>{position.errorMessage}
                       </div>
                     )}
                   </div>
@@ -586,15 +541,15 @@ const QueueModal = ({ isOpen, onClose, positions, assetTypes, accounts, onClearC
           )}
         </div>
         
-        <div className="px-6 py-4 border-t border-gray-200 flex justify-between">
+        <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex justify-between">
           <button
             onClick={onClearCompleted}
             disabled={stats.success === 0}
             className={`
-              px-4 py-2 text-sm font-medium rounded-lg transition-all
+              px-5 py-2.5 text-sm font-semibold rounded-xl transition-all
               ${stats.success === 0 
-                ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
-                : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+                ? 'bg-gray-200 text-gray-400 cursor-not-allowed' 
+                : 'bg-white border-2 border-gray-300 text-gray-700 hover:bg-gray-50 hover:border-gray-400 shadow-sm hover:shadow-md'
               }
             `}
           >
@@ -603,7 +558,7 @@ const QueueModal = ({ isOpen, onClose, positions, assetTypes, accounts, onClearC
           </button>
           <button
             onClick={onClose}
-            className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-800 transition-colors"
+            className="px-6 py-2.5 bg-gradient-to-r from-gray-800 to-gray-900 text-white text-sm font-semibold rounded-xl hover:from-gray-700 hover:to-gray-800 transition-all shadow-lg hover:shadow-xl"
           >
             Close
           </button>
@@ -630,8 +585,12 @@ const QueueModal = ({ isOpen, onClose, positions, assetTypes, accounts, onClearC
   }
 };
 
+// ============================================================================
+// MAIN COMPONENT
+// ============================================================================
+
 const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPositions }) => {
-  // --- Seed identity ---
+  // Seed identity
   const seedString = JSON.stringify(seedPositions ?? {});
   const seedId = React.useMemo(() => {
     let h = 0;
@@ -639,264 +598,84 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
     return String(h);
   }, [seedString]);
 
-  // immutable initial seed per seedId
   const initialSeedRef = React.useRef({ seedId: null, value: null });
+  
   // Core state
   const [accounts, setAccounts] = useState([]);
-
-  // lock the initial seed once per seedId
-  useEffect(() => {
-    if (initialSeedRef.current.seedId !== seedId) {
-      initialSeedRef.current = {
-        seedId,
-        value: seedPositions || { security: [], cash: [], crypto: [], metal: [], otherAssets: [] }
-      };
-    }
-  }, [seedId, seedPositions]);
-
-
-  // fast lookup for mapping Excel seeds → account_id
-  const accountIndexRef = useRef({ byName: new Map(), byNameInst: new Map() });
-
-  // simple normalizer for matching
-  const norm = (s) => String(s || '').trim().toLowerCase().replace(/\s+/g, ' ');
-
-  // build two indices: by account_name, and by account_name + institution
-  const buildAccountIndex = (list = []) => {
-    const byName = new Map();
-    const byNameInst = new Map();
-    list.forEach(a => {
-      const n = norm(a.account_name);
-      const i = norm(a.institution);
-      if (n) byName.set(n, a);
-      byNameInst.set(`${n}::${i}`, a);
-    });
-    accountIndexRef.current = { byName, byNameInst };
-  };
   const [positions, setPositions] = useState({
     security: [],
     cash: [],
     crypto: [],
     metal: [],
-    otherAssets: []  
+    otherAssets: []
   });
+  
+  // UI state
   const [expandedSections, setExpandedSections] = useState({});
   const [accountExpandedSections, setAccountExpandedSections] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showValues, setShowValues] = useState(true);
   const [selectedIds, setSelectedIds] = useState(new Set());
-  const seedAppliedRef = useRef(false);
   const [focusedCell, setFocusedCell] = useState(null);
   const [message, setMessage] = useState({ type: '', text: '', details: [] });
   const [activeFilter, setActiveFilter] = useState('all');
-  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('any');
   const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
-  const [validationMode, setValidationMode] = useState('realtime');
-  const [recentlyUsedAccounts, setRecentlyUsedAccounts] = useState([]);
-  const [viewMode, setViewMode] = useState(false); // false = by asset type, true = by account
+  const [viewMode, setViewMode] = useState(false);
   const [showQueue, setShowQueue] = useState(false);
   const [selectedAccountFilter, setSelectedAccountFilter] = useState(new Set());
   const [selectedInstitutionFilter, setSelectedInstitutionFilter] = useState(new Set());
+  const [showRestorePrompt, setShowRestorePrompt] = useState(false);
+  const [bulkEditMode, setBulkEditMode] = useState(false);
   
   // Search state
   const [searchResults, setSearchResults] = useState({});
   const [isSearching, setIsSearching] = useState({});
-  const [selectedSecurities, setSelectedSecurities] = useState({});
   
   // Refs
   const cellRefs = useRef({});
-  const tableRefs = useRef({});
   const messageTimeoutRef = useRef(null);
+  const seedAppliedRef = useRef(false);
+  const accountIndexRef = useRef({ byName: new Map(), byNameInst: new Map() });
 
-  // ── Validate a single row’s readiness
-  const validateRow = useCallback((row) => {
-    const t = row.type === "otherAssets" ? "other" : row.type;
-    const req = REQUIRED_BY_TYPE[t] || [];
-    const missing = [];
-    for (const k of req) {
-      const v = row.data?.[k];
-      if (v === undefined || v === null || v === "") missing.push(k);
-    }
-    return { ok: missing.length === 0, missing };
-  }, []);
-
-  // ── Compute status label for UI (authoritative)
-  const getRowStatus = (row) => {
-    // If a server-side status is present, use it; otherwise fall back to validation
-    if (row?.status === "submitting") return "submitting";
-    if (row?.status === "added") return "added";
-    if (row?.status === "error") return "error";
-    return validateRow(row).ok ? "ready" : "draft";
-  };
-
-  // 'any' | 'ready' | 'draft' | 'submitting' | 'added' | 'error' | 'issues'
-  const [statusFilter, setStatusFilter] = useState('any');
-
-  const matchesStatusFilter = (row) => {
-    if (statusFilter === 'any') return true;
-    const s = getRowStatus(row);
-    if (statusFilter === 'issues') return s === 'draft' || s === 'error';
-    return s === statusFilter;
-  };
-
-
-  // ---- Account indexing + seed mapping ----
-  const accountIndex = useRef({ byName: new Map(), byNameInst: new Map() });
-
-  const mapSeedAccountId = (data = {}) => {
-    // Already an id?
-    if (data.account_id) {
-      const n = Number(data.account_id);
-      return { ...data, account_id: Number.isFinite(n) ? n : data.account_id };
-    }
-
-    // Pull common Excel columns
-    const rawName = (data.account_name ?? data.account ?? '').toString().trim();
-    const rawInst = (data.institution ?? data.bank ?? data.brokerage ?? '').toString().trim();
-
-    if (!rawName && !rawInst) return data;
-
-    const name = rawName.toLowerCase();
-    const inst = rawInst.toLowerCase();
-    const { byName, byNameInst } = accountIndex.current;
-
-    // (1) Exact: name + institution
-    const hitBoth = byNameInst.get(`${name}::${inst}`);
-    if (hitBoth?.id) return { ...data, account_id: hitBoth.id };
-
-    // (2) Exact: name only
-    const hitName = byName.get(name);
-    if (hitName?.id) return { ...data, account_id: hitName.id };
-
-    // (3) Loose: if name is unique prefix
-    const loose = [...byName.keys()].filter(k => k.startsWith(name));
-    if (name && loose.length === 1) {
-      const a = byName.get(loose[0]);
-      if (a?.id) return { ...data, account_id: a.id };
-    }
-
-    // Give up (leave unmapped)
-    return data;
-  };
-
-  // Normalize one seed row (applies account mapping)
-  const normalizeSeedRow = (row, type) => ({
-    id: row?.id ?? (Date.now() + Math.random()),
-    type,
-    data: mapSeedAccountId(row?.data ?? row),
-    errors: row?.errors ?? {},
-    isNew: true,
-    animateIn: true
-  });
-
-  // Backfill any rows missing account_id after accounts load
-  const backfillSeedAccountIds = () => {
-    setPositions(prev => {
-      const next = { ...prev };
-      Object.keys(next).forEach(t => {
-        next[t] = next[t].map(p => {
-          if (t === 'otherAssets') return p; // those don't use account_id
-          if (p?.data?.account_id) return p;
-          const mapped = mapSeedAccountId(p?.data);
-          return mapped === p?.data ? p : { ...p, data: mapped };
-        });
-      });
-      return next;
-    });
-  };
-
-
-  // ── Issue/ready helpers
-  const isIssueRow = (row) => {
-    const s = getRowStatus(row); // uses validateRow internally
-    return s === 'draft' || s === 'error';
-  };
-  const isReadyRow = (row) => getRowStatus(row) === 'ready';
-
-  const getAllIssueRowIds = () => {
-    const ids = [];
-    for (const t of Object.keys(positions)) {
-      (positions[t] || []).forEach((p) => {
-        if (isIssueRow(p)) ids.push(p.id);
-      });
-    }
-    return ids;
-  };
-
-  const getAllReadyRows = () => {
-    const entries = [];
-    for (const [t, arr] of Object.entries(positions)) {
-      (arr || []).forEach((p) => {
-        if (isReadyRow(p)) entries.push({ type: t, position: p });
-      });
-    }
-    return entries;
-  };
-
-  // ── Selection toggles
-
-  // rowId is the position.id
-  const toggleRowSelected = useCallback((rowId, checked) => {
-    setSelectedIds(prev => {
-      const next = new Set(prev);
-      if (checked) next.add(rowId); else next.delete(rowId);
-      return next;
-    });
-  }, []);
-
-  // Toggle all for a given assetType block
-  const toggleAllSelectedForType = useCallback((assetType, checked) => {
-    setSelectedIds(prev => {
-      if (!checked) return new Set([...prev].filter(id => !positions[assetType].some(p => p.id === id)));
-      const next = new Set(prev);
-      positions[assetType].forEach(p => next.add(p.id));
-      return next;
-    });
-  }, [positions]);
-
-
-  // Enhanced asset type configuration with required fields
+  // Asset types configuration
   const assetTypes = {
     security: {
       name: 'Securities',
       icon: BarChart3,
       color: {
         main: 'blue',
-        bg: 'bg-blue-600',
+        bg: 'bg-gradient-to-br from-blue-600 to-blue-700',
         lightBg: 'bg-blue-50',
         border: 'border-blue-200',
         text: 'text-blue-700',
         hover: 'hover:bg-blue-100',
-        gradient: 'from-blue-500 to-blue-600'
       },
       description: 'Stocks, ETFs, Mutual Funds',
-      emoji: '📈',
       searchable: true,
       searchField: 'ticker',
       fields: [
-        { key: 'ticker', label: 'Ticker', type: 'text', required: true, width: 'w-28', placeholder: 'AAPL', transform: 'uppercase', autocomplete: true, searchable: true },
+        { key: 'ticker', label: 'Ticker', type: 'text', required: true, width: 'w-28', placeholder: 'AAPL', transform: 'uppercase', searchable: true },
         { key: 'name', label: 'Company', type: 'text', width: 'w-48', readOnly: true, placeholder: 'Auto-filled' },
         { key: 'shares', label: 'Shares', type: 'number', required: true, width: 'w-24', placeholder: '100', min: 0, step: 1 },
-        { key: 'price', label: 'Current Price', type: 'number', required: true, width: 'w-28', placeholder: 'Auto', prefix: '$', min: 0, step: 0.01, readOnly: true, autoFill: true },
+        { key: 'price', label: 'Price', type: 'number', required: true, width: 'w-28', placeholder: 'Auto', prefix: '$', min: 0, step: 0.01, readOnly: true },
         { key: 'cost_basis', label: 'Cost Basis', type: 'number', required: true, width: 'w-28', placeholder: '140.00', prefix: '$', min: 0, step: 0.01 },
         { key: 'purchase_date', label: 'Purchase Date', type: 'date', required: true, width: 'w-36', max: new Date().toISOString().split('T')[0], default: new Date().toISOString().split('T')[0] },
         { key: 'account_id', label: 'Account', type: 'select', required: true, width: 'w-44' }
-       ]
+      ]
     },
     cash: {
       name: 'Cash',
       icon: DollarSign,
       color: {
         main: 'purple',
-        bg: 'bg-purple-600',
+        bg: 'bg-gradient-to-br from-purple-600 to-purple-700',
         lightBg: 'bg-purple-50',
         border: 'border-purple-200',
         text: 'text-purple-700',
         hover: 'hover:bg-purple-100',
-        gradient: 'from-purple-500 to-purple-600'
       },
       description: 'Savings, Checking, Money Market',
-      emoji: '💵',
       fields: [
         { 
           key: 'cash_type', 
@@ -934,24 +713,22 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
       icon: Coins,
       color: {
         main: 'orange',
-        bg: 'bg-orange-600',
+        bg: 'bg-gradient-to-br from-orange-600 to-orange-700',
         lightBg: 'bg-orange-50',
         border: 'border-orange-200',
         text: 'text-orange-700',
         hover: 'hover:bg-orange-100',
-        gradient: 'from-orange-500 to-orange-600'
       },
       description: 'Bitcoin, Ethereum, Altcoins',
-      emoji: '🪙',
       searchable: true,
       searchField: 'symbol',
       fields: [
-        { key: 'symbol', label: 'Symbol', type: 'text', required: true, width: 'w-24', placeholder: 'BTC', transform: 'uppercase', autocomplete: true, searchable: true },
+        { key: 'symbol', label: 'Symbol', type: 'text', required: true, width: 'w-24', placeholder: 'BTC', transform: 'uppercase', searchable: true },
         { key: 'name', label: 'Name', type: 'text', width: 'w-48', readOnly: true, placeholder: 'Auto-filled' },
         { key: 'quantity', label: 'Quantity', type: 'number', required: true, width: 'w-28', placeholder: '0.5', step: '0.00000001', min: 0 },
         { key: 'purchase_price', label: 'Buy Price', type: 'number', required: true, width: 'w-32', placeholder: '45000', prefix: '$', min: 0 },
-        { key: 'current_price', label: 'Current Price', type: 'number', width: 'w-32', placeholder: 'Auto', prefix: '$', min: 0, readOnly: true, autoFill: true },
-        { key: 'purchase_date', label: 'Purchase Date', type: 'date', required: true, width: 'w-36', max: new Date().toISOString().split('T')[0], default: new Date().toISOString().split('T')[0]  },
+        { key: 'current_price', label: 'Current', type: 'number', width: 'w-32', placeholder: 'Auto', prefix: '$', min: 0, readOnly: true },
+        { key: 'purchase_date', label: 'Purchase Date', type: 'date', required: true, width: 'w-36', max: new Date().toISOString().split('T')[0], default: new Date().toISOString().split('T')[0] },
         { key: 'account_id', label: 'Account', type: 'select', required: true, width: 'w-44' }
       ]
     },
@@ -960,15 +737,13 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
       icon: Gem,
       color: {
         main: 'yellow',
-        bg: 'bg-yellow-600',
+        bg: 'bg-gradient-to-br from-yellow-600 to-yellow-700',
         lightBg: 'bg-yellow-50',
         border: 'border-yellow-200',
         text: 'text-yellow-700',
         hover: 'hover:bg-yellow-100',
-        gradient: 'from-yellow-500 to-yellow-600'
       },
       description: 'Gold, Silver, Platinum',
-      emoji: '🥇',
       searchable: true,
       searchField: 'metal_type',
       fields: [
@@ -988,32 +763,30 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
             { value: 'Palladium', label: '⚪ Palladium', symbol: 'PA=F' }
           ]
         },
-        { key: 'symbol', label: 'Symbol', type: 'text', width: 'w-24', readOnly: true, placeholder: 'Auto-filled' },
-        { key: 'name', label: 'Market Name', type: 'text', width: 'w-48', readOnly: true, placeholder: 'Auto-filled' },
-        { key: 'quantity', label: 'Quantity', type: 'number', required: true, width: 'w-24', placeholder: '10', min: 0 },
+        { key: 'symbol', label: 'Symbol', type: 'text', width: 'w-24', readOnly: true, placeholder: 'Auto' },
+        { key: 'name', label: 'Market', type: 'text', width: 'w-48', readOnly: true, placeholder: 'Auto' },
+        { key: 'quantity', label: 'Qty', type: 'number', required: true, width: 'w-24', placeholder: '10', min: 0 },
         { key: 'unit', label: 'Unit', type: 'text', width: 'w-20', readOnly: true, default: 'oz' },
         { key: 'purchase_price', label: 'Price/Unit', type: 'number', required: true, width: 'w-28', placeholder: '1800', prefix: '$', min: 0 },
-        { key: 'current_price_per_unit', label: 'Current/Unit', type: 'number', width: 'w-28', placeholder: 'Auto', prefix: '$', min: 0, readOnly: true, autoFill: true },
-        { key: 'purchase_date', label: 'Purchase Date', type: 'date', required: true, width: 'w-36', max: new Date().toISOString().split('T')[0], default: new Date().toISOString().split('T')[0]  },
+        { key: 'current_price_per_unit', label: 'Current', type: 'number', width: 'w-28', placeholder: 'Auto', prefix: '$', min: 0, readOnly: true },
+        { key: 'purchase_date', label: 'Purchase Date', type: 'date', required: true, width: 'w-36', max: new Date().toISOString().split('T')[0], default: new Date().toISOString().split('T')[0] },
         { key: 'account_id', label: 'Account', type: 'select', required: true, width: 'w-44' }
       ]
     },
     otherAssets: {
       name: 'Other Assets',
-      icon: Home, // Or you could use a different icon like Gem, Building2, etc.
+      icon: Home,
       color: {
         main: 'green',
-        bg: 'bg-green-600',
+        bg: 'bg-gradient-to-br from-green-600 to-green-700',
         lightBg: 'bg-green-50',
         border: 'border-green-200',
         text: 'text-green-700',
         hover: 'hover:bg-green-100',
-        gradient: 'from-green-500 to-green-600'
       },
       description: 'Real Estate, Vehicles, Collectibles',
-      emoji: '🏠',
       fields: [
-        { key: 'asset_name', label: 'Asset Name', type: 'text', required: true, width: 'w-48', placeholder: '123 Main Residence St' },
+        { key: 'asset_name', label: 'Asset Name', type: 'text', required: true, width: 'w-48', placeholder: '123 Main St' },
         { 
           key: 'asset_type', 
           label: 'Type', 
@@ -1033,26 +806,119 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
         },
         { key: 'cost', label: 'Purchase Price', type: 'number', width: 'w-32', placeholder: '500000', prefix: '$', min: 0 },
         { key: 'current_value', label: 'Current Value', type: 'number', required: true, width: 'w-32', placeholder: '550000', prefix: '$', min: 0 },
-        { key: 'purchase_date', label: 'Purchase Date', type: 'date', width: 'w-36', max: new Date().toISOString().split('T')[0], default: new Date().toISOString().split('T')[0]},
+        { key: 'purchase_date', label: 'Purchase Date', type: 'date', width: 'w-36', max: new Date().toISOString().split('T')[0], default: new Date().toISOString().split('T')[0] },
         { key: 'notes', label: 'Notes', type: 'text', width: 'w-52', placeholder: 'Additional details...' }
       ]
     }
   };
 
+  // Helper functions
+  const norm = (s) => String(s || '').trim().toLowerCase().replace(/\s+/g, ' ');
+
+  const buildAccountIndex = (list = []) => {
+    const byName = new Map();
+    const byNameInst = new Map();
+    list.forEach(a => {
+      const n = norm(a.account_name);
+      const i = norm(a.institution);
+      if (n) byName.set(n, a);
+      byNameInst.set(`${n}::${i}`, a);
+    });
+    accountIndexRef.current = { byName, byNameInst };
+  };
+
+  const mapSeedAccountId = (data = {}) => {
+    if (data.account_id) {
+      const n = Number(data.account_id);
+      return { ...data, account_id: Number.isFinite(n) ? n : data.account_id };
+    }
+
+    const rawName = (data.account_name ?? data.account ?? '').toString().trim();
+    const rawInst = (data.institution ?? data.bank ?? data.brokerage ?? '').toString().trim();
+
+    if (!rawName && !rawInst) return data;
+
+    const name = rawName.toLowerCase();
+    const inst = rawInst.toLowerCase();
+    const { byName, byNameInst } = accountIndexRef.current;
+
+    const hitBoth = byNameInst.get(`${name}::${inst}`);
+    if (hitBoth?.id) return { ...data, account_id: hitBoth.id };
+
+    const hitName = byName.get(name);
+    if (hitName?.id) return { ...data, account_id: hitName.id };
+
+    const loose = [...byName.keys()].filter(k => k.startsWith(name));
+    if (name && loose.length === 1) {
+      const a = byName.get(loose[0]);
+      if (a?.id) return { ...data, account_id: a.id };
+    }
+
+    return data;
+  };
+
+  const validateRow = useCallback((row) => {
+    const t = row.type === "otherAssets" ? "other" : row.type;
+    const req = REQUIRED_BY_TYPE[t] || [];
+    const missing = [];
+    for (const k of req) {
+      const v = row.data?.[k];
+      if (v === undefined || v === null || v === "") missing.push(k);
+    }
+    return { ok: missing.length === 0, missing };
+  }, []);
+
+  const getRowStatus = (row) => {
+    if (row?.status === "submitting") return "submitting";
+    if (row?.status === "added") return "added";
+    if (row?.status === "error") return "error";
+    return validateRow(row).ok ? "ready" : "draft";
+  };
+
+  const matchesStatusFilter = (row) => {
+    if (statusFilter === 'any') return true;
+    const s = getRowStatus(row);
+    return s === statusFilter;
+  };
+
+  const toggleRowSelected = useCallback((rowId, checked) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (checked) next.add(rowId); else next.delete(rowId);
+      return next;
+    });
+  }, []);
+
+  const toggleAllSelectedForType = useCallback((assetType, checked) => {
+    setSelectedIds(prev => {
+      if (!checked) return new Set([...prev].filter(id => !positions[assetType].some(p => p.id === id)));
+      const next = new Set(prev);
+      positions[assetType].forEach(p => next.add(p.id));
+      return next;
+    });
+  }, [positions]);
+
+  const showMessage = (type, text, details = [], duration = 5000) => {
+    setMessage({ type, text, details });
+    
+    if (messageTimeoutRef.current) {
+      clearTimeout(messageTimeoutRef.current);
+    }
+    
+    if (duration > 0) {
+      messageTimeoutRef.current = setTimeout(() => {
+        setMessage({ type: '', text: '', details: [] });
+      }, duration);
+    }
+  };
 
   // Load accounts
   const loadAccounts = async () => {
     try {
       const fetchedAccounts = await fetchAllAccounts();
       setAccounts(fetchedAccounts);
-
-      // build mapping indices for name/institution → account_id
       buildAccountIndex(fetchedAccounts);
       
-      const recentIds = fetchedAccounts.slice(0, 3).map(a => a.id);
-      setRecentlyUsedAccounts(recentIds);
-      
-      // Select all by default
       setSelectedAccountFilter(new Set(fetchedAccounts.map(acc => acc.id)));
       setSelectedInstitutionFilter(new Set(fetchedAccounts.map(acc => acc.institution).filter(Boolean)));
     } catch (error) {
@@ -1061,8 +927,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
     }
   };
 
-
-  // Debounced search function
+  // Debounced search
   const debouncedSearch = useCallback(
     debounce(async (query, assetType, positionId) => {
       if (!query || query.length < 2) {
@@ -1083,23 +948,19 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
       try {
         const results = await searchSecurities(query);
         
-        // Filter results based on asset type
         const filteredResults = assetType === 'security' 
           ? results.filter(item => item.asset_type === 'security' || item.asset_type === 'index')
           : assetType === 'crypto'
           ? results.filter(item => item.asset_type === 'crypto')
-          : results; // For other types, don't filter
+          : results;
         
-        // For metals, automatically select the first result
         if (assetType === 'metal' && filteredResults.length > 0) {
           handleSelectSecurity(assetType, positionId, filteredResults[0]);
-          // Clear search results since we auto-selected
           setSearchResults(prev => ({
             ...prev,
             [searchKey]: []
           }));
         } else {
-          // For other types, show the dropdown
           setSearchResults(prev => ({
             ...prev,
             [searchKey]: filteredResults
@@ -1118,175 +979,171 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
     []
   );
 
-    useEffect(() => {
-      if (!isOpen) return;
+  // Handle security selection
+  const handleSelectSecurity = (assetType, positionId, security) => {
+    const searchKey = `${assetType}-${positionId}`;
 
-      loadAccounts();
+    const getQuotePrice = (s) => {
+      const v =
+        s?.price ??
+        s?.current_price ??
+        s?.regularMarketPrice ??
+        s?.regular_market_price ??
+        s?.last ??
+        s?.close ??
+        s?.value ??
+        s?.mark;
 
-      const key = `quickpositions:work:${seedId}`;
+      const n = Number(v);
+      return Number.isFinite(n) ? n : undefined;
+    };
 
-      // one-time init per seedId
-      if (initialSeedRef.current.seedId === seedId && !seedAppliedRef.current) {
-        // Try restoring an existing draft for this seedId
-        const saved = localStorage.getItem(key);
+    const px = getQuotePrice(security);
 
-        if (saved) {
-          setPositions(JSON.parse(saved));
-        } else {
-          // Build a *working copy* from the immutable initial seed (no future re-seeding)
-          const base = initialSeedRef.current.value || {};
-          const castSeed = (rows, type) => {
-            const { byName, byNameInst } = accountIndexRef.current;
+    setPositions((prev) => ({
+      ...prev,
+      [assetType]: prev[assetType].map((pos) => {
+        if (pos.id !== positionId) return pos;
+        const d = { ...pos.data };
 
-            const normalizeKeys = (obj = {}) => {
-              const out = {};
-              for (const [k, v] of Object.entries(obj)) {
-                const nk = k.toString().trim().toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '_');
-                out[nk] = v;
-              }
-              return out;
-            };
-
-            const mapSeedAccountId = (raw = {}) => {
-              const data = normalizeKeys(raw);
-              if (data.account_id != null && data.account_id !== '') return { ...raw, account_id: data.account_id };
-
-              const name = (data.account_name ?? data.account ?? data.acct_name ?? data.name ?? '').toString().trim();
-              const inst = (data.institution ?? data.institution_name ?? data.bank ?? data.brokerage ?? data.custodian ?? '').toString().trim();
-              if (!name) return raw;
-
-              const n = norm(name);
-              const i = norm(inst);
-
-              const hit = (byNameInst && byNameInst.get(`${n}::${i}`)) || (byName && byName.get(n));
-              return hit ? { ...raw, account_id: hit.id } : raw;
-            };
-
-            return (rows ?? []).map((r) => {
-              const baseRow = mapSeedAccountId(r?.data ?? r);
-              return {
-                id: r?.id ?? (Date.now() + Math.random()),
-                type,
-                data: baseRow,
-                errors: r?.errors ?? {},
-                isNew: true,
-                animateIn: true
-              };
-            });
-          };
-
-          const hasSeeds = !!(
-            base &&
-            (base.security?.length ||
-              base.cash?.length ||
-              base.crypto?.length ||
-              base.metal?.length ||
-              base.otherAssets?.length)
-          );
-
-          const working = hasSeeds
-            ? {
-                security: castSeed(base.security, 'security'),
-                cash:     castSeed(base.cash, 'cash'),
-                crypto:   castSeed(base.crypto, 'crypto'),
-                metal:    castSeed(base.metal, 'metal'),
-                otherAssets: castSeed(base.otherAssets, 'otherAssets')
-              }
-            : { security: [], cash: [], crypto: [], metal: [], otherAssets: [] };
-
-          setPositions(working);
-          localStorage.setItem(key, JSON.stringify(working));
+        if (assetType === 'security') {
+          d.ticker = security.ticker;
+          if (px != null) d.price = px;
+          d.name = security.name;
+          if (d.cost_basis == null && d.price != null) d.cost_basis = d.price;
+        } else if (assetType === 'crypto') {
+          d.symbol = security.ticker;
+          if (px != null) d.current_price = px;
+          d.name = security.name;
+          if (d.purchase_price == null && d.current_price != null) d.purchase_price = d.current_price;
+        } else if (assetType === 'metal') {
+          d.symbol = security.ticker;
+          if (px != null) d.current_price_per_unit = px;
+          d.name = security.name;
+          if (d.purchase_price == null && d.current_price_per_unit != null) d.purchase_price = d.current_price_per_unit;
         }
 
-        seedAppliedRef.current = true;
-      }
+        return { ...pos, data: d, errors: { ...pos.errors } };
+      }),
+    }));
 
-      // reset UI chrome each open (keep as you had it)
-      setExpandedSections({});
-      setAccountExpandedSections({});
-      setMessage({ type: '', text: '', details: [] });
-      setActiveFilter('all');
-      setSearchResults({});
-      setSelectedSecurities({});
-      setShowKeyboardShortcuts(true);
-      setTimeout(() => setShowKeyboardShortcuts(false), 3000);
-
-      setTimeout(() => {
-        try { autoHydrateSeededPrices?.(); } catch (e) { console.error(e); }
-      }, 0);
-
-      return () => {
-        if (messageTimeoutRef.current) clearTimeout(messageTimeoutRef.current);
-      };
-      // IMPORTANT: init is keyed by seedId; do NOT depend on seedPositions here or you'll re-seed
-    }, [isOpen, seedId]);
-
-
-      // persist working copy keyed by seedId
-      useEffect(() => {
-        if (!isOpen) return;
-        const key = `quickpositions:work:${seedId}`;
-        localStorage.setItem(key, JSON.stringify(positions));
-      }, [isOpen, seedId, positions]);
-
-
-  // If seeds arrived before accounts, fill in account_id once both are ready
-  useEffect(() => {
-    if (!isOpen) return;
-    if (!accounts || accounts.length === 0) return;
-    backfillSeedAccountIds();
-    // persist after backfill so it sticks
-    const key = `quickpositions:work:${seedId}`;
-    setTimeout(() => {
-      try { localStorage.setItem(key, JSON.stringify(positions)); } catch {}
-    }, 0);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, accounts.length]);
-
-  
-  
-  // Enhanced message display
-  const showMessage = (type, text, details = [], duration = 5000) => {
-    setMessage({ type, text, details });
-    
-    if (messageTimeoutRef.current) {
-      clearTimeout(messageTimeoutRef.current);
-    }
-    
-    if (duration > 0) {
-      messageTimeoutRef.current = setTimeout(() => {
-        setMessage({ type: '', text: '', details: [] });
-      }, duration);
-    }
+    setSearchResults((prev) => ({ ...prev, [searchKey]: [] }));
   };
 
-  // Add new row for account
-  const addNewRowForAccount = (accountId, assetType) => {
-    const newPosition = {
-      id: Date.now() + Math.random(),
-      type: assetType,
-      data: { account_id: accountId },
-      errors: {},
-      isNew: true,
-      animateIn: true
+  // Auto-hydrate prices
+  const autoHydrateSeededPrices = useCallback(async () => {
+    const metalSymbolByType = {
+      Gold: 'GC=F',
+      Silver: 'SI=F',
+      Platinum: 'PL=F',
+      Copper: 'HG=F',
+      Palladium: 'PA=F',
     };
-    
+
+    const work = [];
+
+    positions.security.forEach((p) => {
+      const q = p?.data?.ticker || p?.data?.symbol;
+      if (q && (p?.data?.price == null || p?.data?.price === '' || Number(p?.data?.price) === 0)) {
+        work.push({ type: 'security', id: p.id, q });
+      }
+    });
+
+    positions.crypto.forEach((p) => {
+      const q = p?.data?.symbol || p?.data?.ticker;
+      if (q && (p?.data?.current_price == null || p?.data?.current_price === '' || Number(p?.data?.current_price) === 0)) {
+        work.push({ type: 'crypto', id: p.id, q });
+      }
+    });
+
+    positions.metal.forEach((p) => {
+      const q = p?.data?.symbol || metalSymbolByType[p?.data?.metal_type];
+      if (q && (p?.data?.current_price_per_unit == null || p?.data?.current_price_per_unit === '' || Number(p?.data?.current_price_per_unit) === 0)) {
+        work.push({ type: 'metal', id: p.id, q });
+      }
+    });
+
+    if (!work.length) return;
+
+    const chunks = await Promise.all(
+      work.map(async (item) => {
+        try {
+          const results = await searchSecurities(item.q);
+
+          let filtered = Array.isArray(results) ? results : [];
+          if (item.type === 'security') {
+            filtered = filtered.filter((r) => r.asset_type === 'security' || r.asset_type === 'index');
+          } else if (item.type === 'crypto') {
+            filtered = filtered.filter((r) => r.asset_type === 'crypto');
+          }
+
+          const exact = filtered.find(
+            (r) => String(r.ticker || '').toUpperCase() === String(item.q).toUpperCase()
+          );
+          const chosen = exact || filtered[0];
+
+          return chosen ? { ...item, chosen } : null;
+        } catch (e) {
+          console.warn('Hydrate lookup failed', item, e);
+          return null;
+        }
+      })
+    );
+
+    for (const hit of chunks) {
+      if (hit?.chosen) {
+        handleSelectSecurity(hit.type, hit.id, hit.chosen);
+      }
+    }
+  }, [positions, handleSelectSecurity]);
+
+  // Update position
+  const updatePosition = (assetType, positionId, field, value) => {
     setPositions(prev => ({
       ...prev,
-      [assetType]: [...prev[assetType], newPosition]
+      [assetType]: prev[assetType].map(pos => {
+        if (pos.id === positionId) {
+          const fieldConfig = assetTypes[assetType].fields.find(f => f.key === field);
+          
+          if (fieldConfig?.transform === 'uppercase') {
+            value = value.toUpperCase();
+          }
+          
+          if (assetType === 'metal' && field === 'metal_type' && value) {
+            const selectedOption = fieldConfig.options.find(o => o.value === value);
+            if (selectedOption?.symbol) {
+              const updatedData = {
+                ...pos.data,
+                metal_type: value,
+                symbol: selectedOption.symbol,
+                name: `${value} Futures`
+              };
+              
+              debouncedSearch(selectedOption.symbol, assetType, positionId);
+              
+              return {
+                ...pos,
+                data: updatedData,
+                errors: { ...pos.errors },
+                isNew: false,
+                animateIn: false
+              };
+            }
+          } else if (fieldConfig?.searchable && assetTypes[assetType].searchable) {
+            debouncedSearch(value, assetType, positionId);
+          }
+          
+          return {
+            ...pos,
+            data: { ...pos.data, [field]: value },
+            errors: { ...pos.errors },
+            isNew: false,
+            animateIn: false
+          };
+        }
+        return pos;
+      })
     }));
-    
-    // Expand the account section for this asset type
-    setAccountExpandedSections(prev => ({
-      ...prev,
-      [`${accountId}-${assetType}`]: true
-    }));
-    
-    setTimeout(() => {
-      const firstFieldKey = assetTypes[assetType].fields[0].key;
-      const cellKey = `${assetType}-${newPosition.id}-${firstFieldKey}`;
-      cellRefs.current[cellKey]?.focus();
-    }, 100);
   };
 
   // Add new row
@@ -1294,7 +1151,6 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
     const lastPosition = positions[assetType][positions[assetType].length - 1];
     const defaultData = {};
     
-    // Apply field defaults
     assetTypes[assetType].fields.forEach(field => {
       if (field.default !== undefined) {
         defaultData[field.key] = field.default;
@@ -1304,12 +1160,9 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
     if (lastPosition && lastPosition.data.account_id) {
       defaultData.account_id = lastPosition.data.account_id;
     }
-    if (assetType === 'cash' && lastPosition?.data.currency) {
-      defaultData.currency = lastPosition.data.currency;
-    }
-
+    
     if (assetType === 'cash') {
-    defaultData.interest_period = 'annually';  
+      defaultData.interest_period = 'annually';  
     }
     
     const newPosition = {
@@ -1337,337 +1190,8 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
     }, 100);
   };
 
-  // Enhanced keyboard navigation
-  const handleKeyDown = (e, assetType, positionId, fieldIndex) => {
-    const typePositions = positions[assetType];
-    const positionIndex = typePositions.findIndex(p => p.id === positionId);
-    const fields = assetTypes[assetType].fields;
-    
-    if (e.ctrlKey || e.metaKey) {
-      switch (e.key) {
-        case 'Enter':
-          e.preventDefault();
-          submitAll();
-          return;
-        case 's':
-          e.preventDefault();
-          submitAll();
-          return;
-        case 'k':
-          e.preventDefault();
-          setShowKeyboardShortcuts(!showKeyboardShortcuts);
-          return;
-      }
-    }
-    
-    switch (e.key) {
-      case 'Tab':
-        if (!e.shiftKey && fieldIndex === fields.length - 1 && positionIndex === typePositions.length - 1) {
-          e.preventDefault();
-          addNewRow(assetType);
-        }
-        break;
-        
-      case 'Enter':
-        e.preventDefault();
-        if (e.shiftKey) {
-          const newPosition = {
-            id: Date.now() + Math.random(),
-            type: assetType,
-            data: {},
-            errors: {},
-            isNew: true,
-            animateIn: true
-          };
-          setPositions(prev => ({
-            ...prev,
-            [assetType]: [
-              ...prev[assetType].slice(0, positionIndex),
-              newPosition,
-              ...prev[assetType].slice(positionIndex)
-            ]
-          }));
-        } else if (fieldIndex === fields.length - 1) {
-          addNewRow(assetType);
-        } else {
-          const nextKey = `${assetType}-${positionId}-${fields[fieldIndex + 1].key}`;
-          cellRefs.current[nextKey]?.focus();
-        }
-        break;
-        
-      case 'ArrowDown':
-        e.preventDefault();
-        if (e.altKey) {
-          if (positionIndex < typePositions.length - 1) {
-            const newPositions = [...typePositions];
-            [newPositions[positionIndex], newPositions[positionIndex + 1]] = 
-            [newPositions[positionIndex + 1], newPositions[positionIndex]];
-            setPositions(prev => ({ ...prev, [assetType]: newPositions }));
-          }
-        } else if (positionIndex < typePositions.length - 1) {
-          const nextPositionId = typePositions[positionIndex + 1].id;
-          const nextKey = `${assetType}-${nextPositionId}-${fields[fieldIndex].key}`;
-          cellRefs.current[nextKey]?.focus();
-        }
-        break;
-        
-      case 'ArrowUp':
-        e.preventDefault();
-        if (e.altKey) {
-          if (positionIndex > 0) {
-            const newPositions = [...typePositions];
-            [newPositions[positionIndex], newPositions[positionIndex - 1]] = 
-            [newPositions[positionIndex - 1], newPositions[positionIndex]];
-            setPositions(prev => ({ ...prev, [assetType]: newPositions }));
-          }
-        } else if (positionIndex > 0) {
-          const prevPositionId = typePositions[positionIndex - 1].id;
-          const prevKey = `${assetType}-${prevPositionId}-${fields[fieldIndex].key}`;
-          cellRefs.current[prevKey]?.focus();
-        }
-        break;
-        
-      case 'Delete':
-        if (e.ctrlKey || e.metaKey) {
-          e.preventDefault();
-          deletePosition(assetType, positionId);
-        }
-        break;
-        
-      case 'd':
-        if (e.ctrlKey || e.metaKey) {
-          e.preventDefault();
-          duplicatePosition(assetType, positions[assetType].find(p => p.id === positionId));
-        }
-        break;
-    }
-  };
-
-  // Handle security selection from search
-  const handleSelectSecurity = (assetType, positionId, security) => {
-    const searchKey = `${assetType}-${positionId}`;
-    setSelectedSecurities((prev) => ({ ...prev, [searchKey]: security }));
-
-    const px = getQuotePrice(security); // numeric or undefined
-
-    setPositions((prev) => ({
-      ...prev,
-      [assetType]: prev[assetType].map((pos) => {
-        if (pos.id !== positionId) return pos;
-        const d = { ...pos.data };
-
-        if (assetType === 'security') {
-          d.ticker = security.ticker;
-          if (px != null) d.price = px;               // number
-          d.name = security.name;
-          if (d.cost_basis == null && d.price != null) d.cost_basis = d.price;
-        } else if (assetType === 'crypto') {
-          d.symbol = security.ticker;
-          if (px != null) d.current_price = px;       // number
-          d.name = security.name;
-          if (d.purchase_price == null && d.current_price != null) d.purchase_price = d.current_price;
-        } else if (assetType === 'metal') {
-          d.symbol = security.ticker;
-          if (px != null) d.current_price_per_unit = px; // number
-          d.name = security.name;
-          if (d.purchase_price == null && d.current_price_per_unit != null) d.purchase_price = d.current_price_per_unit;
-        }
-
-        return { ...pos, data: d, errors: { ...pos.errors } };
-      }),
-    }));
-
-    // Clear search results for this row
-    setSearchResults((prev) => ({ ...prev, [searchKey]: [] }));
-  };
-
-  // --- NEW: auto-hydrate current prices for seeded rows after Excel import ---
-  const metalSymbolByType = {
-    Gold: 'GC=F',
-    Silver: 'SI=F',
-    Platinum: 'PL=F',
-    Copper: 'HG=F',
-    Palladium: 'PA=F',
-  };
-
-  // Prefer numeric; tolerate multiple field names across providers
-  const getQuotePrice = (s) => {
-    const v =
-      s?.price ??
-      s?.current_price ??
-      s?.regularMarketPrice ??
-      s?.regular_market_price ??
-      s?.last ??
-      s?.close ??
-      s?.value ??
-      s?.mark;
-
-    const n = Number(v);
-    return Number.isFinite(n) ? n : undefined;
-  };
-
-  
-  const autoHydrateSeededPrices = useCallback(async () => {
-    // Build work items off *current* positions
-    const work = [];
-
-    positions.security.forEach((p) => {
-      const q = p?.data?.ticker || p?.data?.symbol;
-      // hydrate only if missing price
-      if (q && (p?.data?.price == null || p?.data?.price === '' || Number(p?.data?.price) === 0)) {
-        work.push({ type: 'security', id: p.id, q });
-      }
-    });
-
-    positions.crypto.forEach((p) => {
-      const q = p?.data?.symbol || p?.data?.ticker;
-      if (q && (p?.data?.current_price == null || p?.data?.current_price === '' || Number(p?.data?.current_price) === 0)) {
-        work.push({ type: 'crypto', id: p.id, q });
-      }
-    });
-
-    positions.metal.forEach((p) => {
-      const q = p?.data?.symbol || metalSymbolByType[p?.data?.metal_type];
-      if (q && (p?.data?.current_price_per_unit == null || p?.data?.current_price_per_unit === '' || Number(p?.data?.current_price_per_unit) === 0)) {
-        work.push({ type: 'metal', id: p.id, q });
-      }
-    });
-
-    if (!work.length) return;
-
-    // Run lookups in parallel then apply selections
-    const chunks = await Promise.all(
-      work.map(async (item) => {
-        try {
-          const results = await searchSecurities(item.q);
-
-          let filtered = Array.isArray(results) ? results : [];
-          if (item.type === 'security') {
-            filtered = filtered.filter((r) => r.asset_type === 'security' || r.asset_type === 'index');
-          } else if (item.type === 'crypto') {
-            filtered = filtered.filter((r) => r.asset_type === 'crypto');
-          } // metals: keep as-is
-
-          const exact = filtered.find(
-            (r) => String(r.ticker || '').toUpperCase() === String(item.q).toUpperCase()
-          );
-          const chosen = exact || filtered[0];
-
-          return chosen ? { ...item, chosen } : null;
-        } catch (e) {
-          console.warn('Hydrate lookup failed', item, e);
-          return null;
-        }
-      })
-    );
-
-    // Apply selections (which set the correct price fields)
-    for (const hit of chunks) {
-      if (hit?.chosen) {
-        handleSelectSecurity(hit.type, hit.id, hit.chosen);
-      }
-    }
-  }, [positions, handleSelectSecurity]);
-
-  const hydratedRef = useRef(false);
-
-  // Run once when seeded rows are in state
-useEffect(() => {
-    if (!isOpen || hydratedRef.current) return;
-
-    const total =
-      (positions.security?.length || 0) +
-      (positions.crypto?.length || 0) +
-      (positions.metal?.length || 0);
-
-    if (total === 0) return;
-
-    // Defer one tick so row UIs mount
-    const t = setTimeout(() => {
-      try { autoHydrateSeededPrices?.(); } catch (e) { console.error(e); }
-      hydratedRef.current = true;
-    }, 0);
-
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen]); // Only run when modal opens
-
-
-  
-  // Update position with search trigger
-  const updatePosition = (assetType, positionId, field, value) => {
-    setPositions(prev => ({
-      ...prev,
-      [assetType]: prev[assetType].map(pos => {
-        if (pos.id === positionId) {
-          const fieldConfig = assetTypes[assetType].fields.find(f => f.key === field);
-          
-          if (fieldConfig?.transform === 'uppercase') {
-            value = value.toUpperCase();
-          }
-          
-          // Special handling for metal type selection
-          if (assetType === 'metal' && field === 'metal_type' && value) {
-            const selectedOption = fieldConfig.options.find(o => o.value === value);
-            if (selectedOption?.symbol) {
-              // Update multiple fields at once when metal type is selected
-              const updatedData = {
-                ...pos.data,
-                metal_type: value,
-                symbol: selectedOption.symbol,
-                name: `${value} Futures` // Or whatever naming convention you prefer
-              };
-              
-              // Still trigger search to get current price
-              debouncedSearch(selectedOption.symbol, assetType, positionId);
-              
-              return {
-                ...pos,
-                data: updatedData,
-                errors: { ...pos.errors },
-                isNew: false,
-                animateIn: false
-              };
-            }
-          }
-          // Regular search for other searchable fields
-          else if (fieldConfig?.searchable && assetTypes[assetType].searchable) {
-            debouncedSearch(value, assetType, positionId);
-          }
-          
-          let error = null;
-          if (validationMode === 'realtime') {
-            if (fieldConfig?.required && !value) {
-              error = 'Required';
-            } else if (fieldConfig?.min !== undefined && value < fieldConfig.min) {
-              error = `Min: ${fieldConfig.min}`;
-            } else if (fieldConfig?.max !== undefined && value > fieldConfig.max) {
-              error = `Max: ${fieldConfig.max}`;
-            }
-          }
-          
-          return {
-            ...pos,
-            data: { ...pos.data, [field]: value },
-            errors: { ...pos.errors, [field]: error },
-            isNew: false,
-            animateIn: false
-          };
-        }
-        return pos;
-      })
-    }));
-  };
-
+  // Delete position
   const deletePosition = (assetType, positionId) => {
-    const validPositions = assetType === 'otherAssets'
-      ? positions[assetType].filter(p => p.data.asset_name && p.data.current_value)
-      : positions[assetType].filter(p => p.data.account_id);
-
-    if (validPositions.length > 5 && !window.confirm('Delete this position?')) {
-      return;
-    }
-
     setPositions(prev => ({
       ...prev,
       [assetType]: prev[assetType].map(pos =>
@@ -1680,7 +1204,6 @@ useEffect(() => {
         ...prev,
         [assetType]: prev[assetType].filter(pos => pos.id !== positionId)
       }));
-      // clean selection
       setSelectedIds(prev => {
         const next = new Set(prev);
         next.delete(positionId);
@@ -1689,7 +1212,7 @@ useEffect(() => {
     }, 300);
   };
 
-  // Bulk delete across all types
+  // Delete selected
   const deleteSelected = useCallback(() => {
     if (selectedIds.size === 0) return;
     if (!window.confirm(`Delete ${selectedIds.size} selected row(s)?`)) return;
@@ -1704,16 +1227,12 @@ useEffect(() => {
     setSelectedIds(new Set());
   }, [selectedIds]);
 
-
   // Duplicate position
   const duplicatePosition = (assetType, position) => {
     const newData = { ...position.data };
     
     if (assetType === 'security' && newData.shares) {
       newData.shares = '';
-    }
-    if (assetType === 'otherAssets' && newData.property_name) {
-      newData.property_name = `${newData.property_name} (Copy)`;
     }
     
     const newPosition = {
@@ -1734,12 +1253,6 @@ useEffect(() => {
         ...prev[assetType].slice(index + 1)
       ]
     }));
-    
-    setTimeout(() => {
-      const firstEditableField = assetType === 'security' ? 'shares' : assetTypes[assetType].fields[0].key;
-      const cellKey = `${assetType}-${newPosition.id}-${firstEditableField}`;
-      cellRefs.current[cellKey]?.focus();
-    }, 100);
   };
 
   // Toggle section
@@ -1750,7 +1263,7 @@ useEffect(() => {
     }));
   };
 
-  // Enhanced statistics
+  // Calculate stats
   const stats = useMemo(() => {
     let totalPositions = 0;
     let totalValue = 0;
@@ -1764,7 +1277,6 @@ useEffect(() => {
       byType[type] = { count: 0, value: 0, cost: 0 };
       
       typePositions.forEach(pos => {
-        // Special handling for otherAssets which don't need account_id
         const hasValidData = type === 'otherAssets' 
           ? (pos.data.asset_name && pos.data.current_value) 
           : pos.data.account_id;
@@ -1773,7 +1285,6 @@ useEffect(() => {
           totalPositions++;
           byType[type].count++;
           
-          // Only track by account for non-otherAssets
           if (type !== 'otherAssets' && pos.data.account_id) {
             const accountId = pos.data.account_id;
             if (!byAccount[accountId]) {
@@ -1814,7 +1325,6 @@ useEffect(() => {
           byType[type].value += value;
           byType[type].cost += cost;
           
-          // Only add to account value for non-otherAssets
           if (type !== 'otherAssets' && pos.data.account_id) {
             byAccount[pos.data.account_id].value += value;
           }
@@ -1843,75 +1353,11 @@ useEffect(() => {
       performance 
     };
   }, [positions]);
-  
-  // Validate positions
-  const validatePositions = () => {
-    let isValid = true;
-    const updatedPositions = { ...positions };
-    const validationErrors = [];
-
-    Object.entries(positions).forEach(([type, typePositions]) => {
-      const typeConfig = assetTypes[type];
-      updatedPositions[type] = typePositions.map((pos, index) => {
-        const errors = {};
-        let hasData = false;
-        
-        // Check if position has any data
-        typeConfig.fields.forEach(field => {
-          if (pos.data[field.key]) {
-            hasData = true;
-          }
-        });
-        
-        if (hasData) {
-          typeConfig.fields.forEach(field => {
-            const value = pos.data[field.key];
-            
-            // Skip account_id validation for otherAssets
-            if (field.key === 'account_id' && type === 'otherAssets') {
-              return;
-            }
-            
-            if (field.required && !value) {
-              errors[field.key] = 'Required';
-              isValid = false;
-              validationErrors.push(`${typeConfig.name} row ${index + 1}: ${field.label} is required`);
-            } else if (field.type === 'number' && value) {
-              if (field.min !== undefined && value < field.min) {
-                errors[field.key] = `Min: ${field.min}`;
-                isValid = false;
-                validationErrors.push(`${typeConfig.name} row ${index + 1}: ${field.label} must be at least ${field.min}`);
-              }
-              if (field.max !== undefined && value > field.max) {
-                errors[field.key] = `Max: ${field.max}`;
-                isValid = false;
-                validationErrors.push(`${typeConfig.name} row ${index + 1}: ${field.label} must be at most ${field.max}`);
-              }
-            }
-          });
-        }
-        
-        return { ...pos, errors };
-      });
-    });
-
-    setPositions(updatedPositions);
-    
-    if (!isValid) {
-      showMessage('error', `${validationErrors.length} validation errors found`, validationErrors.slice(0, 5));
-    }
-    
-    return isValid;
-  };
 
   // Submit all
   const submitAll = async () => {
     if (stats.totalPositions === 0) {
       showMessage('error', 'No positions to submit', ['Add at least one position before submitting']);
-      return;
-    }
-
-    if (!validatePositions()) {
       return;
     }
 
@@ -1926,7 +1372,6 @@ useEffect(() => {
       const batches = [];
       Object.entries(positions).forEach(([type, typePositions]) => {
         typePositions.forEach(pos => {
-          // Special validation for otherAssets vs other types
           const isValidPosition = type === 'otherAssets' 
             ? (pos.data.asset_name && pos.data.current_value)
             : (pos.data.account_id && Object.keys(pos.data).length > 1);
@@ -1942,7 +1387,6 @@ useEffect(() => {
       for (let i = 0; i < batches.length; i++) {
         const { type, position } = batches[i];
         
-        // mark this row as submitting
         updatedPositions[type] = (updatedPositions[type] || []).map(pos =>
           pos.id === position.id ? { ...pos, status: 'submitting' } : pos
         );
@@ -1960,167 +1404,10 @@ useEffect(() => {
             case 'security':
               await addSecurityPosition(position.data.account_id, cleanData);
               break;
-            case 'crypto':
-
-              const cryptoData = {
-                coin_symbol: cleanData.symbol,
-                coin_type: cleanData.name || cleanData.symbol, 
-                quantity: cleanData.quantity,
-                purchase_price: cleanData.purchase_price,
-                purchase_date: cleanData.purchase_date,
-                account_id: cleanData.account_id,
-                storage_type: cleanData.storage_type || 'Exchange',  // Default to 'Exchange'
-                notes: cleanData.notes || null,
-                tags: cleanData.tags || [],
-                is_favorite: cleanData.is_favorite || false
-            };
-              console.log('Sending crypto data:', cryptoData);
-              await addCryptoPosition(position.data.account_id, cryptoData);
-              break;
-            case 'metal':
-              const metalData = {
-                metal_type: cleanData.metal_type,  // Now this comes from dropdown (Gold, Silver, etc.)
-                coin_symbol: cleanData.symbol,
-                quantity: cleanData.quantity,
-                unit: cleanData.unit || 'oz',
-                purchase_price: cleanData.purchase_price,
-                cost_basis: (cleanData.quantity || 0) * (cleanData.purchase_price || 0),
-                purchase_date: cleanData.purchase_date,
-                storage_location: cleanData.storage_location,
-                description: `${cleanData.symbol} - ${cleanData.name}`  // Include symbol and market name
-              };
-              
-              console.log('Sending metal data:', metalData);
-              await addMetalPosition(position.data.account_id, metalData);
-              break;
-            case 'otherAssets':
-              await addOtherAsset(cleanData);
-              break;
-            case 'cash':
-                const cashData = {
-                ...cleanData,
-                name: cleanData.cash_type,
-                interest_rate: cleanData.interest_rate ? cleanData.interest_rate / 100 : null
-              };
-              await addCashPosition(position.data.account_id, cashData);
-              break;
-          }
-          
-          successCount++;
-          
-          // Collect successful position data
-          const account = type !== 'otherAssets' 
-            ? accounts.find(a => a.id === position.data.account_id) 
-            : null;
-            
-          successfulPositionData.push({
-            type,
-            ticker: position.data.ticker,
-            symbol: position.data.symbol,
-            asset_name: position.data.asset_name, // Changed from property_name
-            metal_type: position.data.metal_type,
-            currency: position.data.currency,
-            shares: position.data.shares,
-            quantity: position.data.quantity,
-            amount: position.data.amount,
-            account_name: account?.account_name || (type === 'otherAssets' ? 'Other Assets' : 'Unknown Account'),
-            account_id: position.data.account_id
-          });
-          
-          // Update position status
-          updatedPositions[type] = updatedPositions[type].map(pos => 
-            pos.id === position.id ? { ...pos, status: 'added' } : pos
-          );
-          
-          const progress = Math.round(((i + 1) / batches.length) * 100);
-          showMessage('info', `Submitting positions... ${progress}%`, [`${successCount} of ${batches.length} completed`], 0);
-          
-        } catch (error) {
-          console.error(`Error adding ${type} position:`, error);
-          errorCount++;
-          errors.push(`${assetTypes[type].name}: ${error.message || 'Unknown error'}`);
-          
-          // Update position status with error
-          updatedPositions[type] = updatedPositions[type].map(pos => 
-            pos.id === position.id ? { ...pos, status: 'error', errorMessage: error.message } : pos
-          );
-        }
-      }
-
-      // Rest of the function remains the same...
-
-      setPositions(updatedPositions);
-
-      if (successCount > 0) {
-        showMessage('success', `Successfully added ${successCount} positions!`, 
-          errorCount > 0 ? [`${errorCount} positions failed`] : []
-        );
-        
-        // Call the callback with successful positions
-        if (onPositionsSaved) {
-          onPositionsSaved(successCount, successfulPositionData);
-        }
-      } else {
-        showMessage('error', 'Failed to add any positions', errors.slice(0, 5));
-      }
-
-    } catch (error) {
-      console.error('Error submitting positions:', error);
-      showMessage('error', 'Failed to submit positions', [error.message]);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  // Submit only 'ready' rows using the same pipeline as submitAll
-  const submitReadyOnly = async () => {
-    if (stats.totalPositions === 0) {
-      showMessage('error', 'No positions to submit', ['Add at least one position before submitting']);
-      return;
-    }
-
-    // Build a mini-batch from current positions but only include ready rows
-    const readyEntries = getAllReadyRows();
-    if (readyEntries.length === 0) {
-      showMessage('info', 'No ready rows to submit', ['Fix issues first or use Submit All']);
-      return;
-    }
-
-    // We re-use the core of submitAll with a filtered "batches" list
-    setIsSubmitting(true);
-    let successCount = 0;
-    let errorCount = 0;
-    const errors = [];
-    const updatedPositions = { ...positions };
-    const successfulPositionData = [];
-
-    try {
-      showMessage('info', `Submitting ${readyEntries.length} ready positions...`, [], 0);
-
-      for (let i = 0; i < readyEntries.length; i++) {
-        const { type, position } = readyEntries[i];
-        // mark this row as submitting
-        updatedPositions[type] = (updatedPositions[type] || []).map(pos =>
-          pos.id === position.id ? { ...pos, status: 'submitting' } : pos
-        );
-        setPositions({ ...updatedPositions });
-        
-        try {
-          const cleanData = {};
-          Object.entries(position.data).forEach(([key, value]) => {
-            if (value !== '' && value !== null && value !== undefined) {
-              cleanData[key] = value;
-            }
-          });
-
-          switch (type) {
-            case 'security':
-              await addSecurityPosition(position.data.account_id, cleanData);
-              break;
             case 'crypto': {
               const cryptoData = {
                 coin_symbol: cleanData.symbol,
-                coin_type: cleanData.name || cleanData.symbol,
+                coin_type: cleanData.name || cleanData.symbol, 
                 quantity: cleanData.quantity,
                 purchase_price: cleanData.purchase_price,
                 purchase_date: cleanData.purchase_date,
@@ -2161,13 +1448,13 @@ useEffect(() => {
               break;
             }
           }
-
+          
           successCount++;
-
-          const account = type !== 'otherAssets'
-            ? accounts.find(a => a.id === position.data.account_id)
+          
+          const account = type !== 'otherAssets' 
+            ? accounts.find(a => a.id === position.data.account_id) 
             : null;
-
+            
           successfulPositionData.push({
             type,
             ticker: position.data.ticker,
@@ -2181,47 +1468,46 @@ useEffect(() => {
             account_name: account?.account_name || (type === 'otherAssets' ? 'Other Assets' : 'Unknown Account'),
             account_id: position.data.account_id
           });
-
-          updatedPositions[type] = (updatedPositions[type] || []).map(pos =>
+          
+          updatedPositions[type] = updatedPositions[type].map(pos => 
             pos.id === position.id ? { ...pos, status: 'added' } : pos
           );
-
-          const progress = Math.round(((i + 1) / readyEntries.length) * 100);
-          showMessage('info', `Submitting ready positions... ${progress}%`, [`${successCount} of ${readyEntries.length} completed`], 0);
+          
+          const progress = Math.round(((i + 1) / batches.length) * 100);
+          showMessage('info', `Submitting positions... ${progress}%`, [`${successCount} of ${batches.length} completed`], 0);
+          
         } catch (error) {
           console.error(`Error adding ${type} position:`, error);
           errorCount++;
           errors.push(`${assetTypes[type].name}: ${error.message || 'Unknown error'}`);
-
-          updatedPositions[type] = (updatedPositions[type] || []).map(pos =>
+          
+          updatedPositions[type] = updatedPositions[type].map(pos => 
             pos.id === position.id ? { ...pos, status: 'error', errorMessage: error.message } : pos
           );
         }
       }
 
-      // prune out added rows so the queue shrinks
-      const pruned = Object.fromEntries(
-        Object.entries(updatedPositions).map(([t, arr]) => [t, (arr || []).filter(p => p.status !== 'added')])
-      );
-      setPositions(pruned);
-      localStorage.setItem(`quickpositions:work:${seedId}`, JSON.stringify(pruned));
+      setPositions(updatedPositions);
 
       if (successCount > 0) {
-        showMessage('success', `Successfully added ${successCount} ready position${successCount !== 1 ? 's' : ''}!`,
+        showMessage('success', `Successfully added ${successCount} positions!`, 
           errorCount > 0 ? [`${errorCount} positions failed`] : []
         );
-        if (onPositionsSaved) onPositionsSaved(successCount, successfulPositionData);
+        
+        if (onPositionsSaved) {
+          onPositionsSaved(successCount, successfulPositionData);
+        }
       } else {
-        showMessage('error', 'No ready positions were added', errors.slice(0, 5));
+        showMessage('error', 'Failed to add any positions', errors.slice(0, 5));
       }
-    } catch (e) {
-      console.error('Error submitting ready positions:', e);
-      showMessage('error', 'Failed to submit ready positions', [e.message]);
+
+    } catch (error) {
+      console.error('Error submitting positions:', error);
+      showMessage('error', 'Failed to submit positions', [error.message]);
     } finally {
       setIsSubmitting(false);
     }
   };
-
 
   // Clear all
   const clearAll = () => {
@@ -2231,43 +1517,140 @@ useEffect(() => {
 
     const empty = { security: [], cash: [], crypto: [], metal: [], otherAssets: [] };
     setPositions(empty);
-    localStorage.removeItem(`quickpositions:work:${seedId}`); // <- nuke the draft
+    localStorage.removeItem(`quickpositions:work:${seedId}`);
     setExpandedSections({});
     setAccountExpandedSections({});
     showMessage('success', 'All positions cleared', ['Ready for new entries']);
   };
 
+  // Initialize
+  useEffect(() => {
+    if (!isOpen) return;
 
-  // Clear completed positions
-  const clearCompletedPositions = () => {
-    const updatedPositions = { ...positions };
-    
-    Object.keys(updatedPositions).forEach(type => {
-      updatedPositions[type] = updatedPositions[type].filter(pos => pos.status !== 'added');
-    });
-    
-    // keep only rows not marked 'added' to shrink the queue after success
-    const pruned = Object.fromEntries(
-      Object.entries(updatedPositions).map(([t, arr]) => [t, (arr || []).filter(p => p.status !== 'added')])
-    );
-    setPositions(pruned);
-    localStorage.setItem(`quickpositions:work:${seedId}`, JSON.stringify(pruned));
-    showMessage('success', 'Cleared all successfully added positions');
-  };
+    loadAccounts();
 
-  // Render cell input with search dropdown
+    const key = `quickpositions:work:${seedId}`;
+
+    if (initialSeedRef.current.seedId === seedId && !seedAppliedRef.current) {
+      const saved = localStorage.getItem(key);
+
+      if (saved) {
+        setPositions(JSON.parse(saved));
+      } else {
+        const base = initialSeedRef.current.value || {};
+        const castSeed = (rows, type) => {
+          const { byName, byNameInst } = accountIndexRef.current;
+
+          const normalizeKeys = (obj = {}) => {
+            const out = {};
+            for (const [k, v] of Object.entries(obj)) {
+              const nk = k.toString().trim().toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '_');
+              out[nk] = v;
+            }
+            return out;
+          };
+
+          const mapSeedAccountId = (raw = {}) => {
+            const data = normalizeKeys(raw);
+            if (data.account_id != null && data.account_id !== '') return { ...raw, account_id: data.account_id };
+
+            const name = (data.account_name ?? data.account ?? data.acct_name ?? data.name ?? '').toString().trim();
+            const inst = (data.institution ?? data.institution_name ?? data.bank ?? data.brokerage ?? data.custodian ?? '').toString().trim();
+            if (!name) return raw;
+
+            const n = norm(name);
+            const i = norm(inst);
+
+            const hit = (byNameInst && byNameInst.get(`${n}::${i}`)) || (byName && byName.get(n));
+            return hit ? { ...raw, account_id: hit.id } : raw;
+          };
+
+          return (rows ?? []).map((r) => {
+            const baseRow = mapSeedAccountId(r?.data ?? r);
+            return {
+              id: r?.id ?? (Date.now() + Math.random()),
+              type,
+              data: baseRow,
+              errors: r?.errors ?? {},
+              isNew: true,
+              animateIn: true
+            };
+          });
+        };
+
+        const hasSeeds = !!(
+          base &&
+          (base.security?.length ||
+            base.cash?.length ||
+            base.crypto?.length ||
+            base.metal?.length ||
+            base.otherAssets?.length)
+        );
+
+        const working = hasSeeds
+          ? {
+              security: castSeed(base.security, 'security'),
+              cash:     castSeed(base.cash, 'cash'),
+              crypto:   castSeed(base.crypto, 'crypto'),
+              metal:    castSeed(base.metal, 'metal'),
+              otherAssets: castSeed(base.otherAssets, 'otherAssets')
+            }
+          : { security: [], cash: [], crypto: [], metal: [], otherAssets: [] };
+
+        setPositions(working);
+        localStorage.setItem(key, JSON.stringify(working));
+      }
+
+      seedAppliedRef.current = true;
+    }
+
+    setExpandedSections({});
+    setAccountExpandedSections({});
+    setMessage({ type: '', text: '', details: [] });
+    setActiveFilter('all');
+    setSearchResults({});
+    setShowKeyboardShortcuts(true);
+    setTimeout(() => setShowKeyboardShortcuts(false), 3000);
+
+    return () => {
+      if (messageTimeoutRef.current) clearTimeout(messageTimeoutRef.current);
+    };
+  }, [isOpen, seedId]);
+
+  // Persist positions
+  useEffect(() => {
+    if (!isOpen) return;
+    const key = `quickpositions:work:${seedId}`;
+    localStorage.setItem(key, JSON.stringify(positions));
+  }, [isOpen, seedId, positions]);
+
+  // Auto-hydrate when accounts load
+  useEffect(() => {
+    if (!isOpen || !accounts || accounts.length === 0) return;
+    
+    const key = `quickpositions:work:${seedId}`;
+    setTimeout(() => {
+      try { 
+        autoHydrateSeededPrices?.(); 
+        localStorage.setItem(key, JSON.stringify(positions)); 
+      } catch (e) {
+        console.error(e);
+      }
+    }, 0);
+  }, [isOpen, accounts.length]);
+
+  // Render cell input
   const renderCellInput = (assetType, position, field, cellKey) => {
     const value = position.data[field.key] || '';
     const hasError = position.errors?.[field.key];
     const fieldIndex = assetTypes[assetType].fields.findIndex(f => f.key === field.key);
-    const isRecent = recentlyUsedAccounts.includes(position.data.account_id);
     const searchKey = `${assetType}-${position.id}`;
     const searchResultsForField = searchResults[searchKey] || [];
     const isSearchingField = isSearching[searchKey] || false;
     
     const baseClass = `
-      w-full px-3 py-2 text-sm border rounded-lg transition-all duration-200
-      ${field.readOnly ? 'bg-gray-100 cursor-not-allowed' : ''}
+      w-full px-3 py-2.5 text-sm border-2 rounded-xl transition-all duration-200
+      ${field.readOnly ? 'bg-gray-50 cursor-not-allowed text-gray-500' : ''}
       ${hasError 
         ? 'border-red-400 bg-red-50 focus:border-red-500 focus:ring-2 focus:ring-red-200 text-red-900' 
         : focusedCell === cellKey
@@ -2281,16 +1664,11 @@ useEffect(() => {
       className: baseClass,
       onFocus: () => setFocusedCell(cellKey),
       onBlur: () => setFocusedCell(null),
-      onKeyDown: (e) => handleKeyDown(e, assetType, position.id, fieldIndex),
       'data-position-id': position.id,
       'data-field': field.key,
-      'aria-label': field.label,
-      'aria-invalid': hasError ? 'true' : 'false',
-      'aria-describedby': hasError ? `${cellKey}-error` : undefined,
       disabled: field.readOnly
     };
 
-    // Search results dropdown for searchable fields
     if (field.searchable && searchResultsForField.length > 0) {
       const inputElement = cellRefs.current[cellKey];
       const inputRect = inputElement?.getBoundingClientRect();
@@ -2305,11 +1683,10 @@ useEffect(() => {
               onChange={(e) => updatePosition(assetType, position.id, field.key, e.target.value)}
               placeholder={field.placeholder}
               autoComplete="off"
-              spellCheck="false"
             />
             {isSearchingField && (
-              <div className="absolute right-2 top-1/2 -translate-y-1/2">
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
+              <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
               </div>
             )}
           </div>
@@ -2317,20 +1694,20 @@ useEffect(() => {
             <div 
               style={{
                 position: 'fixed',
-                top: `${inputRect.bottom + 2}px`,
+                top: `${inputRect.bottom + 4}px`,
                 left: `${inputRect.left}px`,
                 width: `${inputRect.width}px`,
                 zIndex: 9999999
               }}
-              className="bg-white border border-gray-300 rounded-lg shadow-xl"
+              className="bg-white border-2 border-gray-300 rounded-xl shadow-2xl overflow-hidden"
             >
-              <div className="max-h-48 overflow-y-auto">
+              <div className="max-h-64 overflow-y-auto">
                 {searchResultsForField.map((result, idx) => (
                   <button
                     key={result.ticker}
                     type="button"
                     className={`
-                      w-full px-3 py-2 text-sm text-left hover:bg-gray-50 transition-colors
+                      w-full px-4 py-3 text-sm text-left hover:bg-blue-50 transition-colors
                       flex items-center justify-between
                       ${idx !== searchResultsForField.length - 1 ? 'border-b border-gray-100' : ''}
                     `}
@@ -2344,10 +1721,10 @@ useEffect(() => {
                     onMouseDown={(e) => e.preventDefault()}
                   >
                     <div className="flex items-center space-x-2 flex-1 min-w-0">
-                      <span className="font-semibold text-gray-900">{result.ticker}</span>
+                      <span className="font-bold text-gray-900">{result.ticker}</span>
                       <span className="text-gray-500 text-xs truncate">{result.name}</span>
                     </div>
-                    <span className="font-medium text-gray-700 ml-2 text-sm">
+                    <span className="font-semibold text-gray-700 ml-2">
                       ${parseFloat(result.price).toFixed(2)}
                     </span>
                   </button>
@@ -2369,20 +1746,9 @@ useEffect(() => {
                 {...commonProps}
                 value={value}
                 onChange={(e) => updatePosition(assetType, position.id, field.key, parseInt(e.target.value))}
-                className={`${baseClass} pr-8 cursor-pointer appearance-none`}
+                className={`${baseClass} pr-10 cursor-pointer appearance-none`}
               >
                 <option value="">Select account...</option>
-                {recentlyUsedAccounts.length > 0 && (
-                  <optgroup label="Recent">
-                    {accounts
-                      .filter(a => recentlyUsedAccounts.includes(a.id))
-                      .map(account => (
-                        <option key={account.id} value={account.id}>
-                          ⭐ {account.account_name}
-                        </option>
-                      ))}
-                  </optgroup>
-                )}
                 <optgroup label="All Accounts">
                   {accounts.map(account => (
                     <option key={account.id} value={account.id}>
@@ -2391,10 +1757,7 @@ useEffect(() => {
                   ))}
                 </optgroup>
               </select>
-              <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-              {isRecent && (
-                <div className="absolute -left-1 top-1/2 -translate-y-1/2 w-2 h-2 bg-yellow-400 rounded-full" />
-              )}
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
             </div>
           );
         } else {
@@ -2404,7 +1767,7 @@ useEffect(() => {
                 {...commonProps}
                 value={value}
                 onChange={(e) => updatePosition(assetType, position.id, field.key, e.target.value)}
-                className={`${baseClass} pr-8 cursor-pointer appearance-none`}
+                className={`${baseClass} pr-10 cursor-pointer appearance-none`}
               >
                 {field.options.map(option => (
                   <option key={option.value} value={option.value}>
@@ -2412,17 +1775,17 @@ useEffect(() => {
                   </option>
                 ))}
               </select>
-              <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
             </div>
           );
         }
         
       case 'number':
         return (
-          <div className="relative w-full group">
+          <div className="relative w-full">
             {field.prefix && (
               <span className={`
-                absolute left-3 top-1/2 -translate-y-1/2 text-sm font-medium transition-colors duration-200
+                absolute left-3 top-1/2 -translate-y-1/2 text-sm font-semibold transition-colors
                 ${focusedCell === cellKey ? 'text-blue-600' : 'text-gray-400'}
               `}>
                 {field.prefix}
@@ -2437,21 +1800,15 @@ useEffect(() => {
               step={field.step || 'any'}
               min={field.min}
               max={field.max}
-              className={`${baseClass} ${field.prefix ? 'pl-8' : ''} ${field.suffix ? 'pr-8' : ''}`}
-              readOnly={field.readOnly}
+              className={`${baseClass} ${field.prefix ? 'pl-8' : ''} ${field.suffix ? 'pr-10' : ''}`}
             />
             {field.suffix && (
               <span className={`
-                absolute right-3 top-1/2 -translate-y-1/2 text-sm font-medium transition-colors duration-200
+                absolute right-3 top-1/2 -translate-y-1/2 text-sm font-semibold transition-colors
                 ${focusedCell === cellKey ? 'text-blue-600' : 'text-gray-400'}
               `}>
                 {field.suffix}
               </span>
-            )}
-            {hasError && (
-              <div id={`${cellKey}-error`} className="absolute left-0 -bottom-5 text-xs text-red-600 font-medium">
-                {position.errors[field.key]}
-              </div>
             )}
           </div>
         );
@@ -2473,34 +1830,24 @@ useEffect(() => {
         
       default:
         return (
-          <div className="relative w-full">
-            <input
-              {...commonProps}
-              type="text"
-              value={value}
-              onChange={(e) => updatePosition(assetType, position.id, field.key, e.target.value)}
-              placeholder={field.placeholder}
-              autoComplete={field.autocomplete ? 'on' : 'off'}
-              spellCheck="false"
-              className={baseClass}
-              />
-              {field.autocomplete && value.length > 0 && (
-              <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 animate-pulse" />
-              )}
-              </div>
-              );
-              }
-              };
-  
+          <input
+            {...commonProps}
+            type="text"
+            value={value}
+            onChange={(e) => updatePosition(assetType, position.id, field.key, e.target.value)}
+            placeholder={field.placeholder}
+            className={baseClass}
+          />
+        );
+    }
+  };
+
   // Render asset section
   const renderAssetSection = (assetType) => {
     const config = assetTypes[assetType];
     let typePositions = positions[assetType] || [];
-    // Type filter still handled by activeFilter outside this function.
-    // Apply the independent status filter here:
     typePositions = typePositions.filter(matchesStatusFilter);
     
-    // Special validation for otherAssets
     const validPositions = assetType === 'otherAssets'
       ? typePositions.filter(p => p.data.asset_name && p.data.current_value)
       : typePositions.filter(p => p.data.account_id);
@@ -2510,654 +1857,310 @@ useEffect(() => {
     const typeStats = stats.byType[assetType];
     const performance = stats.performance[assetType];
 
-
-
     return (
       <div 
         key={assetType} 
-        className={`
-          bg-white rounded-xl shadow-sm border overflow-hidden transition-all duration-300
-          ${isExpanded ? 'border-gray-200 shadow-md' : 'border-gray-100'}
-          ${typePositions.length > 0 ? 'ring-1 ring-gray-100' : ''}
-        `}
+        className="bg-white rounded-2xl shadow-sm border-2 border-gray-200 overflow-hidden transition-all duration-300 hover:shadow-md"
       >
-        {/* Section Header - Entire row is clickable */}
         <div 
           onClick={() => toggleSection(assetType)}
           className={`
-            px-4 py-3 cursor-pointer transition-all duration-200
+            px-5 py-4 cursor-pointer transition-all duration-200
             ${isExpanded 
-              ? `bg-gradient-to-r ${config.color.gradient} text-white shadow-sm` 
-              : 'bg-gray-50 hover:bg-gray-100'
-              }
-            `}
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3 flex-1">
-                <div className={`
-                  p-2 rounded-lg transition-all duration-200 
-                  ${isExpanded ? 'bg-white/20' : `${config.color.lightBg}`}
-                `}>
-                  <Icon className={`w-5 h-5 ${isExpanded ? 'text-white' : config.color.text}`} />
-                </div>
-                
-                <div className="flex-1">
-                  <h3 className={`font-semibold text-base flex items-center ${
-                    isExpanded ? 'text-white' : 'text-gray-800'
-                  }`}>
-                    {config.name}
-                    {validPositions.length > 0 && (
-                      <span className={`
-                        ml-2 px-2 py-0.5 text-xs font-bold rounded-full
-                        ${isExpanded ? 'bg-white/20 text-white' : `${config.color.bg} text-white`}
-                      `}>
-                        {validPositions.length}
-                      </span>
-                    )}
-                  </h3>
-                  <p className={`text-xs mt-0.5 ${isExpanded ? 'text-white/80' : 'text-gray-500'}`}>
-                    {config.description}
-                  </p>
-                </div>
-                
-                {typeStats && typeStats.count > 0 && (
-                  <div className={`flex items-center space-x-4 text-xs ${
-                    isExpanded ? 'text-white/90' : 'text-gray-600'
-                  }`}>
-                    <div className="text-right">
-                      <div className="font-medium">
-                        {showValues ? formatCurrency(typeStats.value) : '••••'}
-                      </div>
-                      {performance !== undefined && (
-                        <div className={`flex items-center justify-end ${
-                          performance >= 0 ? 'text-green-400' : 'text-red-400'
-                        }`}>
-                          {performance >= 0 ? <TrendingUp className="w-3 h-3 mr-1" /> : <TrendingDown className="w-3 h-3 mr-1" />}
-                          {Math.abs(performance).toFixed(1)}%
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
+              ? `${config.bg} text-white shadow-md` 
+              : 'bg-gradient-to-r from-gray-50 via-white to-gray-50 hover:from-gray-100 hover:via-gray-50 hover:to-gray-100'
+            }
+          `}
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4 flex-1">
+              <div className={`
+                p-3 rounded-xl transition-all duration-200 shadow-sm
+                ${isExpanded ? 'bg-white/20' : `${config.lightBg}`}
+              `}>
+                <Icon className={`w-6 h-6 ${isExpanded ? 'text-white' : config.text}`} />
               </div>
               
-              <div className="flex items-center space-x-2 ml-3">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    addNewRow(assetType);
-                    if (!isExpanded) {
-                      setExpandedSections(prev => ({ ...prev, [assetType]: true }));
-                    }
-                  }}
-                  className={`
-                    p-1.5 rounded-lg transition-all duration-200 
-                    ${isExpanded 
-                      ? 'bg-white/20 hover:bg-white/30 text-white' 
-                      : `${config.color.lightBg} hover:${config.color.hover} ${config.color.text}`
-                    }
-                  `}
-                  title={`Add ${config.name}`}
-                >
-                  <Plus className="w-4 h-4" />
-                </button>
-                
-                <ChevronDown className={`
-                  w-5 h-5 transition-transform duration-300
-                  ${isExpanded ? 'rotate-180 text-white' : 'text-gray-400'}
-                `} />
-              </div>
-            </div>
-          </div>
-
-          {/* Table Content */}
-          {isExpanded && (
-            <div className="bg-white animate-in slide-in-from-top-2 duration-300">
-              {typePositions.length === 0 ? (
-                <div className="p-8 text-center">
-                  <div className={`inline-flex p-4 rounded-full ${config.color.lightBg} mb-4`}>
-                    <Icon className={`w-8 h-8 ${config.color.text}`} />
-                  </div>
-                  <p className="text-gray-600 mb-4">No {config.name.toLowerCase()} positions yet</p>
-                  <button
-                    onClick={() => addNewRow(assetType)}
-                    className={`
-                      inline-flex items-center px-4 py-2 rounded-lg font-medium transition-all duration-200
-                      ${config.color.bg} text-white hover:shadow-md hover:scale-105
-                    `}
-                  >
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add First {config.name}
-                  </button>
+              <div className="flex-1">
+                <div className="flex items-center space-x-2">
+                  <h3 className={`font-bold text-lg ${
+                    isExpanded ? 'text-white' : 'text-gray-900'
+                  }`}>
+                    {config.name}
+                  </h3>
+                  {validPositions.length > 0 && (
+                    <span className={`
+                      px-2.5 py-1 text-xs font-bold rounded-lg
+                      ${isExpanded ? 'bg-white/20 text-white' : `${config.bg} text-white`}
+                    `}>
+                      {validPositions.length}
+                    </span>
+                  )}
                 </div>
-              ) : (
-                <>
-                  <div className="overflow-x-auto overflow-y-visible" ref={el => tableRefs.current[assetType] = el}>
-                    <table className="w-full">
-                        <thead>
-                          <tr className="bg-gray-50 border-b border-gray-200">
-                            <th className="w-12 px-3 py-3 text-left">
-                              <input
-                                type="checkbox"
-                                onChange={(e) => toggleAllSelectedForType(assetType, e.target.checked)}
-                                checked={
-                                  typePositions.length > 0 && 
-                                  typePositions.every(p => selectedIds.has(p.id))
-                                }
-                                className="rounded border-gray-300 text-blue-600 focus:ring-2 focus:ring-blue-500"
-                                aria-label={`Select all ${config.name}`}
-                              />
-                            </th>
-                          {config.fields.map(field => (
-                            <th key={field.key} className={`${field.width} px-2 py-3 text-left`}>
-                              <span className="text-xs font-semibold text-gray-600 flex items-center">
-                                {field.label}
-                                {field.required && <span className="text-red-500 ml-1">*</span>}
-                                {field.readOnly && (
-                                  <Info className="w-3 h-3 ml-1 text-gray-400" title="Auto-filled from search" />
-                                )}
-                              </span>
-                            </th>
-                          ))}
-                          <th className="w-24 px-2 py-3 text-left">
-                            <span className="text-xs font-semibold text-gray-600">Status</span>
-                          </th>
-                          <th className="w-24 px-2 py-3 text-center">
-                            <span className="text-xs font-semibold text-gray-600">Actions</span>
-                          </th>
-                        </tr>
-                      </thead>
-
-                      <tbody>
-                        {typePositions.map((position, index) => {
-                          const hasErrors = Object.values(position.errors || {}).some(e => e);
-                          const value = calculatePositionValue(assetType, position);
-                          
-                          return (
-                            <tr 
-                              key={position.id}
-                              className={`
-                                border-b border-gray-100 transition-all duration-300 group relative
-                                ${position.isNew ? 'bg-blue-50/50' : 'hover:bg-gray-50/50'}
-                                ${position.animateIn ? 'animate-in slide-in-from-left duration-300' : ''}
-                                ${position.animateOut ? 'animate-out slide-out-to-right duration-300' : ''}
-                                ${hasErrors ? 'bg-red-50/30' : ''}
-                              `}
-                              style={{ zIndex: typePositions.length - index }}
-                            >
-                              <td className="px-3 py-2">
-                                <div className="flex items-center space-x-2">
-                                  <input
-                                    type="checkbox"
-                                    checked={selectedIds.has(position.id)}
-                                    onChange={(e) => toggleRowSelected(position.id, e.target.checked)}
-                                    aria-label={`Select row ${index + 1}`}
-                                  />
-                                  <span className="text-sm font-medium text-gray-500">{index + 1}</span>
-                                  {position.isNew && <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />}
-                                </div>
-                              </td>
-
-                              {config.fields.map(field => (
-                                <td key={field.key} className={`${field.width} px-1 py-2`}>
-                                  {renderCellInput(
-                                    assetType, 
-                                    position, 
-                                    field, 
-                                    `${assetType}-${position.id}-${field.key}`
-                                  )}
-                                </td>
-                              ))}
-                                <td className="px-2 py-2">
-                                  {(() => {
-                                    const s = getRowStatus(position);
-                                    const styles = {
-                                      ready:      "bg-emerald-50 text-emerald-700 border-emerald-200",
-                                      draft:      "bg-amber-50 text-amber-700 border-amber-200",
-                                      submitting: "bg-blue-50 text-blue-700 border-blue-200",
-                                      added:      "bg-indigo-50 text-indigo-700 border-indigo-200",
-                                      error:      "bg-red-50 text-red-700 border-red-200",
-                                    }[s] || "bg-gray-50 text-gray-600 border-gray-200";
-                                    return (
-                                      <span className={`inline-flex items-center px-2 py-0.5 text-[11px] rounded border ${styles}`}>
-                                        {s}
-                                      </span>
-                                    );
-                                  })()}
-                                </td>
-
-                                <td className="px-2 py-2">
-                                  <div className="flex items-center justify-center space-x-1">
-                                    <button
-                                      onClick={() => duplicatePosition(assetType, position)}
-                                      className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-all"
-                                      title="Duplicate"
-                                    >
-                                      <Copy className="w-3 h-3" />
-                                    </button>
-                                    <button
-                                      onClick={() => deletePosition(assetType, position.id)}
-                                      className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-all"
-                                      title="Delete"
-                                    >
-                                      <Trash2 className="w-3 h-3" />
-                                    </button>
-                                  </div>
-                                </td>
-
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
+                <p className={`text-sm mt-1 ${isExpanded ? 'text-white/90' : 'text-gray-500'}`}>
+                  {config.description}
+                </p>
+              </div>
+              
+              {typeStats && typeStats.count > 0 && (
+                <div className={`flex items-center space-x-6 ${
+                  isExpanded ? 'text-white/90' : 'text-gray-700'
+                }`}>
+                  <div className="text-right">
+                    <div className="text-xs opacity-75 mb-1">Value</div>
+                    <div className="text-lg font-bold">
+                      {showValues ? formatCurrency(typeStats.value) : '••••••'}
+                    </div>
                   </div>
-                  
-                  {/* Add row footer */}
-                  <div className="p-3 bg-gray-50 border-t border-gray-100">
-                    <button
-                      onClick={() => addNewRow(assetType)}
-                      className={`
-                        w-full py-2 px-4 border-2 border-dashed rounded-lg
-                        transition-all duration-200 flex items-center justify-center space-x-2
-                        ${config.color.border} ${config.color.hover} hover:border-solid
-                        group
-                      `}
-                    >
-                      <Plus className={`w-4 h-4 ${config.color.text} group-hover:scale-110 transition-transform`} />
-                      <span className={`text-sm font-medium ${config.color.text}`}>
-                        Add {config.name} (Enter)
-                      </span>
-                    </button>
-                  </div>
-                </>
+                  {performance !== undefined && (
+                    <div className="text-right">
+                      <div className="text-xs opacity-75 mb-1">Return</div>
+                      <div className={`text-lg font-bold flex items-center ${
+                        performance >= 0 ? (isExpanded ? 'text-green-100' : 'text-green-600') : (isExpanded ? 'text-red-100' : 'text-red-600')
+                      }`}>
+                        {performance >= 0 ? <TrendingUp className="w-4 h-4 mr-1" /> : <TrendingDown className="w-4 h-4 mr-1" />}
+                        {showValues ? `${Math.abs(performance).toFixed(1)}%` : '•••'}
+                      </div>
+                    </div>
+                  )}
+                </div>
               )}
             </div>
-          )}
-        </div>
-      );
-    };
-
- 
- // Render positions by account
-  const renderByAccount = () => {
-      const otherAssetsPositions = positions.otherAssets.filter(p => 
-      p.data.asset_name && p.data.current_value
-    );
-    
-    return (
-      <div className="space-y-4">
-        {accounts.filter(account => {
-          // Apply account filter
-          const passesAccountFilter = selectedAccountFilter.has(account.id);
-          // Apply institution filter
-          const passesInstitutionFilter = selectedInstitutionFilter.has(account.institution);
-          // Both filters must pass
-          return passesAccountFilter && passesInstitutionFilter;
-        }).map(account => {
-          const accountStats = stats.byAccount[account.id];
-          const hasPositions = accountStats && accountStats.count > 0;
-          
-          return (
-            <div key={account.id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-              {/* Account Header with asset type buttons */}
-              <div className="px-4 py-3 bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-4">
-                    <div>
-                      <h3 className="font-semibold text-gray-800">{account.account_name}</h3>
-                      <p className="text-sm text-gray-600 mt-1">
-                        {accountStats ? `${accountStats.count} position${accountStats.count !== 1 ? 's' : ''}` : 'No positions'} • 
-                        {showValues && accountStats ? ` ${formatCurrency(accountStats.value)}` : ' ••••'}
-                      </p>
-                    </div>
-                    
-                    {/* Asset type buttons always visible */}
-                    <div className="flex items-center space-x-2 ml-8">
-                      {Object.entries(assetTypes).map(([type, config]) => {
-                        const Icon = config.icon;
-                        const typeCount = accountStats?.positions.filter(p => p.assetType === type).length || 0;
-                        const hasTypePositions = typeCount > 0;
-                        
-                        return (
-                          <button
-                            key={type}
-                            onClick={() => addNewRowForAccount(account.id, type)}
-                            className={`
-                              inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-medium
-                              transition-all duration-200 group
-                              ${hasTypePositions 
-                                ? `${config.color.bg} text-white hover:shadow-md` 
-                                : `${config.color.lightBg} ${config.color.text} hover:${config.color.bg} hover:text-white`
-                              }
-                            `}
-                            title={`Add ${config.name}`}
-                          >
-                            <Icon className="w-3.5 h-3.5 mr-1.5" />
-                            <span>{config.name}</span>
-                            {typeCount > 0 && (
-                              <span className="ml-1.5 px-1.5 py-0.5 bg-white/20 rounded-full text-[10px] font-bold">
-                                {typeCount}
-                              </span>
-                            )}
-                            <Plus className="w-3 h-3 ml-1 opacity-0 group-hover:opacity-100 transition-opacity" />
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Positions by Type */}
-              <div className="p-4 space-y-4">
-                {hasPositions ? (
-                  Object.entries(assetTypes).map(([type, config]) => {
-                    const typePositions = positions[type].filter(p => p.data.account_id === account.id);
-                    if (typePositions.length === 0) return null;
-
-                    const Icon = config.icon;
-                    const sectionKey = `${account.id}-${type}`;
-                    const isExpanded = accountExpandedSections[sectionKey] !== false; // Default expanded
-                    
-                    return (
-                      <div key={type} className="border border-gray-200 rounded-lg overflow-hidden">
-                        <div 
-                          onClick={() => setAccountExpandedSections(prev => ({
-                            ...prev,
-                            [sectionKey]: !isExpanded
-                          }))}
-                          className={`px-3 py-2 ${config.color.lightBg} border-b ${config.color.border} cursor-pointer hover:brightness-95 transition-all`}
-                        >
-                          <h4 className={`font-medium text-sm ${config.color.text} flex items-center justify-between`}>
-                            <div className="flex items-center">
-                              <Icon className="w-4 h-4 mr-2" />
-                              {config.name}
-                              <span className={`ml-2 px-1.5 py-0.5 text-xs ${config.color.bg} text-white rounded-full`}>
-                                {typePositions.length}
-                              </span>
-                            </div>
-                            <ChevronDown className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
-                          </h4>
-                        </div>
-                        
-                        {isExpanded && (
-                          <div className="overflow-x-auto">
-                            <table className="w-full text-sm">
-
-                              <thead>
-                                <tr className="bg-gray-50 border-b border-gray-200">
-                                  <th className="w-10 px-3 py-3 text-left">
-                                    <input
-                                      type="checkbox"
-                                      onChange={(e) => {
-                                        const checked = e.target.checked;
-                                        setSelectedIds(prev => {
-                                          const next = new Set(prev);
-                                          const scoped = positions[type].filter(p => p.data.account_id === account.id);
-                                          if (checked) {
-                                            scoped.forEach(p => next.add(p.id));
-                                          } else {
-                                            scoped.forEach(p => next.delete(p.id));
-                                          }
-                                          return next;
-                                        });
-                                      }}
-                                      checked={
-                                        (() => {
-                                          const scoped = positions[type].filter(p => p.data.account_id === account.id);
-                                          return scoped.length > 0 && scoped.every(p => selectedIds.has(p.id));
-                                        })()
-                                      }
-                                      aria-label={`Select all ${config.name}`}
-                                    />
-
-                                  </th>
-
-                                  {config.fields
-                                    .filter(f => f.key !== 'account_id')
-                                    .map(field => (
-                                      <th key={field.key} className={`${field.width} px-2 py-3 text-left`}>
-                                        <span className="text-xs font-semibold text-gray-600 flex items-center">
-                                          {field.label}
-                                          {field.required && <span className="text-red-500 ml-1">*</span>}
-                                          {field.readOnly && (
-                                            <Info className="w-3 h-3 ml-1 text-gray-400" title="Auto-filled from search" />
-                                          )}
-                                        </span>
-                                      </th>
-                                    ))}
-
-                                  <th className="w-24 px-2 py-3 text-left">
-                                    <span className="text-xs font-semibold text-gray-600">Status</span>
-                                  </th>
-                                  <th className="w-24 px-2 py-3 text-center">
-                                    <span className="text-xs font-semibold text-gray-600">Actions</span>
-                                  </th>
-                                </tr>
-                              </thead>
-
-
-
-
-                                <tbody>
-                                  {typePositions.map((position) => (
-                                    <tr key={position.id} className="border-b border-gray-100 hover:bg-gray-50">
-                                      {/* Row checkbox */}
-                                      <td className="px-3 py-2">
-                                        <div className="flex items-center space-x-2">
-                                          <input
-                                            type="checkbox"
-                                            checked={selectedIds.has(position.id)}
-                                            onChange={(e) => toggleRowSelected(position.id, e.target.checked)}
-                                            aria-label="Select row"
-                                          />
-                                        </div>
-                                      </td>
-
-                                      {/* All fields except account_id */}
-                                      {config.fields.filter(f => f.key !== 'account_id').map(field => (
-                                        <td key={field.key} className="px-1 py-1">
-                                          {renderCellInput(
-                                            type,
-                                            position,
-                                            field,
-                                            `${type}-${position.id}-${field.key}`
-                                          )}
-                                        </td>
-                                      ))}
-
-                                      {/* Status */}
-                                      <td className="px-2 py-2">
-                                        {(() => {
-                                          const s = getRowStatus(position);
-                                          const styles = {
-                                            ready:      "bg-emerald-50 text-emerald-700 border-emerald-200",
-                                            draft:      "bg-amber-50 text-amber-700 border-amber-200",
-                                            submitting: "bg-blue-50 text-blue-700 border-blue-200",
-                                            added:      "bg-indigo-50 text-indigo-700 border-indigo-200",
-                                            error:      "bg-red-50 text-red-700 border-red-200",
-                                          }[s] || "bg-gray-50 text-gray-600 border-gray-200";
-
-                                          return (
-                                            <span className={`inline-flex items-center px-2 py-0.5 text-[11px] rounded border ${styles}`}>
-                                              {s}
-                                            </span>
-                                          );
-                                        })()}
-                                      </td>
-
-                                      {/* Actions */}
-                                      <td className="px-1 py-1">
-                                        <div className="flex items-center justify-center space-x-1">
-                                          <button
-                                            onClick={() => duplicatePosition(type, position)}
-                                            className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-all"
-                                            title="Duplicate"
-                                          >
-                                            <Copy className="w-3 h-3" />
-                                          </button>
-                                          <button
-                                            onClick={() => deletePosition(type, position.id)}
-                                            className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-all"
-                                            title="Delete"
-                                          >
-                                            <Trash2 className="w-3 h-3" />
-                                          </button>
-                                        </div>
-                                      </td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-
-                            </table>
-                            <div className="p-2 bg-gray-50 border-t border-gray-100">
-                              <button
-                                onClick={() => addNewRowForAccount(account.id, type)}
-                                className={`
-                                  w-full py-1.5 px-3 text-xs font-medium rounded
-                                  ${config.color.lightBg} ${config.color.text} 
-                                  hover:${config.color.bg} hover:text-white transition-all
-                                  flex items-center justify-center space-x-1
-                                `}
-                              >
-                                <Plus className="w-3 h-3" />
-                                <span>Add {config.name}</span>
-                              </button>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })
-                ) : (
-                  <p className="text-gray-500 text-sm text-center py-4">
-                    Click any asset type button above to start adding positions
-                  </p>
-                )}
-              </div>
+            
+            <div className="flex items-center space-x-3 ml-4">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  addNewRow(assetType);
+                  if (!isExpanded) {
+                    setExpandedSections(prev => ({ ...prev, [assetType]: true }));
+                  }
+                }}
+                className={`
+                  p-2 rounded-xl transition-all duration-200 
+                  ${isExpanded 
+                    ? 'bg-white/20 hover:bg-white/30 text-white' 
+                    : `${config.lightBg} hover:${config.hover} ${config.text}`
+                  }
+                `}
+                title={`Add ${config.name}`}
+              >
+                <Plus className="w-5 h-5" />
+              </button>
+              
+              <ChevronDown className={`
+                w-6 h-6 transition-transform duration-300
+                ${isExpanded ? 'rotate-180 text-white' : 'text-gray-400'}
+              `} />
             </div>
-          );
-        })}
+          </div>
+        </div>
 
-          {/* Add Other Assets section at the end if there are any */}
-          {otherAssetsPositions.length > 0 && (
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mt-4">
-              <div className="px-4 py-3 bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="font-semibold text-gray-800">Other Assets (Not in Accounts)</h3>
-                    <p className="text-sm text-gray-600 mt-1">
-                      {otherAssetsPositions.length} asset{otherAssetsPositions.length !== 1 ? 's' : ''} • 
-                      {showValues ? ` ${formatCurrency(stats.byType.otherAssets?.value || 0)}` : ' ••••'}
-                    </p>
-                  </div>
-                  
-                  <button
-                    onClick={() => {
-                      addNewRow('otherAssets');
-                      if (!expandedSections.otherAssets) {
-                        setExpandedSections(prev => ({ ...prev, otherAssets: true }));
-                      }
-                    }}
-                    className={`
-                      inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-medium
-                      transition-all duration-200 group
-                      ${assetTypes.otherAssets.color.lightBg} ${assetTypes.otherAssets.color.text} 
-                      hover:${assetTypes.otherAssets.color.bg} hover:text-white
-                    `}
-                  >
-                    <Home className="w-3.5 h-3.5 mr-1.5" />
-                    <span>Add Other Asset</span>
-                    <Plus className="w-3 h-3 ml-1 opacity-0 group-hover:opacity-100 transition-opacity" />
-                  </button>
+        {isExpanded && (
+          <div className="bg-white animate-in slide-in-from-top-2 duration-300">
+            {typePositions.length === 0 ? (
+              <div className="p-16 text-center">
+                <div className={`inline-flex p-6 rounded-2xl ${config.lightBg} shadow-inner mb-6`}>
+                  <Icon className={`w-16 h-16 ${config.text}`} />
                 </div>
+                <h4 className="text-xl font-bold text-gray-900 mb-2">
+                  No {config.name.toLowerCase()} yet
+                </h4>
+                <p className="text-sm text-gray-500 mb-6 max-w-md mx-auto">
+                  Start building your portfolio by adding your first {config.name.toLowerCase()} position
+                </p>
+                <button
+                  onClick={() => addNewRow(assetType)}
+                  className={`
+                    inline-flex items-center px-6 py-3 rounded-xl font-bold text-base
+                    transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105
+                    ${config.bg} text-white
+                  `}
+                >
+                  <Plus className="w-5 h-5 mr-2" />
+                  Add First {config.name}
+                </button>
               </div>
-
-              <div className="p-4">
+            ) : (
+              <>
                 <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
+                  <table className="w-full">
                     <thead>
-                      <tr className="bg-gray-50 border-b border-gray-200">
-                        {assetTypes.otherAssets.fields.map(field => (
-                          <th key={field.key} className="px-2 py-2 text-left text-xs font-medium text-gray-600">
-                            {field.label}
-                            {field.required && <span className="text-red-500 ml-0.5">*</span>}
+                      <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-200">
+                        <th className="w-12 px-4 py-3 text-left">
+                          <input
+                            type="checkbox"
+                            onChange={(e) => toggleAllSelectedForType(assetType, e.target.checked)}
+                            checked={
+                              typePositions.length > 0 && 
+                              typePositions.every(p => selectedIds.has(p.id))
+                            }
+                            className="rounded-lg border-gray-300 text-blue-600 focus:ring-2 focus:ring-blue-500 w-4 h-4"
+                          />
+                        </th>
+                        {config.fields.map(field => (
+                          <th key={field.key} className={`${field.width} px-3 py-3 text-left`}>
+                            <span className="text-xs font-bold text-gray-700 flex items-center uppercase tracking-wide">
+                              {field.label}
+                              {field.required && <span className="text-red-500 ml-1 text-base">*</span>}
+                              {field.readOnly && (
+                                <Info className="w-3.5 h-3.5 ml-1.5 text-gray-400" title="Auto-filled" />
+                              )}
+                            </span>
                           </th>
                         ))}
-                        <th className="px-2 py-2 text-center text-xs font-medium text-gray-600">Actions</th>
+                        <th className="w-28 px-3 py-3 text-left">
+                          <span className="text-xs font-bold text-gray-700 uppercase tracking-wide">Status</span>
+                        </th>
+                        <th className="w-20 px-3 py-3 text-center">
+                          <span className="text-xs font-bold text-gray-700 uppercase tracking-wide">Actions</span>
+                        </th>
                       </tr>
                     </thead>
+
                     <tbody>
-                      {otherAssetsPositions.map((position, index) => (
-                        <tr key={position.id} className="border-b border-gray-100 hover:bg-gray-50">
-                          {assetTypes.otherAssets.fields.map(field => (
-                            <td key={field.key} className="px-1 py-1">
-                              {renderCellInput(
-                                'otherAssets',
-                                position,
-                                field,
-                                `otherAssets-${position.id}-${field.key}`
-                              )}
+                      {typePositions.map((position, index) => {
+                        const hasErrors = Object.values(position.errors || {}).some(e => e);
+                        
+                        return (
+                          <tr 
+                            key={position.id}
+                            className={`
+                              border-b border-gray-100 transition-all duration-300 group
+                              ${position.isNew ? 'bg-blue-50/30' : 'hover:bg-gray-50'}
+                              ${position.animateIn ? 'animate-in slide-in-from-left duration-300' : ''}
+                              ${position.animateOut ? 'animate-out slide-out-to-right duration-300' : ''}
+                              ${hasErrors ? 'bg-red-50/30' : ''}
+                            `}
+                          >
+                            <td className="px-4 py-3">
+                              <div className="flex items-center space-x-2">
+                                <input
+                                  type="checkbox"
+                                  checked={selectedIds.has(position.id)}
+                                  onChange={(e) => toggleRowSelected(position.id, e.target.checked)}
+                                  className="rounded-lg border-gray-300 text-blue-600 focus:ring-2 focus:ring-blue-500 w-4 h-4"
+                                />
+                                <span className="text-sm font-medium text-gray-500">{index + 1}</span>
+                                {position.isNew && <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />}
+                              </div>
                             </td>
-                          ))}
-                          <td className="px-1 py-1">
-                            <div className="flex items-center justify-center space-x-1">
-                              <button
-                                onClick={() => duplicatePosition('otherAssets', position)}
-                                className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-all"
-                                title="Duplicate"
-                              >
-                                <Copy className="w-3 h-3" />
-                              </button>
-                              <button
-                                onClick={() => deletePosition('otherAssets', position.id)}
-                                className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-all"
-                                title="Delete"
-                              >
-                                <Trash2 className="w-3 h-3" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
+
+                            {config.fields.map(field => (
+                              <td key={field.key} className={`${field.width} px-2 py-2`}>
+                                {renderCellInput(
+                                  assetType, 
+                                  position, 
+                                  field, 
+                                  `${assetType}-${position.id}-${field.key}`
+                                )}
+                              </td>
+                            ))}
+
+                            <td className="px-3 py-3">
+                              {(() => {
+                                const s = getRowStatus(position);
+                                const badges = {
+                                  ready:      { bg: "bg-emerald-100", text: "text-emerald-700", border: "border-emerald-300", label: "Ready" },
+                                  draft:      { bg: "bg-amber-100", text: "text-amber-700", border: "border-amber-300", label: "Draft" },
+                                  submitting: { bg: "bg-blue-100", text: "text-blue-700", border: "border-blue-300", label: "Adding..." },
+                                  added:      { bg: "bg-indigo-100", text: "text-indigo-700", border: "border-indigo-300", label: "Added" },
+                                  error:      { bg: "bg-red-100", text: "text-red-700", border: "border-red-300", label: "Error" },
+                                };
+                                const badge = badges[s] || badges.draft;
+                                return (
+                                  <span className={`inline-flex items-center px-3 py-1 text-xs font-bold rounded-lg border-2 ${badge.bg} ${badge.text} ${badge.border}`}>
+                                    {badge.label}
+                                  </span>
+                                );
+                              })()}
+                            </td>
+
+                            <td className="px-3 py-3">
+                              <div className="relative">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const menuKey = `menu-${assetType}-${position.id}`;
+                                    setFocusedCell(focusedCell === menuKey ? null : menuKey);
+                                  }}
+                                  className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-all"
+                                >
+                                  <MoreVertical className="w-4 h-4" />
+                                </button>
+                                
+                                {focusedCell === `menu-${assetType}-${position.id}` && (
+                                  <div className="absolute right-0 top-10 z-50 w-44 bg-white border-2 border-gray-200 rounded-xl shadow-2xl py-1 animate-in slide-in-from-top-2 duration-200">
+                                    <button
+                                      onClick={() => {
+                                        duplicatePosition(assetType, position);
+                                        setFocusedCell(null);
+                                      }}
+                                      className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center space-x-2 font-medium"
+                                    >
+                                      <Copy className="w-4 h-4" />
+                                      <span>Duplicate</span>
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        toggleRowSelected(position.id, !selectedIds.has(position.id));
+                                        setFocusedCell(null);
+                                      }}
+                                      className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center space-x-2 font-medium"
+                                    >
+                                      {selectedIds.has(position.id) ? (
+                                        <><CheckSquare className="w-4 h-4" /><span>Deselect</span></>
+                                      ) : (
+                                        <><Square className="w-4 h-4" /><span>Select</span></>
+                                      )}
+                                    </button>
+                                    <div className="border-t border-gray-100 my-1" />
+                                    <button
+                                      onClick={() => {
+                                        deletePosition(assetType, position.id);
+                                        setFocusedCell(null);
+                                      }}
+                                      className="w-full px-4 py-2.5 text-left text-sm text-red-600 hover:bg-red-50 flex items-center space-x-2 font-medium"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                      <span>Delete</span>
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
-              </div>
-            </div>
-          )}
-
+                
+                <div className="p-4 bg-gradient-to-r from-gray-50 to-white border-t-2 border-gray-100">
+                  <button
+                    onClick={() => addNewRow(assetType)}
+                    className={`
+                      w-full py-3 px-4 border-2 border-dashed rounded-xl
+                      transition-all duration-200 flex items-center justify-center space-x-2
+                      ${config.border} hover:border-solid hover:shadow-md
+                      group font-medium
+                    `}
+                  >
+                    <Plus className={`w-5 h-5 ${config.text} group-hover:scale-110 transition-transform`} />
+                    <span className={`text-sm ${config.text}`}>
+                      Add {config.name}
+                    </span>
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
       </div>
     );
   };
 
-  // Calculate position value helper
-  const calculatePositionValue = (type, position) => {
-    switch (type) {
-      case 'security':
-        return (position.data.shares || 0) * (position.data.price || 0);
-      case 'crypto':
-        return (position.data.quantity || 0) * (position.data.current_price || 0);
-      case 'metal':
-        return (position.data.quantity || 0) * (position.data.current_price_per_unit || position.data.purchase_price || 0);
-      case 'otherAssets':
-        return position.data.current_value || 0;
-      case 'cash':
-        return position.data.amount || 0;
-      default:
-        return 0;
-    }
-  };
-
-  // Format currency helper
-  const formatCurrency = (value) => {
-    if (value >= 1000000) {
-      return `$${(value / 1000000).toFixed(1)}M`;
-    } else if (value >= 1000) {
-      return `$${(value / 1000).toFixed(1)}K`;
-    }
-    return `$${value.toFixed(2)}`;
-  };
+  if (!isOpen) return null;
 
   return (
     <FixedModal
@@ -3166,276 +2169,86 @@ useEffect(() => {
       title="Quick Position Entry"
       size="max-w-[1600px]"
     >
-      <div className="h-[90vh] flex flex-col bg-gray-50">
-        {/* Enhanced Header with Action Bar */}
-        <div className="flex-shrink-0 bg-white border-b border-gray-200 px-6 py-4">
-          {/* Top Action Bar */}
+      <div className="h-[90vh] flex flex-col bg-gradient-to-br from-gray-50 to-gray-100">
+        {/* Header */}
+        <div className="flex-shrink-0 bg-white border-b-2 border-gray-200 px-6 py-5 shadow-sm">
+          {/* Action Bar */}
           <div className="flex items-center justify-between mb-4">
-            <div className="flex-1 rounded-xl px-4 py-3 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white shadow-xl border border-slate-700/50">
-            <div className="flex items-center space-x-4">
-              <button
-                onClick={clearAll}
-                className="px-4 py-2 text-sm bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all flex items-center space-x-2 group"
-              >
-                <Trash2 className="w-4 h-4 group-hover:text-red-600 transition-colors" />
-                <span>Clear All</span>
-              </button>
-              
-              <button
-                onClick={() => {
-                  const addedCount = Object.values(positions).reduce((sum, arr) => 
-                    sum + arr.filter(p => p.status === 'added').length, 0
-                  );
-                  
-                  if (addedCount === 0) {
-                    showMessage('info', 'No imported positions to remove');
-                    return;
-                  }
-                  
-                  if (!window.confirm(`Remove ${addedCount} imported position${addedCount !== 1 ? 's' : ''}?`)) {
-                    return;
-                  }
-                  
-                  const updated = {};
-                  Object.entries(positions).forEach(([type, arr]) => {
-                    updated[type] = arr.filter(p => p.status !== 'added');
-                  });
-                  
-                  setPositions(updated);
-                  localStorage.setItem(`quickpositions:work:${seedId}`, JSON.stringify(updated));
-                  showMessage('success', `Removed ${addedCount} imported position${addedCount !== 1 ? 's' : ''}`);
-                }}
-                className="px-4 py-2 text-sm bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all flex items-center space-x-2 group"
-              >
-                <CheckCheck className="w-4 h-4 text-green-600" />
-                <span>Remove Imported</span>
-              </button>
-              
-              <button
-                onClick={onClose}
-                className="px-4 py-2 text-sm bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all"
-              >
-                Cancel
-              </button>
-           
-            {/* Bulk actions for selected rows */}
-              <button
-                onClick={deleteSelected}
-                disabled={selectedIds.size === 0}
-                className={`px-3 py-1.5 text-sm font-medium rounded-lg border transition-all ${
-                  selectedIds.size === 0
-                    ? "bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed"
-                    : "bg-red-50 text-red-700 border-red-200 hover:bg-red-100 hover:border-red-300"
-                }`}
-                title="Delete selected rows"
-              >
-                <Trash2 className="w-4 h-4 inline mr-1.5" />
-                Delete Selected ({selectedIds.size})
-              </button>
-              
-              <button
-                onClick={async () => {
-                  if (selectedIds.size === 0) return;
-                  
-                  // Filter to only include selected positions
-                  const selectedEntries = [];
-                  Object.entries(positions).forEach(([type, arr]) => {
-                    arr.forEach(pos => {
-                      if (selectedIds.has(pos.id)) {
-                        selectedEntries.push({ type, position: pos });
-                      }
+            <div className="flex-1 rounded-xl px-5 py-3 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white shadow-xl border border-slate-700/50">
+              <div className="flex items-center space-x-4">
+                <button
+                  onClick={clearAll}
+                  className="px-4 py-2.5 text-sm bg-white border-2 border-gray-300 text-gray-700 font-semibold rounded-xl hover:bg-gray-50 hover:border-gray-400 transition-all flex items-center space-x-2 group shadow-sm hover:shadow-md"
+                >
+                  <Trash2 className="w-4 h-4 group-hover:text-red-600 transition-colors" />
+                  <span>Clear All</span>
+                </button>
+                
+                <button
+                  onClick={() => {
+                    const addedCount = Object.values(positions).reduce((sum, arr) => 
+                      sum + arr.filter(p => p.status === 'added').length, 0
+                    );
+                    
+                    if (addedCount === 0) {
+                      showMessage('info', 'No imported positions to remove');
+                      return;
+                    }
+                    
+                    if (!window.confirm(`Remove ${addedCount} imported position${addedCount !== 1 ? 's' : ''}?`)) {
+                      return;
+                    }
+                    
+                    const updated = {};
+                    Object.entries(positions).forEach(([type, arr]) => {
+                      updated[type] = arr.filter(p => p.status !== 'added');
                     });
-                  });
-                  
-                  if (selectedEntries.length === 0) {
-                    showMessage('info', 'No valid positions selected');
-                    return;
-                  }
-                  
-                  // Reuse the submission logic but only for selected
-                  setIsSubmitting(true);
-                  let successCount = 0;
-                  let errorCount = 0;
-                  const errors = [];
-                  const updatedPositions = { ...positions };
-                  const successfulPositionData = [];
+                    
+                    setPositions(updated);
+                    localStorage.setItem(`quickpositions:work:${seedId}`, JSON.stringify(updated));
+                    showMessage('success', `Removed ${addedCount} imported position${addedCount !== 1 ? 's' : ''}`);
+                  }}
+                  className="px-4 py-2.5 text-sm bg-white border-2 border-gray-300 text-gray-700 font-semibold rounded-xl hover:bg-gray-50 hover:border-gray-400 transition-all flex items-center space-x-2 shadow-sm hover:shadow-md"
+                >
+                  <CheckCheck className="w-4 h-4 text-green-600" />
+                  <span>Remove Imported</span>
+                </button>
+                
+                <button
+                  onClick={onClose}
+                  className="px-4 py-2.5 text-sm bg-white border-2 border-gray-300 text-gray-700 font-semibold rounded-xl hover:bg-gray-50 hover:border-gray-400 transition-all shadow-sm hover:shadow-md"
+                >
+                  Cancel
+                </button>
+             
+                {selectedIds.size > 0 && (
+                  <>
+                    <button
+                      onClick={deleteSelected}
+                      className="px-4 py-2.5 text-sm font-semibold rounded-xl border-2 transition-all bg-red-50 text-red-700 border-red-200 hover:bg-red-100 hover:border-red-300 shadow-sm hover:shadow-md"
+                    >
+                      <Trash2 className="w-4 h-4 inline mr-2" />
+                      Delete Selected ({selectedIds.size})
+                    </button>
+                  </>
+                )}
 
-                  try {
-                    showMessage('info', `Importing ${selectedEntries.length} selected positions...`, [], 0);
-
-                    for (let i = 0; i < selectedEntries.length; i++) {
-                      const { type, position } = selectedEntries[i];
-                      
-                      updatedPositions[type] = (updatedPositions[type] || []).map(pos =>
-                        pos.id === position.id ? { ...pos, status: 'submitting' } : pos
-                      );
-                      setPositions({ ...updatedPositions });
-
-                      try {
-                        const cleanData = {};
-                        Object.entries(position.data).forEach(([key, value]) => {
-                          if (value !== '' && value !== null && value !== undefined) {
-                            cleanData[key] = value;
-                          }
-                        });
-
-                        // Use existing submission logic
-                        switch (type) {
-                          case 'security':
-                            await addSecurityPosition(position.data.account_id, cleanData);
-                            break;
-                          case 'crypto': {
-                            const cryptoData = {
-                              coin_symbol: cleanData.symbol,
-                              coin_type: cleanData.name || cleanData.symbol,
-                              quantity: cleanData.quantity,
-                              purchase_price: cleanData.purchase_price,
-                              purchase_date: cleanData.purchase_date,
-                              account_id: cleanData.account_id,
-                              storage_type: cleanData.storage_type || 'Exchange',
-                              notes: cleanData.notes || null,
-                              tags: cleanData.tags || [],
-                              is_favorite: cleanData.is_favorite || false
-                            };
-                            await addCryptoPosition(position.data.account_id, cryptoData);
-                            break;
-                          }
-                          case 'metal': {
-                            const metalData = {
-                              metal_type: cleanData.metal_type,
-                              coin_symbol: cleanData.symbol,
-                              quantity: cleanData.quantity,
-                              unit: cleanData.unit || 'oz',
-                              purchase_price: cleanData.purchase_price,
-                              cost_basis: (cleanData.quantity || 0) * (cleanData.purchase_price || 0),
-                              purchase_date: cleanData.purchase_date,
-                              storage_location: cleanData.storage_location,
-                              description: `${cleanData.symbol} - ${cleanData.name}`
-                            };
-                            await addMetalPosition(position.data.account_id, metalData);
-                            break;
-                          }
-                          case 'otherAssets':
-                            await addOtherAsset(cleanData);
-                            break;
-                          case 'cash': {
-                            const cashData = {
-                              ...cleanData,
-                              name: cleanData.cash_type,
-                              interest_rate: cleanData.interest_rate ? cleanData.interest_rate / 100 : null
-                            };
-                            await addCashPosition(position.data.account_id, cashData);
-                            break;
-                          }
-                        }
-
-                        successCount++;
-                        
-                        const account = type !== 'otherAssets' 
-                          ? accounts.find(a => a.id === position.data.account_id) 
-                          : null;
-                        
-                        successfulPositionData.push({
-                          type,
-                          ticker: position.data.ticker,
-                          symbol: position.data.symbol,
-                          asset_name: position.data.asset_name,
-                          metal_type: position.data.metal_type,
-                          currency: position.data.currency,
-                          shares: position.data.shares,
-                          quantity: position.data.quantity,
-                          amount: position.data.amount,
-                          account_name: account?.account_name || (type === 'otherAssets' ? 'Other Assets' : 'Unknown Account'),
-                          account_id: position.data.account_id
-                        });
-
-                        updatedPositions[type] = (updatedPositions[type] || []).map(pos =>
-                          pos.id === position.id ? { ...pos, status: 'added' } : pos
-                        );
-
-                        const progress = Math.round(((i + 1) / selectedEntries.length) * 100);
-                        showMessage('info', `Importing selected... ${progress}%`, [`${successCount} of ${selectedEntries.length} completed`], 0);
-
-                      } catch (error) {
-                        console.error(`Error adding ${type} position:`, error);
-                        errorCount++;
-                        errors.push(`${assetTypes[type].name}: ${error.message || 'Unknown error'}`);
-
-                        updatedPositions[type] = (updatedPositions[type] || []).map(pos =>
-                          pos.id === position.id ? { ...pos, status: 'error', errorMessage: error.message } : pos
-                        );
-                      }
-                    }
-
-                    setPositions(updatedPositions);
-
-                    if (successCount > 0) {
-                      showMessage('success', `Successfully imported ${successCount} selected position${successCount !== 1 ? 's' : ''}!`,
-                        errorCount > 0 ? [`${errorCount} positions failed`] : []
-                      );
-                      
-                      if (onPositionsSaved) {
-                        onPositionsSaved(successCount, successfulPositionData);
-                      }
-                      
-                      // Clear selection after successful import
-                      setSelectedIds(new Set());
-                    } else {
-                      showMessage('error', 'Failed to import selected positions', errors.slice(0, 5));
-                    }
-
-                  } catch (e) {
-                    console.error('Error importing selected:', e);
-                    showMessage('error', 'Failed to import selected positions', [e.message]);
-                  } finally {
-                    setIsSubmitting(false);
-                  }
-                }}
-                disabled={selectedIds.size === 0 || isSubmitting}
-                className={`px-3 py-1.5 text-sm font-medium rounded-lg border transition-all ${
-                  selectedIds.size === 0 || isSubmitting
-                    ? "bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed"
-                    : "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100 hover:border-blue-300"
-                }`}
-                title="Import only selected rows"
-              >
-                <Upload className="w-4 h-4 inline mr-1.5" />
-                Import Selected ({selectedIds.size})
-              </button>
-
-              {/* NEW: Submit only ready rows */}
-              <button
-                onClick={submitReadyOnly}
-                disabled={isSubmitting}
-                className={`px-3 py-1.5 text-sm rounded-md border ${
-                  isSubmitting
-                    ? "bg-gray-300 text-gray-500 cursor-not-allowed"
-                    : "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
-                }`}
-                title="Submit only rows that are ready"
-              >
-                Submit Ready Only
-              </button>
-
-
-              {/* View mode toggle with label */}
-              <div className="ml-4 flex items-center space-x-3">
-                <span className="text-sm text-gray-600">Add positions by:</span>
-                <ToggleSwitch
-                  value={viewMode}
-                  onChange={setViewMode}
-                  leftLabel="Asset Type"
-                  rightLabel="Account"
-                  leftIcon={Layers}
-                  rightIcon={Wallet}
-                />
-              </div>
+                <div className="ml-auto flex items-center space-x-3">
+                  <span className="text-sm text-white/70">Add by:</span>
+                  <ToggleSwitch
+                    value={viewMode}
+                    onChange={setViewMode}
+                    leftLabel="Asset"
+                    rightLabel="Account"
+                    leftIcon={Layers}
+                    rightIcon={Wallet}
+                  />
+                </div>
               </div>
 
-              {/* Filter Row - Only show in account view */}
               {viewMode && accounts.length > 0 && (
-                <div className="flex items-center space-x-3 mt-3 pt-3 border-t border-gray-100">
-                  <span className="text-xs text-gray-500 font-medium">Filters:</span>
+                <div className="flex items-center space-x-3 mt-4 pt-4 border-t border-white/10">
+                  <span className="text-xs text-white/70 font-medium">Filters:</span>
                   <AccountFilter
                     accounts={accounts}
                     selectedAccounts={selectedAccountFilter}
@@ -3448,62 +2261,42 @@ useEffect(() => {
                     onChange={setSelectedInstitutionFilter}
                     filterType="institutions"
                   />
-                  <div className="ml-auto flex items-center space-x-2 text-xs text-gray-500">
-                    <Info className="w-3 h-3" />
-                    <span>Filters apply together</span>
-                  </div>
                 </div>
               )}
+            </div>
 
-            <div className="flex items-center space-x-3">
-              {/* Settings buttons */}
+            <div className="flex items-center space-x-3 ml-4">
               <button
                 onClick={() => setShowValues(!showValues)}
-                className={`p-2 rounded-lg transition-all duration-200 ${
+                className={`p-3 rounded-xl transition-all duration-200 shadow-sm hover:shadow-md ${
                   showValues 
-                    ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' 
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    ? 'bg-blue-100 text-blue-700 hover:bg-blue-200 border-2 border-blue-300' 
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border-2 border-gray-300'
                 }`}
                 title={showValues ? 'Hide values' : 'Show values'}
               >
-                {showValues ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                {showValues ? <Eye className="w-5 h-5" /> : <EyeOff className="w-5 h-5" />}
               </button>
               
-              <button
-                onClick={() => setShowKeyboardShortcuts(!showKeyboardShortcuts)}
-                className={`p-2 rounded-lg transition-all duration-200 ${
-                  showKeyboardShortcuts 
-                    ? 'bg-purple-100 text-purple-700 hover:bg-purple-200' 
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}
-                title="Keyboard shortcuts (Ctrl+K)"
-              >
-                <Keyboard className="w-4 h-4" />
-              </button>
-              
-              <div className="h-6 w-px bg-gray-300"></div>
-              
-              {/* View Queue button */}
               <button
                 onClick={() => setShowQueue(true)}
-                className="px-4 py-2 text-sm bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all flex items-center space-x-2"
+                className="px-5 py-3 text-sm bg-white border-2 border-gray-300 text-gray-700 font-semibold rounded-xl hover:bg-gray-50 hover:border-gray-400 transition-all flex items-center space-x-2 shadow-sm hover:shadow-md"
               >
-                <ClipboardList className="w-4 h-4" />
+                <ClipboardList className="w-5 h-5" />
                 <span>View Queue</span>
                 {stats.totalPositions > 0 && (
-                  <span className="ml-1 px-2 py-0.5 bg-gray-900 text-white text-xs rounded-full font-bold">
+                  <span className="ml-2 px-2.5 py-0.5 bg-gray-900 text-white text-xs rounded-full font-bold">
                     {stats.totalPositions}
                   </span>
                 )}
               </button>
               
-              {/* Submit button */}
               <button
                 onClick={submitAll}
                 disabled={stats.totalPositions === 0 || isSubmitting}
                 className={`
-                  px-6 py-2 text-sm font-semibold rounded-lg transition-all duration-200 
-                  flex items-center space-x-2 shadow-sm hover:shadow-md transform hover:scale-105
+                  px-8 py-3 text-sm font-bold rounded-xl transition-all duration-200 
+                  flex items-center space-x-2 shadow-lg hover:shadow-xl transform hover:scale-105
                   ${stats.totalPositions === 0 || isSubmitting
                     ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                     : 'bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:from-green-700 hover:to-emerald-700'
@@ -3512,169 +2305,151 @@ useEffect(() => {
               >
                 {isSubmitting ? (
                   <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <Loader2 className="w-5 h-5 animate-spin" />
                     <span>Saving...</span>
                   </>
                 ) : (
                   <>
-                    <CheckCircle className="w-4 h-4" />
+                    <CheckCircle className="w-5 h-5" />
                     <span>Add {stats.totalPositions} Position{stats.totalPositions !== 1 ? 's' : ''}</span>
                   </>
                 )}
               </button>
             </div>
-            </div>
           </div>
 
           {/* Stats Bar */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-6">
-              {/* Total stats */}
-              <div className="flex items-center space-x-4">
-                <div className="flex items-center space-x-2">
-                  <Hash className="w-4 h-4 text-gray-400" />
-                  <span className="text-sm text-gray-600">Total Positions:</span>
-                  <span className="text-lg font-bold text-gray-900">
-                    <AnimatedNumber value={stats.totalPositions} />
-                  </span>
-                </div>
-                
-                <div className="h-5 w-px bg-gray-300"></div>
-                
-                <div className="flex items-center space-x-2">
-                  <DollarSign className="w-4 h-4 text-gray-400" />
-                  <span className="text-sm text-gray-600">Total Value:</span>
-                  <span className="text-lg font-bold text-gray-900">
-                    {showValues ? (
-                      <AnimatedNumber value={stats.totalValue} prefix="$" decimals={0} />
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center space-x-8">
+              <div className="flex items-center space-x-3">
+                <Hash className="w-5 h-5 text-gray-400" />
+                <span className="text-sm text-gray-600 font-medium">Positions:</span>
+                <span className="text-2xl font-bold text-gray-900">
+                  <AnimatedNumber value={stats.totalPositions} />
+                </span>
+              </div>
+              
+              <div className="h-8 w-px bg-gray-300"></div>
+              
+              <div className="flex items-center space-x-3">
+                <DollarSign className="w-5 h-5 text-gray-400" />
+                <span className="text-sm text-gray-600 font-medium">Value:</span>
+                <span className="text-2xl font-bold text-gray-900">
+                  {showValues ? (
+                    <AnimatedNumber value={stats.totalValue} prefix="$" decimals={0} />
+                  ) : (
+                    '••••••'
+                  )}
+                </span>
+              </div>
+              
+              {stats.totalPerformance !== 0 && (
+                <>
+                  <div className="h-8 w-px bg-gray-300"></div>
+                  <div className="flex items-center space-x-3">
+                    {stats.totalPerformance >= 0 ? (
+                      <TrendingUp className="w-5 h-5 text-green-600" />
                     ) : (
-                      '••••••'
+                      <TrendingDown className="w-5 h-5 text-red-600" />
                     )}
-                  </span>
-                </div>
-                
-                {stats.totalPerformance !== 0 && (
-                  <>
-                    <div className="h-5 w-px bg-gray-300"></div>
-                    <div className="flex items-center space-x-2">
-                      {stats.totalPerformance >= 0 ? (
-                        <TrendingUp className="w-4 h-4 text-green-600" />
+                    <span className="text-sm text-gray-600 font-medium">Return:</span>
+                    <span className={`text-2xl font-bold ${
+                      stats.totalPerformance >= 0 ? 'text-green-600' : 'text-red-600'
+                    }`}>
+                      {showValues ? (
+                        <>
+                          {stats.totalPerformance >= 0 ? '+' : ''}
+                          <AnimatedNumber value={stats.totalPerformance} decimals={1} suffix="%" />
+                        </>
                       ) : (
-                        <TrendingDown className="w-4 h-4 text-red-600" />
+                        '••••'
                       )}
-                      <span className="text-sm text-gray-600">Performance:</span>
-                      <span className={`text-lg font-bold ${
-                        stats.totalPerformance >= 0 ? 'text-green-600' : 'text-red-600'
-                      }`}>
-                        {showValues ? (
-                          <>
-                            {stats.totalPerformance >= 0 ? '+' : ''}
-                            <AnimatedNumber value={stats.totalPerformance} decimals={1} suffix="%" />
-                          </>
-                        ) : (
-                          '••••'
-                        )}
-                      </span>
-                    </div>
-                  </>
-                )}
-              </div>
-
-              {/* Type breakdown */}
-              <div className="flex items-center space-x-2">
-                <div className="h-5 w-px bg-gray-300"></div>
-                {Object.entries(assetTypes).map(([key, config]) => {
-                  const typeStats = stats.byType[key];
-                  if (!typeStats || typeStats.count === 0) return null;
-                  
-                  const Icon = config.icon;
-                  return (
-                    <div 
-                      key={key}
-                      className={`
-                        flex items-center space-x-1 px-2 py-1 rounded-lg text-xs
-                        ${config.color.lightBg} ${config.color.text}
-                      `}
-                    >
-                      <Icon className="w-3 h-3" />
-                      <span className="font-medium">{typeStats.count}</span>
-                      {showValues && (
-                        <span className="text-[10px] opacity-75">
-                          ({formatCurrency(typeStats.value)})
-                        </span>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
+                    </span>
+                  </div>
+                </>
+              )}
             </div>
 
-            {/* Progress indicator */}
             {stats.totalPositions > 0 && (
-              <div className="flex items-center space-x-3">
-                <span className="text-xs text-gray-500">Progress</span>
+              <div className="flex items-center space-x-4">
+                <span className="text-xs text-gray-500 font-medium">Progress</span>
                 <ProgressIndicator 
                   current={stats.totalPositions - stats.errors.length} 
                   total={stats.totalPositions}
-                  className="w-24"
+                  className="w-32"
                 />
-                <span className="text-xs font-medium text-gray-700">
+                <span className="text-sm font-bold text-gray-700">
                   {Math.round(((stats.totalPositions - stats.errors.length) / stats.totalPositions) * 100)}%
                 </span>
               </div>
             )}
           </div>
 
-          {/* Asset Type Filters (only show in asset type view) */}
+          {/* Filters */}
           {!viewMode && (
-            <div className="space-y-3 mt-4">
-              {/* Asset Type Filter */}
+            <div className="space-y-3">
               <div className="flex items-center space-x-2">
-                <span className="text-xs font-semibold text-gray-700 mr-2">Filter by Asset Type:</span>
+                <span className="text-xs font-bold text-gray-700 mr-2 uppercase tracking-wide">Asset Type:</span>
                 <button
                   onClick={() => setActiveFilter('all')}
-                className={`
-                  px-3 py-1.5 text-xs font-medium rounded-lg transition-all duration-200
-                  ${activeFilter === 'all' 
-                    ? 'bg-gray-900 text-white shadow-sm' 
-                    : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
-                  }
-                `}
-              >
-                All Types
-              </button>
+                  className={`
+                    px-4 py-2 text-xs font-bold rounded-xl transition-all duration-200
+                    ${activeFilter === 'all' 
+                      ? 'bg-gray-900 text-white shadow-lg scale-105' 
+                      : 'bg-white text-gray-600 hover:bg-gray-100 border-2 border-gray-200'
+                    }
+                  `}
+                >
+                  All Types
+                </button>
 
-              {Object.entries(assetTypes).map(([key, config]) => (
-                <AssetTypeBadge
-                  key={key}
-                  type={config.name}
-                  count={stats.byType[key]?.count || 0}
-                  icon={config.icon}
-                  color={config.color}
-                  active={activeFilter === key}
-                  onClick={() => setActiveFilter(activeFilter === key ? 'all' : key)}
-                />
-              ))}
+                {Object.entries(assetTypes).map(([key, config]) => {
+                  const Icon = config.icon;
+                  const count = stats.byType[key]?.count || 0;
+                  return (
+                    <button
+                      key={key}
+                      onClick={() => setActiveFilter(activeFilter === key ? 'all' : key)}
+                      className={`
+                        px-4 py-2 text-xs font-bold rounded-xl transition-all duration-200 flex items-center space-x-2
+                        ${activeFilter === key 
+                          ? `${config.bg} text-white shadow-lg scale-105` 
+                          : 'bg-white text-gray-700 hover:bg-gray-50 border-2 border-gray-200'
+                        }
+                      `}
+                    >
+                      <Icon className="w-4 h-4" />
+                      <span>{config.name}</span>
+                      {count > 0 && (
+                        <span className={`
+                          px-2 py-0.5 text-[10px] rounded-full font-bold
+                          ${activeFilter === key ? 'bg-white/20' : 'bg-gray-100'}
+                        `}>
+                          {count}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
               
-              {/* Status Filter */}
               <div className="flex items-center space-x-2">
-                <span className="text-xs font-semibold text-gray-700 mr-2">Filter by Status:</span>
+                <span className="text-xs font-bold text-gray-700 mr-2 uppercase tracking-wide">Status:</span>
                 {[
-                  {k:'any',label:'All Statuses'},
+                  {k:'any',label:'All'},
                   {k:'ready',label:'Ready'},
                   {k:'draft',label:'Draft'},
-                  {k:'submitting',label:'Submitting'},
+                  {k:'submitting',label:'Adding'},
                   {k:'added',label:'Added'},
                   {k:'error',label:'Error'},
                 ].map(opt => (
                   <button
                     key={opt.k}
                     onClick={() => setStatusFilter(opt.k)}
-                    className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all duration-200
+                    className={`px-4 py-2 text-xs font-bold rounded-xl transition-all duration-200
                       ${statusFilter === opt.k
-                        ? 'bg-blue-600 text-white shadow-sm ring-2 ring-blue-300' 
-                        : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'}`}
+                        ? 'bg-blue-600 text-white shadow-lg ring-2 ring-blue-300 scale-105' 
+                        : 'bg-white text-gray-700 hover:bg-gray-50 border-2 border-gray-200'}`}
                   >
                     {opt.label}
                   </button>
@@ -3683,93 +2458,78 @@ useEffect(() => {
             </div>
           )}
 
-          {/* Keyboard shortcuts hint */}
-          {showKeyboardShortcuts && (
-            <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg animate-in slide-in-from-top duration-300">
-              <div className="flex items-start space-x-2">
-                <Keyboard className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
+          {/* Validation Summary */}
+          {stats.errors.length > 0 && (
+            <div className="mt-4 p-4 bg-amber-50 border-l-4 border-amber-400 rounded-r-xl shadow-sm">
+              <div className="flex items-start space-x-3">
+                <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
                 <div className="flex-1">
-                  <p className="text-xs font-medium text-blue-900 mb-1">Keyboard Shortcuts</p>
-                  <div className="grid grid-cols-3 gap-x-4 gap-y-1 text-[10px] text-blue-700">
-                    <div><kbd className="px-1 py-0.5 bg-white rounded text-blue-900 font-mono">Tab</kbd> Next field</div>
-                    <div><kbd className="px-1 py-0.5 bg-white rounded text-blue-900 font-mono">Enter</kbd> Next field / New row</div>
-                    <div><kbd className="px-1 py-0.5 bg-white rounded text-blue-900 font-mono">Ctrl+Enter</kbd> Submit all</div>
-                    <div><kbd className="px-1 py-0.5 bg-white rounded text-blue-900 font-mono">↑↓</kbd> Navigate rows</div>
-                    <div><kbd className="px-1 py-0.5 bg-white rounded text-blue-900 font-mono">Ctrl+D</kbd> Duplicate row</div>
-                    <div><kbd className="px-1 py-0.5 bg-white rounded text-blue-900 font-mono">Ctrl+Del</kbd> Delete row</div>
-                    <div><kbd className="px-1 py-0.5 bg-white rounded text-blue-900 font-mono">Alt+↑↓</kbd> Move row</div>
-                    <div><kbd className="px-1 py-0.5 bg-white rounded text-blue-900 font-mono">Shift+Enter</kbd> Insert above</div>
-                    <div><kbd className="px-1 py-0.5 bg-white rounded text-blue-900 font-mono">Ctrl+K</kbd> Toggle shortcuts</div>
+                  <h4 className="text-sm font-bold text-amber-900 mb-2">
+                    {stats.errors.length} issue{stats.errors.length !== 1 ? 's' : ''} need attention
+                  </h4>
+                  <div className="space-y-1 max-h-24 overflow-y-auto">
+                    {stats.errors.slice(0, 5).map((error, idx) => {
+                      const config = assetTypes[error.type];
+                      const position = positions[error.type].find(p => p.id === error.id);
+                      const rowIndex = positions[error.type].indexOf(position) + 1;
+                      
+                      return (
+                        <button
+                          key={`${error.type}-${error.id}`}
+                          onClick={() => {
+                            setActiveFilter(error.type);
+                            setExpandedSections(prev => ({ ...prev, [error.type]: true }));
+                            setTimeout(() => {
+                              const firstError = Object.keys(error.errors).find(k => error.errors[k]);
+                              const cellKey = `${error.type}-${error.id}-${firstError}`;
+                              cellRefs.current[cellKey]?.focus();
+                            }, 100);
+                          }}
+                          className="text-xs text-amber-800 hover:text-amber-900 hover:underline text-left block font-medium"
+                        >
+                          {config.name} row {rowIndex}: {Object.entries(error.errors)
+                            .filter(([_, v]) => v)
+                            .map(([k, _]) => config.fields.find(f => f.key === k)?.label || k)
+                            .join(', ')} missing
+                        </button>
+                      );
+                    })}
+                    {stats.errors.length > 5 && (
+                      <p className="text-xs text-amber-700 font-bold">
+                        ...and {stats.errors.length - 5} more
+                      </p>
+                    )}
                   </div>
                 </div>
-                <button
-                  onClick={() => setShowKeyboardShortcuts(false)}
-                  className="p-1 hover:bg-blue-100 rounded transition-colors"
-                >
-                  <X className="w-3 h-3 text-blue-600" />
-                </button>
               </div>
             </div>
           )}
         </div>
 
-        {/* Scrollable Content Area */}
-          <div className="flex-1 overflow-y-auto overflow-x-visible p-6 space-y-4 relative" style={{ zIndex: 1 }}>
-          {viewMode ? (
-            // Account View
-            renderByAccount()
-          ) : (
-            // Asset Type View
-            <>
-              {Object.keys(assetTypes)
-                .filter(type => activeFilter === 'all' || activeFilter === type)
-                .map(assetType => renderAssetSection(assetType))}
-                
-              {/* Empty state when filtered */}
-              {activeFilter !== 'all' && !positions[activeFilter]?.length && (
-                <div className="text-center py-12">
-                  <div className={`inline-flex p-4 rounded-full ${assetTypes[activeFilter].color.lightBg} mb-4`}>
-                    {React.createElement(assetTypes[activeFilter].icon, {
-                      className: `w-8 h-8 ${assetTypes[activeFilter].color.text}`
-                    })}
-                  </div>
-                  <p className="text-gray-600 mb-4">No {assetTypes[activeFilter].name.toLowerCase()} positions yet</p>
-                  <button
-                    onClick={() => {
-                      addNewRow(activeFilter);
-                      setExpandedSections(prev => ({ ...prev, [activeFilter]: true }));
-                    }}
-                    className={`
-                      inline-flex items-center px-4 py-2 rounded-lg font-medium transition-all duration-200
-                      ${assetTypes[activeFilter].color.bg} text-white hover:shadow-md hover:scale-105
-                    `}
-                  >
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add {assetTypes[activeFilter].name}
-                  </button>
-                </div>
-              )}
-            </>
-          )}
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-6 space-y-5">
+          {Object.keys(assetTypes)
+            .filter(type => activeFilter === 'all' || activeFilter === type)
+            .map(assetType => renderAssetSection(assetType))}
         </div>
 
-        {/* Enhanced Message Display */}
+        {/* Message */}
         {message.text && (
           <div className={`
-            absolute bottom-6 left-6 right-6 p-4 rounded-lg shadow-lg border
+            absolute bottom-6 left-6 right-6 p-5 rounded-2xl shadow-2xl border-2
             animate-in slide-in-from-bottom duration-300 z-40
             ${message.type === 'error' 
-              ? 'bg-red-50 border-red-200' 
+              ? 'bg-red-50 border-red-300' 
               : message.type === 'warning' 
-                ? 'bg-amber-50 border-amber-200' 
+                ? 'bg-amber-50 border-amber-300' 
                 : message.type === 'info'
-                  ? 'bg-blue-50 border-blue-200'
-                  : 'bg-green-50 border-green-200'
+                  ? 'bg-blue-50 border-blue-300'
+                  : 'bg-green-50 border-green-300'
             }
           `}>
             <div className="flex items-start space-x-3">
               <div className={`
-                flex-shrink-0 p-2 rounded-full
+                flex-shrink-0 p-2 rounded-xl
                 ${message.type === 'error' 
                   ? 'bg-red-100' 
                   : message.type === 'warning' 
@@ -3786,7 +2546,7 @@ useEffect(() => {
               </div>
               <div className="flex-1">
                 <p className={`
-                  font-medium text-sm
+                  font-bold text-base
                   ${message.type === 'error' 
                     ? 'text-red-900' 
                     : message.type === 'warning' 
@@ -3800,7 +2560,7 @@ useEffect(() => {
                 </p>
                 {message.details.length > 0 && (
                   <ul className={`
-                    mt-2 space-y-1 text-xs
+                    mt-2 space-y-1 text-sm
                     ${message.type === 'error' 
                       ? 'text-red-700' 
                       : message.type === 'warning' 
@@ -3811,13 +2571,13 @@ useEffect(() => {
                     }
                   `}>
                     {message.details.slice(0, 3).map((detail, index) => (
-                      <li key={index} className="flex items-start space-x-1">
-                        <span className="block w-1 h-1 rounded-full bg-current mt-1.5 flex-shrink-0"></span>
+                      <li key={index} className="flex items-start space-x-2">
+                        <span className="block w-1.5 h-1.5 rounded-full bg-current mt-2 flex-shrink-0"></span>
                         <span>{detail}</span>
                       </li>
                     ))}
                     {message.details.length > 3 && (
-                      <li className="font-medium">
+                      <li className="font-bold">
                         ... and {message.details.length - 3} more
                       </li>
                     )}
@@ -3827,7 +2587,7 @@ useEffect(() => {
               <button
                 onClick={() => setMessage({ type: '', text: '', details: [] })}
                 className={`
-                  p-1 rounded transition-colors
+                  p-1.5 rounded-xl transition-colors
                   ${message.type === 'error' 
                     ? 'hover:bg-red-100' 
                     : message.type === 'warning' 
@@ -3839,7 +2599,7 @@ useEffect(() => {
                 `}
               >
                 <X className={`
-                  w-4 h-4
+                  w-5 h-5
                   ${message.type === 'error' 
                     ? 'text-red-600' 
                     : message.type === 'warning' 
@@ -3861,7 +2621,14 @@ useEffect(() => {
           positions={positions}
           assetTypes={assetTypes}
           accounts={accounts}
-          onClearCompleted={clearCompletedPositions}
+          onClearCompleted={() => {
+            const updated = {};
+            Object.keys(positions).forEach(type => {
+              updated[type] = positions[type].filter(pos => pos.status !== 'added');
+            });
+            setPositions(updated);
+            showMessage('success', 'Cleared all successfully added positions');
+          }}
         />
       </div>
 
@@ -3918,31 +2685,28 @@ useEffect(() => {
           animation-fill-mode: both;
         }
         
-        /* Custom scrollbar */
         .overflow-y-auto::-webkit-scrollbar {
-          width: 8px;
+          width: 10px;
         }
         
         .overflow-y-auto::-webkit-scrollbar-track {
           background: #f3f4f6;
-          border-radius: 4px;
+          border-radius: 10px;
         }
         
         .overflow-y-auto::-webkit-scrollbar-thumb {
-          background: #d1d5db;
-          border-radius: 4px;
+          background: linear-gradient(to bottom, #d1d5db, #9ca3af);
+          border-radius: 10px;
         }
         
         .overflow-y-auto::-webkit-scrollbar-thumb:hover {
-          background: #9ca3af;
+          background: linear-gradient(to bottom, #9ca3af, #6b7280);
         }
         
-        /* Focus styles */
         input:focus, select:focus {
           outline: none;
         }
         
-        /* Number input spinner removal */
         input[type="number"]::-webkit-inner-spin-button,
         input[type="number"]::-webkit-outer-spin-button {
           -webkit-appearance: none;
@@ -3953,23 +2717,6 @@ useEffect(() => {
           -moz-appearance: textfield;
         }
         
-        /* Smooth hover transitions */
-        button, input, select {
-          transition: all 0.2s ease;
-        }
-        
-        /* High contrast mode support */
-        @media (prefers-contrast: high) {
-          .border-gray-200 {
-            border-color: #374151;
-          }
-          
-          .text-gray-600 {
-            color: #1f2937;
-          }
-        }
-        
-        /* Reduced motion support */
         @media (prefers-reduced-motion: reduce) {
           * {
             animation-duration: 0.01ms !important;
@@ -3980,9 +2727,8 @@ useEffect(() => {
       `}</style>
     </FixedModal>
   );
-  };
+};
 
-// Export with proper display name
 AddQuickPositionModal.displayName = 'AddQuickPositionModal';
 
 export { AddQuickPositionModal };
