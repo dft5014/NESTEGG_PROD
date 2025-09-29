@@ -412,18 +412,25 @@ const QuickStartModal = ({ isOpen, onClose }) => {
     const { actions } = useDataStore();
     const { refreshData } = actions;
     const { 
-        accounts: existingAccounts, 
-        loading: isLoadingAccounts,
-        error: accountsError,
-        refresh: refreshAccounts 
-    } = useAccounts();
+    accounts: existingAccounts,
+    loading: isLoadingAccounts,
+    error: accountsError,
+    refresh: refreshAccounts,
+    lastFetched: accountsLastFetched
+        } = useAccounts();
 
-    // Ensure accounts exist if user opens this quickly after login
+    // Try a single fetch only if we've never fetched yet (prevents loops for brand-new users with 0 accounts)
+    const triedInitialAccountsFetchRef = useRef(false);
     useEffect(() => {
-    if (!isLoadingAccounts && (!Array.isArray(existingAccounts) || existingAccounts.length === 0)) {
-        refreshAccounts();
-    }
-    }, [isLoadingAccounts, existingAccounts, refreshAccounts]);
+        if (triedInitialAccountsFetchRef.current) return;
+        if (!isLoadingAccounts && !accountsLastFetched) {
+            triedInitialAccountsFetchRef.current = true;
+            refreshAccounts();
+        } else if (!isLoadingAccounts) {
+            // We've either fetched already (even if empty) or are idle; don't loop.
+            triedInitialAccountsFetchRef.current = true;
+        }
+        }, [isLoadingAccounts, accountsLastFetched, refreshAccounts]);
 
 
 
@@ -1232,7 +1239,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                                     ? 'bg-gray-50 border-gray-200 opacity-60 cursor-not-allowed' 
                                     : 'bg-gradient-to-br from-purple-50 to-purple-100 border-purple-100 hover:shadow-lg hover:-translate-y-0.5'
                             }`}
-                            onClick={() => existingAccounts.length > 0 && setActiveTab('positions')}
+                                onClick={() => (existingAccounts?.length > 0) && setActiveTab('positions')}
                         >
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center">
@@ -1297,11 +1304,11 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                             <h4 className="text-sm font-semibold text-gray-700 uppercase tracking-wider">
                                 Current NestEgg Portfolio
                             </h4>
-                            <button
-                                onClick={() => fetchExistingAccounts()}
+                                <button
+                                onClick={refreshAccounts}
                                 className="p-1.5 hover:bg-white rounded-lg transition-colors group"
                                 disabled={isLoadingAccounts}
-                            >
+                                >
                                 <RefreshCw className={`w-4 h-4 text-gray-500 group-hover:text-gray-700 ${
                                     isLoadingAccounts ? 'animate-spin' : ''
                                 }`} />
