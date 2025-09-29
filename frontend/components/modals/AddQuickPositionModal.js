@@ -39,6 +39,14 @@ const ACCOUNT_CATEGORIES = [
   { id: "real_estate", name: "Real Estate", icon: Home }
 ];
 
+// pure constant – safe to define above; doesn’t change per render
+export const REQUIRED_BY_TYPE = {
+  security: ["ticker","shares","price","cost_basis","purchase_date","account_id"],
+  crypto:   ["symbol","quantity","purchase_price","current_price","purchase_date","account_id"],
+  metal:    ["metal_type","symbol","quantity","purchase_price","current_price_per_unit","purchase_date","account_id"],
+  cash:     ["cash_type","amount","account_id"],
+  other:    ["asset_name","current_value"], // maps your “otherAssets”
+};
 
 // Enhanced AnimatedNumber with smooth transitions
 const AnimatedNumber = ({ value, prefix = '', suffix = '', decimals = 0, duration = 600 }) => {
@@ -419,6 +427,9 @@ const AccountFilter = ({ accounts, selectedAccounts, onChange, filterType = 'acc
   );
 };
 
+
+
+
 // Queue modal component
 const QueueModal = ({ isOpen, onClose, positions, assetTypes, accounts, onClearCompleted }) => {
   const getStatusBadge = (status) => {
@@ -625,6 +636,25 @@ const QueueModal = ({ isOpen, onClose, positions, assetTypes, accounts, onClearC
 const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPositions }) => {
   // Core state
   const [accounts, setAccounts] = useState([]);
+
+  // fast lookup for mapping Excel seeds → account_id
+  const accountIndexRef = useRef({ byName: new Map(), byNameInst: new Map() });
+
+  // simple normalizer for matching
+  const norm = (s) => String(s || '').trim().toLowerCase().replace(/\s+/g, ' ');
+
+  // build two indices: by account_name, and by account_name + institution
+  const buildAccountIndex = (list = []) => {
+    const byName = new Map();
+    const byNameInst = new Map();
+    list.forEach(a => {
+      const n = norm(a.account_name);
+      const i = norm(a.institution);
+      if (n) byName.set(n, a);
+      byNameInst.set(`${n}::${i}`, a);
+    });
+    accountIndexRef.current = { byName, byNameInst };
+  };
   const [positions, setPositions] = useState({
     security: [],
     cash: [],
@@ -636,7 +666,8 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
   const [accountExpandedSections, setAccountExpandedSections] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showValues, setShowValues] = useState(true);
-  const [selectedPositions, setSelectedPositions] = useState(new Set());
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const seedAppliedRef = useRef(false);
   const [focusedCell, setFocusedCell] = useState(null);
   const [message, setMessage] = useState({ type: '', text: '', details: [] });
   const [activeFilter, setActiveFilter] = useState('all');
@@ -648,8 +679,6 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
   const [showQueue, setShowQueue] = useState(false);
   const [selectedAccountFilter, setSelectedAccountFilter] = useState(new Set());
   const [selectedInstitutionFilter, setSelectedInstitutionFilter] = useState(new Set());
-
-
   
   // Search state
   const [searchResults, setSearchResults] = useState({});
@@ -660,6 +689,114 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
   const cellRefs = useRef({});
   const tableRefs = useRef({});
   const messageTimeoutRef = useRef(null);
+
+  // ── Validate a single row’s readiness
+  const validateRow = useCallback((row) => {
+    const t = row.type === "otherAssets" ? "other" : row.type;
+    const req = REQUIRED_BY_TYPE[t] || [];
+    const missing = [];
+    for (const k of req) {
+      const v = row.data?.[k];
+      if (v === undefined || v === null || v === "") missing.push(k);
+    }
+    return { ok: missing.length === 0, missing };
+  }, []);
+
+  // ── Compute status label for UI
+  const getRowStatus = (row) => {
+    if (row.status === "submitting") return "submitting";
+    if (row.status === "added") return "added";
+    if (row.status === "error") return "error";
+    const { ok } = validateRow(row);
+    return ok ? "ready" : "draft";
+  };
+
+  // ---- Account indexing + seed mapping ----
+  const accountIndex = useRef({ byName: new Map(), byNameInst: new Map() });
+
+  const mapSeedAccountId = (data = {}) => {
+    // Already an id?
+    if (data.account_id) {
+      const n = Number(data.account_id);
+      return { ...data, account_id: Number.isFinite(n) ? n : data.account_id };
+    }
+
+    // Pull common Excel columns
+    const rawName = (data.account_name ?? data.account ?? '').toString().trim();
+    const rawInst = (data.institution ?? data.bank ?? data.brokerage ?? '').toString().trim();
+
+    if (!rawName && !rawInst) return data;
+
+    const name = rawName.toLowerCase();
+    const inst = rawInst.toLowerCase();
+    const { byName, byNameInst } = accountIndex.current;
+
+    // (1) Exact: name + institution
+    const hitBoth = byNameInst.get(`${name}::${inst}`);
+    if (hitBoth?.id) return { ...data, account_id: hitBoth.id };
+
+    // (2) Exact: name only
+    const hitName = byName.get(name);
+    if (hitName?.id) return { ...data, account_id: hitName.id };
+
+    // (3) Loose: if name is unique prefix
+    const loose = [...byName.keys()].filter(k => k.startsWith(name));
+    if (name && loose.length === 1) {
+      const a = byName.get(loose[0]);
+      if (a?.id) return { ...data, account_id: a.id };
+    }
+
+    // Give up (leave unmapped)
+    return data;
+  };
+
+  // Normalize one seed row (applies account mapping)
+  const normalizeSeedRow = (row, type) => ({
+    id: row?.id ?? (Date.now() + Math.random()),
+    type,
+    data: mapSeedAccountId(row?.data ?? row),
+    errors: row?.errors ?? {},
+    isNew: true,
+    animateIn: true
+  });
+
+  // Backfill any rows missing account_id after accounts load
+  const backfillSeedAccountIds = () => {
+    setPositions(prev => {
+      const next = { ...prev };
+      Object.keys(next).forEach(t => {
+        next[t] = next[t].map(p => {
+          if (t === 'otherAssets') return p; // those don't use account_id
+          if (p?.data?.account_id) return p;
+          const mapped = mapSeedAccountId(p?.data);
+          return mapped === p?.data ? p : { ...p, data: mapped };
+        });
+      });
+      return next;
+    });
+  };
+
+
+  // ── Selection toggles
+  // rowId is the position.id
+  const toggleRowSelected = useCallback((rowId, checked) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (checked) next.add(rowId); else next.delete(rowId);
+      return next;
+    });
+  }, []);
+
+  // Toggle all for a given assetType block
+  const toggleAllSelectedForType = useCallback((assetType, checked) => {
+    setSelectedIds(prev => {
+      if (!checked) return new Set([...prev].filter(id => !positions[assetType].some(p => p.id === id)));
+      const next = new Set(prev);
+      positions[assetType].forEach(p => next.add(p.id));
+      return next;
+    });
+  }, [positions]);
+
 
   // Enhanced asset type configuration with required fields
   const assetTypes = {
@@ -845,6 +982,29 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
     }
   };
 
+
+  // Load accounts
+  const loadAccounts = async () => {
+    try {
+      const fetchedAccounts = await fetchAllAccounts();
+      setAccounts(fetchedAccounts);
+
+      // build mapping indices for name/institution → account_id
+      buildAccountIndex(fetchedAccounts);
+      
+      const recentIds = fetchedAccounts.slice(0, 3).map(a => a.id);
+      setRecentlyUsedAccounts(recentIds);
+      
+      // Select all by default
+      setSelectedAccountFilter(new Set(fetchedAccounts.map(acc => acc.id)));
+      setSelectedInstitutionFilter(new Set(fetchedAccounts.map(acc => acc.institution).filter(Boolean)));
+    } catch (error) {
+      console.error('Error loading accounts:', error);
+      showMessage('error', 'Failed to load accounts', [`Error: ${error.message}`]);
+    }
+  };
+
+
   // Debounced search function
   const debouncedSearch = useCallback(
     debounce(async (query, assetType, positionId) => {
@@ -902,42 +1062,83 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
   );
 
     useEffect(() => {
-      if (!isOpen) return;
+      if (!isOpen) {
+        seedAppliedRef.current = false; // allow ingestion next time it opens
+        return;
+      }
 
       loadAccounts();
 
-      // ensure every row has the expected shape + an id
-      const castSeed = (rows, type) =>
-        (rows ?? []).map((r) => ({
-          id: r?.id ?? (Date.now() + Math.random()),
-          type: type,
-          data: r?.data ?? r,          // accept plain objects or {data}
-          errors: r?.errors ?? {},
-          isNew: true,
-          animateIn: true
-        }));
+      if (!seedAppliedRef.current) {
+        // … your existing seed ingestion logic unchanged …
+        const castSeed = (rows, type) => {
+          const { byName, byNameInst } = accountIndexRef.current;
 
-      const hasSeeds = !!(
-        seedPositions &&
-        (seedPositions.security?.length ||
-        seedPositions.cash?.length ||
-        seedPositions.crypto?.length ||
-        seedPositions.metal?.length)
-      );
-
-      setPositions(
-        hasSeeds
-          ? {
-              security: castSeed(seedPositions.security, 'security'),
-              cash:     castSeed(seedPositions.cash, 'cash'),
-              crypto:   castSeed(seedPositions.crypto, 'crypto'),
-              metal:    castSeed(seedPositions.metal, 'metal'),
-              otherAssets: []
+          const normalizeKeys = (obj = {}) => {
+            const out = {};
+            for (const [k, v] of Object.entries(obj)) {
+              const nk = k.toString().trim().toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '_');
+              out[nk] = v;
             }
-          : { security: [], cash: [], crypto: [], metal: [], otherAssets: [] }
-      );
+            return out;
+          };
 
-      // reset UI chrome
+          const mapSeedAccountId = (raw = {}) => {
+            const data = normalizeKeys(raw);
+            // if account_id already present, keep it
+            if (data.account_id != null && data.account_id !== '') return { ...raw, account_id: data.account_id };
+
+            const name =
+              (data.account_name ?? data.account ?? data.acct_name ?? data.name ?? '').toString().trim();
+            const inst =
+              (data.institution ?? data.institution_name ?? data.bank ?? data.brokerage ?? data.custodian ?? '').toString().trim();
+
+            if (!name) return raw;
+
+            const n = norm(name);
+            const i = norm(inst);
+
+            const hit = (byNameInst && byNameInst.get(`${n}::${i}`)) || (byName && byName.get(n));
+            return hit ? { ...raw, account_id: hit.id } : raw;
+          };
+
+          return (rows ?? []).map((r) => {
+            const base = mapSeedAccountId(r?.data ?? r);
+            return {
+              id: r?.id ?? (Date.now() + Math.random()),
+              type,
+              data: base,                 // now with account_id if we could map it
+              errors: r?.errors ?? {},
+              isNew: true,
+              animateIn: true
+            };
+          });
+        };
+
+        const hasSeeds = !!(
+          seedPositions &&
+          (seedPositions.security?.length ||
+            seedPositions.cash?.length ||
+            seedPositions.crypto?.length ||
+            seedPositions.metal?.length)
+        );
+
+        setPositions(
+          hasSeeds
+            ? {
+                security: castSeed(seedPositions.security, 'security'),
+                cash:     castSeed(seedPositions.cash, 'cash'),
+                crypto:   castSeed(seedPositions.crypto, 'crypto'),
+                metal:    castSeed(seedPositions.metal, 'metal'),
+                otherAssets: []
+              }
+            : { security: [], cash: [], crypto: [], metal: [], otherAssets: [] }
+        );
+
+        seedAppliedRef.current = true;
+      }
+
+      // reset UI chrome each open (keep as you had it)
       setExpandedSections({});
       setAccountExpandedSections({});
       setMessage({ type: '', text: '', details: [] });
@@ -947,7 +1148,6 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
       setShowKeyboardShortcuts(true);
       setTimeout(() => setShowKeyboardShortcuts(false), 3000);
 
-      // 🔑 trigger price hydration after seeds land
       setTimeout(() => {
         try { autoHydrateSeededPrices?.(); } catch (e) { console.error(e); }
       }, 0);
@@ -955,27 +1155,17 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
       return () => {
         if (messageTimeoutRef.current) clearTimeout(messageTimeoutRef.current);
       };
-      }, [isOpen, seedPositions]); // ← remove autoHydrateSeededPrices to avoid TDZ
+    }, [isOpen, seedPositions]);
 
 
-  // Load accounts
-  const loadAccounts = async () => {
-    try {
-      const fetchedAccounts = await fetchAllAccounts();
-      setAccounts(fetchedAccounts);
-      
-      const recentIds = fetchedAccounts.slice(0, 3).map(a => a.id);
-      setRecentlyUsedAccounts(recentIds);
-      
-      // NEW: Select all by default
-      setSelectedAccountFilter(new Set(fetchedAccounts.map(acc => acc.id)));
-      setSelectedInstitutionFilter(new Set(fetchedAccounts.map(acc => acc.institution).filter(Boolean)));
-    } catch (error) {
-      console.error('Error loading accounts:', error);
-      showMessage('error', 'Failed to load accounts', [`Error: ${error.message}`]);
-    }
-  };
 
+  // If seeds arrived before accounts, fill in account_id once both are ready
+  useEffect(() => {
+    if (!isOpen) return;
+    if (!accounts || accounts.length === 0) return;
+    backfillSeedAccountIds();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, accounts.length]);
   // Enhanced message display
   const showMessage = (type, text, details = [], duration = 5000) => {
     setMessage({ type, text, details });
@@ -1212,99 +1402,98 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
     setSearchResults((prev) => ({ ...prev, [searchKey]: [] }));
   };
 
+  // --- NEW: auto-hydrate current prices for seeded rows after Excel import ---
+  const metalSymbolByType = {
+    Gold: 'GC=F',
+    Silver: 'SI=F',
+    Platinum: 'PL=F',
+    Copper: 'HG=F',
+    Palladium: 'PA=F',
+  };
 
-    // --- NEW: auto-hydrate current prices for seeded rows after Excel import ---
-    const metalSymbolByType = {
-      Gold: 'GC=F',
-      Silver: 'SI=F',
-      Platinum: 'PL=F',
-      Copper: 'HG=F',
-      Palladium: 'PA=F',
-    };
+  // Prefer numeric; tolerate multiple field names across providers
+  const getQuotePrice = (s) => {
+    const v =
+      s?.price ??
+      s?.current_price ??
+      s?.regularMarketPrice ??
+      s?.regular_market_price ??
+      s?.last ??
+      s?.close ??
+      s?.value ??
+      s?.mark;
 
-    // Prefer numeric; tolerate multiple field names across providers
-    const getQuotePrice = (s) => {
-      const v =
-        s?.price ??
-        s?.current_price ??
-        s?.regularMarketPrice ??
-        s?.regular_market_price ??
-        s?.last ??
-        s?.close ??
-        s?.value ??
-        s?.mark;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : undefined;
+  };
 
-      const n = Number(v);
-      return Number.isFinite(n) ? n : undefined;
-    };
+  
+  const autoHydrateSeededPrices = useCallback(async () => {
+    // Build work items off *current* positions
+    const work = [];
 
-   
-    const autoHydrateSeededPrices = useCallback(async () => {
-      // Build work items off *current* positions
-      const work = [];
-
-      positions.security.forEach((p) => {
-        const q = p?.data?.ticker || p?.data?.symbol;
-        // hydrate only if missing price
-        if (q && (p?.data?.price == null || p?.data?.price === '' || Number(p?.data?.price) === 0)) {
-          work.push({ type: 'security', id: p.id, q });
-        }
-      });
-
-      positions.crypto.forEach((p) => {
-        const q = p?.data?.symbol || p?.data?.ticker;
-        if (q && (p?.data?.current_price == null || p?.data?.current_price === '' || Number(p?.data?.current_price) === 0)) {
-          work.push({ type: 'crypto', id: p.id, q });
-        }
-      });
-
-      positions.metal.forEach((p) => {
-        const q = p?.data?.symbol || metalSymbolByType[p?.data?.metal_type];
-        if (q && (p?.data?.current_price_per_unit == null || p?.data?.current_price_per_unit === '' || Number(p?.data?.current_price_per_unit) === 0)) {
-          work.push({ type: 'metal', id: p.id, q });
-        }
-      });
-
-      if (!work.length) return;
-
-      // Run lookups in parallel then apply selections
-      const chunks = await Promise.all(
-        work.map(async (item) => {
-          try {
-            const results = await searchSecurities(item.q);
-
-            let filtered = Array.isArray(results) ? results : [];
-            if (item.type === 'security') {
-              filtered = filtered.filter((r) => r.asset_type === 'security' || r.asset_type === 'index');
-            } else if (item.type === 'crypto') {
-              filtered = filtered.filter((r) => r.asset_type === 'crypto');
-            } // metals: keep as-is
-
-            const exact = filtered.find(
-              (r) => String(r.ticker || '').toUpperCase() === String(item.q).toUpperCase()
-            );
-            const chosen = exact || filtered[0];
-
-            return chosen ? { ...item, chosen } : null;
-          } catch (e) {
-            console.warn('Hydrate lookup failed', item, e);
-            return null;
-          }
-        })
-      );
-
-      // Apply selections (which set the correct price fields)
-      for (const hit of chunks) {
-        if (hit?.chosen) {
-          handleSelectSecurity(hit.type, hit.id, hit.chosen);
-        }
+    positions.security.forEach((p) => {
+      const q = p?.data?.ticker || p?.data?.symbol;
+      // hydrate only if missing price
+      if (q && (p?.data?.price == null || p?.data?.price === '' || Number(p?.data?.price) === 0)) {
+        work.push({ type: 'security', id: p.id, q });
       }
-    }, [positions, handleSelectSecurity]);
+    });
 
-    const hydratedRef = useRef(false);
+    positions.crypto.forEach((p) => {
+      const q = p?.data?.symbol || p?.data?.ticker;
+      if (q && (p?.data?.current_price == null || p?.data?.current_price === '' || Number(p?.data?.current_price) === 0)) {
+        work.push({ type: 'crypto', id: p.id, q });
+      }
+    });
 
-    // Run once when seeded rows are in state
-    useEffect(() => {
+    positions.metal.forEach((p) => {
+      const q = p?.data?.symbol || metalSymbolByType[p?.data?.metal_type];
+      if (q && (p?.data?.current_price_per_unit == null || p?.data?.current_price_per_unit === '' || Number(p?.data?.current_price_per_unit) === 0)) {
+        work.push({ type: 'metal', id: p.id, q });
+      }
+    });
+
+    if (!work.length) return;
+
+    // Run lookups in parallel then apply selections
+    const chunks = await Promise.all(
+      work.map(async (item) => {
+        try {
+          const results = await searchSecurities(item.q);
+
+          let filtered = Array.isArray(results) ? results : [];
+          if (item.type === 'security') {
+            filtered = filtered.filter((r) => r.asset_type === 'security' || r.asset_type === 'index');
+          } else if (item.type === 'crypto') {
+            filtered = filtered.filter((r) => r.asset_type === 'crypto');
+          } // metals: keep as-is
+
+          const exact = filtered.find(
+            (r) => String(r.ticker || '').toUpperCase() === String(item.q).toUpperCase()
+          );
+          const chosen = exact || filtered[0];
+
+          return chosen ? { ...item, chosen } : null;
+        } catch (e) {
+          console.warn('Hydrate lookup failed', item, e);
+          return null;
+        }
+      })
+    );
+
+    // Apply selections (which set the correct price fields)
+    for (const hit of chunks) {
+      if (hit?.chosen) {
+        handleSelectSecurity(hit.type, hit.id, hit.chosen);
+      }
+    }
+  }, [positions, handleSelectSecurity]);
+
+  const hydratedRef = useRef(false);
+
+  // Run once when seeded rows are in state
+  useEffect(() => {
       if (!isOpen || hydratedRef.current) return;
 
       const total =
@@ -1329,6 +1518,8 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
       positions.metal.length
     ]);
 
+
+  
   // Update position with search trigger
   const updatePosition = (assetType, positionId, field, value) => {
     setPositions(prev => ({
@@ -1394,30 +1585,51 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
     }));
   };
 
-  // Delete position
   const deletePosition = (assetType, positionId) => {
     const validPositions = assetType === 'otherAssets'
       ? positions[assetType].filter(p => p.data.asset_name && p.data.current_value)
       : positions[assetType].filter(p => p.data.account_id);
-    
+
     if (validPositions.length > 5 && !window.confirm('Delete this position?')) {
       return;
     }
-    
+
     setPositions(prev => ({
       ...prev,
-      [assetType]: prev[assetType].map(pos => 
+      [assetType]: prev[assetType].map(pos =>
         pos.id === positionId ? { ...pos, animateOut: true } : pos
       )
     }));
-    
+
     setTimeout(() => {
       setPositions(prev => ({
         ...prev,
         [assetType]: prev[assetType].filter(pos => pos.id !== positionId)
       }));
+      // clean selection
+      setSelectedIds(prev => {
+        const next = new Set(prev);
+        next.delete(positionId);
+        return next;
+      });
     }, 300);
   };
+
+  // Bulk delete across all types
+  const deleteSelected = useCallback(() => {
+    if (selectedIds.size === 0) return;
+    if (!window.confirm(`Delete ${selectedIds.size} selected row(s)?`)) return;
+
+    setPositions(prev => {
+      const updated = { ...prev };
+      Object.keys(updated).forEach(type => {
+        updated[type] = updated[type].filter(pos => !selectedIds.has(pos.id));
+      });
+      return updated;
+    });
+    setSelectedIds(new Set());
+  }, [selectedIds]);
+
 
   // Duplicate position
   const duplicatePosition = (assetType, position) => {
@@ -1557,6 +1769,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
       performance 
     };
   }, [positions]);
+  
   // Validate positions
   const validatePositions = () => {
     let isValid = true;
@@ -1736,7 +1949,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
           
           // Update position status
           updatedPositions[type] = updatedPositions[type].map(pos => 
-            pos.id === position.id ? { ...pos, status: 'success' } : pos
+            pos.id === position.id ? { ...pos, status: 'added' } : pos
           );
           
           const progress = Math.round(((i + 1) / batches.length) * 100);
@@ -1802,7 +2015,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
     const updatedPositions = { ...positions };
     
     Object.keys(updatedPositions).forEach(type => {
-      updatedPositions[type] = updatedPositions[type].filter(pos => pos.status !== 'success');
+      updatedPositions[type] = updatedPositions[type].filter(pos => pos.status !== 'added');
     });
     
     setPositions(updatedPositions);
@@ -2045,151 +2258,419 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
               );
               }
               };
-              // Render asset section
-              const renderAssetSection = (assetType) => {
-                const config = assetTypes[assetType];
-                const typePositions = positions[assetType] || [];
+  
+  // Render asset section
+  const renderAssetSection = (assetType) => {
+    const config = assetTypes[assetType];
+    const typePositions = positions[assetType] || [];
+    
+    // Special validation for otherAssets
+    const validPositions = assetType === 'otherAssets'
+      ? typePositions.filter(p => p.data.asset_name && p.data.current_value)
+      : typePositions.filter(p => p.data.account_id);
+      
+    const isExpanded = expandedSections[assetType];
+    const Icon = config.icon;
+    const typeStats = stats.byType[assetType];
+    const performance = stats.performance[assetType];
+
+
+
+    return (
+      <div 
+        key={assetType} 
+        className={`
+          bg-white rounded-xl shadow-sm border overflow-hidden transition-all duration-300
+          ${isExpanded ? 'border-gray-200 shadow-md' : 'border-gray-100'}
+          ${typePositions.length > 0 ? 'ring-1 ring-gray-100' : ''}
+        `}
+      >
+        {/* Section Header - Entire row is clickable */}
+        <div 
+          onClick={() => toggleSection(assetType)}
+          className={`
+            px-4 py-3 cursor-pointer transition-all duration-200
+            ${isExpanded 
+              ? `bg-gradient-to-r ${config.color.gradient} text-white shadow-sm` 
+              : 'bg-gray-50 hover:bg-gray-100'
+              }
+            `}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3 flex-1">
+                <div className={`
+                  p-2 rounded-lg transition-all duration-200 
+                  ${isExpanded ? 'bg-white/20' : `${config.color.lightBg}`}
+                `}>
+                  <Icon className={`w-5 h-5 ${isExpanded ? 'text-white' : config.color.text}`} />
+                </div>
                 
-                // Special validation for otherAssets
-                const validPositions = assetType === 'otherAssets'
-                  ? typePositions.filter(p => p.data.asset_name && p.data.current_value)
-                  : typePositions.filter(p => p.data.account_id);
-                  
-                const isExpanded = expandedSections[assetType];
-                const Icon = config.icon;
-                const typeStats = stats.byType[assetType];
-                const performance = stats.performance[assetType];
-
-
-
-              return (
-                <div 
-                  key={assetType} 
+                <div className="flex-1">
+                  <h3 className={`font-semibold text-base flex items-center ${
+                    isExpanded ? 'text-white' : 'text-gray-800'
+                  }`}>
+                    {config.name}
+                    {validPositions.length > 0 && (
+                      <span className={`
+                        ml-2 px-2 py-0.5 text-xs font-bold rounded-full
+                        ${isExpanded ? 'bg-white/20 text-white' : `${config.color.bg} text-white`}
+                      `}>
+                        {validPositions.length}
+                      </span>
+                    )}
+                  </h3>
+                  <p className={`text-xs mt-0.5 ${isExpanded ? 'text-white/80' : 'text-gray-500'}`}>
+                    {config.description}
+                  </p>
+                </div>
+                
+                {typeStats && typeStats.count > 0 && (
+                  <div className={`flex items-center space-x-4 text-xs ${
+                    isExpanded ? 'text-white/90' : 'text-gray-600'
+                  }`}>
+                    <div className="text-right">
+                      <div className="font-medium">
+                        {showValues ? formatCurrency(typeStats.value) : '••••'}
+                      </div>
+                      {performance !== undefined && (
+                        <div className={`flex items-center justify-end ${
+                          performance >= 0 ? 'text-green-400' : 'text-red-400'
+                        }`}>
+                          {performance >= 0 ? <TrendingUp className="w-3 h-3 mr-1" /> : <TrendingDown className="w-3 h-3 mr-1" />}
+                          {Math.abs(performance).toFixed(1)}%
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+              
+              <div className="flex items-center space-x-2 ml-3">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    addNewRow(assetType);
+                    if (!isExpanded) {
+                      setExpandedSections(prev => ({ ...prev, [assetType]: true }));
+                    }
+                  }}
                   className={`
-                    bg-white rounded-xl shadow-sm border overflow-hidden transition-all duration-300
-                    ${isExpanded ? 'border-gray-200 shadow-md' : 'border-gray-100'}
-                    ${typePositions.length > 0 ? 'ring-1 ring-gray-100' : ''}
+                    p-1.5 rounded-lg transition-all duration-200 
+                    ${isExpanded 
+                      ? 'bg-white/20 hover:bg-white/30 text-white' 
+                      : `${config.color.lightBg} hover:${config.color.hover} ${config.color.text}`
+                    }
                   `}
+                  title={`Add ${config.name}`}
                 >
-                  {/* Section Header - Entire row is clickable */}
-                  <div 
-                    onClick={() => toggleSection(assetType)}
+                  <Plus className="w-4 h-4" />
+                </button>
+                
+                <ChevronDown className={`
+                  w-5 h-5 transition-transform duration-300
+                  ${isExpanded ? 'rotate-180 text-white' : 'text-gray-400'}
+                `} />
+              </div>
+            </div>
+          </div>
+
+          {/* Table Content */}
+          {isExpanded && (
+            <div className="bg-white animate-in slide-in-from-top-2 duration-300">
+              {typePositions.length === 0 ? (
+                <div className="p-8 text-center">
+                  <div className={`inline-flex p-4 rounded-full ${config.color.lightBg} mb-4`}>
+                    <Icon className={`w-8 h-8 ${config.color.text}`} />
+                  </div>
+                  <p className="text-gray-600 mb-4">No {config.name.toLowerCase()} positions yet</p>
+                  <button
+                    onClick={() => addNewRow(assetType)}
                     className={`
-                      px-4 py-3 cursor-pointer transition-all duration-200
-                      ${isExpanded 
-                        ? `bg-gradient-to-r ${config.color.gradient} text-white shadow-sm` 
-                        : 'bg-gray-50 hover:bg-gray-100'
-                        }
+                      inline-flex items-center px-4 py-2 rounded-lg font-medium transition-all duration-200
+                      ${config.color.bg} text-white hover:shadow-md hover:scale-105
+                    `}
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add First {config.name}
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <div className="overflow-x-auto overflow-y-visible" ref={el => tableRefs.current[assetType] = el}>
+                    <table className="w-full">
+                      <thead>
+                        <tr className="bg-gray-50 border-b border-gray-200">
+                          <th className="w-12 px-3 py-3 text-left">
+                            <span className="text-xs font-semibold text-gray-600">#</span>
+                          </th>
+                          {config.fields.map(field => (
+                            <th key={field.key} className={`${field.width} px-2 py-3 text-left`}>
+                              <span className="text-xs font-semibold text-gray-600 flex items-center">
+                                {field.label}
+                                {field.required && <span className="text-red-500 ml-1">*</span>}
+                                {field.readOnly && (
+                                  <Info className="w-3 h-3 ml-1 text-gray-400" title="Auto-filled from search" />
+                                )}
+                              </span>
+                            </th>
+                          ))}
+                          <th className="w-24 px-2 py-3 text-left">
+                            <span className="text-xs font-semibold text-gray-600">Status</span>
+                          </th>
+                          <th className="w-24 px-2 py-3 text-center">
+                            <span className="text-xs font-semibold text-gray-600">Actions</span>
+                          </th>
+                        </tr>
+                      </thead>
+
+                      <tbody>
+                        {typePositions.map((position, index) => {
+                          const hasErrors = Object.values(position.errors || {}).some(e => e);
+                          const value = calculatePositionValue(assetType, position);
+                          
+                          return (
+                            <tr 
+                              key={position.id}
+                              className={`
+                                border-b border-gray-100 transition-all duration-300 group relative
+                                ${position.isNew ? 'bg-blue-50/50' : 'hover:bg-gray-50/50'}
+                                ${position.animateIn ? 'animate-in slide-in-from-left duration-300' : ''}
+                                ${position.animateOut ? 'animate-out slide-out-to-right duration-300' : ''}
+                                ${hasErrors ? 'bg-red-50/30' : ''}
+                              `}
+                              style={{ zIndex: typePositions.length - index }}
+                            >
+                              <td className="px-3 py-2">
+                                <div className="flex items-center space-x-2">
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedIds.has(position.id)}
+                                    onChange={(e) => toggleRowSelected(position.id, e.target.checked)}
+                                    aria-label={`Select row ${index + 1}`}
+                                  />
+                                  <span className="text-sm font-medium text-gray-500">{index + 1}</span>
+                                  {position.isNew && <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />}
+                                </div>
+                              </td>
+
+                              {config.fields.map(field => (
+                                <td key={field.key} className={`${field.width} px-1 py-2`}>
+                                  {renderCellInput(
+                                    assetType, 
+                                    position, 
+                                    field, 
+                                    `${assetType}-${position.id}-${field.key}`
+                                  )}
+                                </td>
+                              ))}
+                                <td className="px-2 py-2">
+                                  {(() => {
+                                    const s = getRowStatus(position);
+                                    const styles = {
+                                      ready:      "bg-emerald-50 text-emerald-700 border-emerald-200",
+                                      draft:      "bg-amber-50 text-amber-700 border-amber-200",
+                                      submitting: "bg-blue-50 text-blue-700 border-blue-200",
+                                      added:      "bg-indigo-50 text-indigo-700 border-indigo-200",
+                                      error:      "bg-red-50 text-red-700 border-red-200",
+                                    }[s] || "bg-gray-50 text-gray-600 border-gray-200";
+                                    return (
+                                      <span className={`inline-flex items-center px-2 py-0.5 text-[11px] rounded border ${styles}`}>
+                                        {s}
+                                      </span>
+                                    );
+                                  })()}
+                                </td>
+
+                                <td className="px-2 py-2">
+                                  <div className="flex items-center justify-center space-x-1">
+                                    <button
+                                      onClick={() => duplicatePosition(assetType, position)}
+                                      className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-all"
+                                      title="Duplicate"
+                                    >
+                                      <Copy className="w-3 h-3" />
+                                    </button>
+                                    <button
+                                      onClick={() => deletePosition(assetType, position.id)}
+                                      className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-all"
+                                      title="Delete"
+                                    >
+                                      <Trash2 className="w-3 h-3" />
+                                    </button>
+                                  </div>
+                                </td>
+
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                  
+                  {/* Add row footer */}
+                  <div className="p-3 bg-gray-50 border-t border-gray-100">
+                    <button
+                      onClick={() => addNewRow(assetType)}
+                      className={`
+                        w-full py-2 px-4 border-2 border-dashed rounded-lg
+                        transition-all duration-200 flex items-center justify-center space-x-2
+                        ${config.color.border} ${config.color.hover} hover:border-solid
+                        group
                       `}
                     >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-3 flex-1">
-                          <div className={`
-                            p-2 rounded-lg transition-all duration-200 
-                            ${isExpanded ? 'bg-white/20' : `${config.color.lightBg}`}
-                          `}>
-                            <Icon className={`w-5 h-5 ${isExpanded ? 'text-white' : config.color.text}`} />
-                          </div>
-                          
-                          <div className="flex-1">
-                            <h3 className={`font-semibold text-base flex items-center ${
-                              isExpanded ? 'text-white' : 'text-gray-800'
-                            }`}>
-                              {config.name}
-                              {validPositions.length > 0 && (
-                                <span className={`
-                                  ml-2 px-2 py-0.5 text-xs font-bold rounded-full
-                                  ${isExpanded ? 'bg-white/20 text-white' : `${config.color.bg} text-white`}
-                                `}>
-                                  {validPositions.length}
-                                </span>
-                              )}
-                            </h3>
-                            <p className={`text-xs mt-0.5 ${isExpanded ? 'text-white/80' : 'text-gray-500'}`}>
-                              {config.description}
-                            </p>
-                          </div>
-                          
-                          {typeStats && typeStats.count > 0 && (
-                            <div className={`flex items-center space-x-4 text-xs ${
-                              isExpanded ? 'text-white/90' : 'text-gray-600'
-                            }`}>
-                              <div className="text-right">
-                                <div className="font-medium">
-                                  {showValues ? formatCurrency(typeStats.value) : '••••'}
-                                </div>
-                                {performance !== undefined && (
-                                  <div className={`flex items-center justify-end ${
-                                    performance >= 0 ? 'text-green-400' : 'text-red-400'
-                                  }`}>
-                                    {performance >= 0 ? <TrendingUp className="w-3 h-3 mr-1" /> : <TrendingDown className="w-3 h-3 mr-1" />}
-                                    {Math.abs(performance).toFixed(1)}%
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          )}
-                        </div>
+                      <Plus className={`w-4 h-4 ${config.color.text} group-hover:scale-110 transition-transform`} />
+                      <span className={`text-sm font-medium ${config.color.text}`}>
+                        Add {config.name} (Enter)
+                      </span>
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      );
+    };
+
+ 
+ // Render positions by account
+  const renderByAccount = () => {
+      const otherAssetsPositions = positions.otherAssets.filter(p => 
+      p.data.asset_name && p.data.current_value
+    );
+    
+    return (
+      <div className="space-y-4">
+        {accounts.filter(account => {
+          // Apply account filter
+          const passesAccountFilter = selectedAccountFilter.has(account.id);
+          // Apply institution filter
+          const passesInstitutionFilter = selectedInstitutionFilter.has(account.institution);
+          // Both filters must pass
+          return passesAccountFilter && passesInstitutionFilter;
+        }).map(account => {
+          const accountStats = stats.byAccount[account.id];
+          const hasPositions = accountStats && accountStats.count > 0;
+          
+          return (
+            <div key={account.id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+              {/* Account Header with asset type buttons */}
+              <div className="px-4 py-3 bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-4">
+                    <div>
+                      <h3 className="font-semibold text-gray-800">{account.account_name}</h3>
+                      <p className="text-sm text-gray-600 mt-1">
+                        {accountStats ? `${accountStats.count} position${accountStats.count !== 1 ? 's' : ''}` : 'No positions'} • 
+                        {showValues && accountStats ? ` ${formatCurrency(accountStats.value)}` : ' ••••'}
+                      </p>
+                    </div>
+                    
+                    {/* Asset type buttons always visible */}
+                    <div className="flex items-center space-x-2 ml-8">
+                      {Object.entries(assetTypes).map(([type, config]) => {
+                        const Icon = config.icon;
+                        const typeCount = accountStats?.positions.filter(p => p.assetType === type).length || 0;
+                        const hasTypePositions = typeCount > 0;
                         
-                        <div className="flex items-center space-x-2 ml-3">
+                        return (
                           <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              addNewRow(assetType);
-                              if (!isExpanded) {
-                                setExpandedSections(prev => ({ ...prev, [assetType]: true }));
-                              }
-                            }}
+                            key={type}
+                            onClick={() => addNewRowForAccount(account.id, type)}
                             className={`
-                              p-1.5 rounded-lg transition-all duration-200 
-                              ${isExpanded 
-                                ? 'bg-white/20 hover:bg-white/30 text-white' 
-                                : `${config.color.lightBg} hover:${config.color.hover} ${config.color.text}`
+                              inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-medium
+                              transition-all duration-200 group
+                              ${hasTypePositions 
+                                ? `${config.color.bg} text-white hover:shadow-md` 
+                                : `${config.color.lightBg} ${config.color.text} hover:${config.color.bg} hover:text-white`
                               }
                             `}
                             title={`Add ${config.name}`}
                           >
-                            <Plus className="w-4 h-4" />
+                            <Icon className="w-3.5 h-3.5 mr-1.5" />
+                            <span>{config.name}</span>
+                            {typeCount > 0 && (
+                              <span className="ml-1.5 px-1.5 py-0.5 bg-white/20 rounded-full text-[10px] font-bold">
+                                {typeCount}
+                              </span>
+                            )}
+                            <Plus className="w-3 h-3 ml-1 opacity-0 group-hover:opacity-100 transition-opacity" />
                           </button>
-                          
-                          <ChevronDown className={`
-                            w-5 h-5 transition-transform duration-300
-                            ${isExpanded ? 'rotate-180 text-white' : 'text-gray-400'}
-                          `} />
-                        </div>
-                      </div>
+                        );
+                      })}
                     </div>
+                  </div>
+                </div>
+              </div>
 
-                    {/* Table Content */}
-                    {isExpanded && (
-                      <div className="bg-white animate-in slide-in-from-top-2 duration-300">
-                        {typePositions.length === 0 ? (
-                          <div className="p-8 text-center">
-                            <div className={`inline-flex p-4 rounded-full ${config.color.lightBg} mb-4`}>
-                              <Icon className={`w-8 h-8 ${config.color.text}`} />
+              {/* Positions by Type */}
+              <div className="p-4 space-y-4">
+                {hasPositions ? (
+                  Object.entries(assetTypes).map(([type, config]) => {
+                    const typePositions = positions[type].filter(p => p.data.account_id === account.id);
+                    if (typePositions.length === 0) return null;
+
+                    const Icon = config.icon;
+                    const sectionKey = `${account.id}-${type}`;
+                    const isExpanded = accountExpandedSections[sectionKey] !== false; // Default expanded
+                    
+                    return (
+                      <div key={type} className="border border-gray-200 rounded-lg overflow-hidden">
+                        <div 
+                          onClick={() => setAccountExpandedSections(prev => ({
+                            ...prev,
+                            [sectionKey]: !isExpanded
+                          }))}
+                          className={`px-3 py-2 ${config.color.lightBg} border-b ${config.color.border} cursor-pointer hover:brightness-95 transition-all`}
+                        >
+                          <h4 className={`font-medium text-sm ${config.color.text} flex items-center justify-between`}>
+                            <div className="flex items-center">
+                              <Icon className="w-4 h-4 mr-2" />
+                              {config.name}
+                              <span className={`ml-2 px-1.5 py-0.5 text-xs ${config.color.bg} text-white rounded-full`}>
+                                {typePositions.length}
+                              </span>
                             </div>
-                            <p className="text-gray-600 mb-4">No {config.name.toLowerCase()} positions yet</p>
-                            <button
-                              onClick={() => addNewRow(assetType)}
-                              className={`
-                                inline-flex items-center px-4 py-2 rounded-lg font-medium transition-all duration-200
-                                ${config.color.bg} text-white hover:shadow-md hover:scale-105
-                              `}
-                            >
-                              <Plus className="w-4 h-4 mr-2" />
-                              Add First {config.name}
-                            </button>
-                          </div>
-                        ) : (
-                          <>
-                            <div className="overflow-x-auto overflow-y-visible" ref={el => tableRefs.current[assetType] = el}>
-                              <table className="w-full">
-                                <thead>
-                                  <tr className="bg-gray-50 border-b border-gray-200">
-                                    <th className="w-12 px-3 py-3 text-left">
-                                      <span className="text-xs font-semibold text-gray-600">#</span>
-                                    </th>
-                                    {config.fields.map(field => (
+                            <ChevronDown className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                          </h4>
+                        </div>
+                        
+                        {isExpanded && (
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+
+                              <thead>
+                                <tr className="bg-gray-50 border-b border-gray-200">
+                                  <th className="w-10 px-3 py-3 text-left">
+                                    <input
+                                      type="checkbox"
+                                      onChange={(e) => {
+                                        const checked = e.target.checked;
+                                        setSelectedIds(prev => {
+                                          const next = new Set(prev);
+                                          const scoped = positions[type].filter(p => p.data.account_id === account.id);
+                                          if (checked) {
+                                            scoped.forEach(p => next.add(p.id));
+                                          } else {
+                                            scoped.forEach(p => next.delete(p.id));
+                                          }
+                                          return next;
+                                        });
+                                      }}
+                                      checked={
+                                        (() => {
+                                          const scoped = positions[type].filter(p => p.data.account_id === account.id);
+                                          return scoped.length > 0 && scoped.every(p => selectedIds.has(p.id));
+                                        })()
+                                      }
+                                      aria-label={`Select all ${config.name}`}
+                                    />
+
+                                  </th>
+
+                                  {config.fields
+                                    .filter(f => f.key !== 'account_id')
+                                    .map(field => (
                                       <th key={field.key} className={`${field.width} px-2 py-3 text-left`}>
                                         <span className="text-xs font-semibold text-gray-600 flex items-center">
                                           {field.label}
@@ -2200,355 +2681,78 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                                         </span>
                                       </th>
                                     ))}
-                                    <th className="w-24 px-2 py-3 text-center">
-                                      <span className="text-xs font-semibold text-gray-600">Actions</span>
-                                    </th>
-                                  </tr>
-                                </thead>
+
+                                  <th className="w-24 px-2 py-3 text-left">
+                                    <span className="text-xs font-semibold text-gray-600">Status</span>
+                                  </th>
+                                  <th className="w-24 px-2 py-3 text-center">
+                                    <span className="text-xs font-semibold text-gray-600">Actions</span>
+                                  </th>
+                                </tr>
+                              </thead>
+
+
+
+
                                 <tbody>
-                                  {typePositions.map((position, index) => {
-                                    const hasErrors = Object.values(position.errors || {}).some(e => e);
-                                    const value = calculatePositionValue(assetType, position);
-                                    
-                                    return (
-                                      <tr 
-                                        key={position.id}
-                                        className={`
-                                          border-b border-gray-100 transition-all duration-300 group relative
-                                          ${position.isNew ? 'bg-blue-50/50' : 'hover:bg-gray-50/50'}
-                                          ${position.animateIn ? 'animate-in slide-in-from-left duration-300' : ''}
-                                          ${position.animateOut ? 'animate-out slide-out-to-right duration-300' : ''}
-                                          ${hasErrors ? 'bg-red-50/30' : ''}
-                                        `}
-                                        style={{ zIndex: typePositions.length - index }}
-                                      >
-                                        <td className="px-3 py-2">
-                                          <div className="flex items-center space-x-2">
-                                            <span className="text-sm font-medium text-gray-500">
-                                              {index + 1}
-                                            </span>
-                                            {position.isNew && (
-                                              <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
-                                            )}
-                                          </div>
-                                        </td>
-                                        {config.fields.map(field => (
-                                          <td key={field.key} className={`${field.width} px-1 py-2`}>
-                                            {renderCellInput(
-                                              assetType, 
-                                              position, 
-                                              field, 
-                                              `${assetType}-${position.id}-${field.key}`
-                                            )}
-                                          </td>
-                                        ))}
-                                        <td className="px-2 py-2">
-                                          <div className="flex items-center justify-center space-x-1">
-                                            <button
-                                              onClick={() => duplicatePosition(assetType, position)}
-                                              className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all duration-200"
-                                              title="Duplicate (Ctrl+D)"
-                                            >
-                                              <Copy className="w-4 h-4" />
-                                            </button>
-                                            <button
-                                              onClick={() => deletePosition(assetType, position.id)}
-                                              className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all duration-200"
-                                              title="Delete (Ctrl+Del)"
-                                            >
-                                              <Trash2 className="w-4 h-4" />
-                                            </button>
-                                            {value > 0 && showValues && (
-                                              <div className="ml-2 px-2 py-1 bg-gray-100 rounded text-xs font-medium text-gray-600">
-                                                {formatCurrency(value)}
-                                              </div>
-                                            )}
-                                          </div>
-                                        </td>
-                                      </tr>
-                                    );
-                                  })}
-                                </tbody>
-                              </table>
-                            </div>
-                            
-                            {/* Add row footer */}
-                            <div className="p-3 bg-gray-50 border-t border-gray-100">
-                              <button
-                                onClick={() => addNewRow(assetType)}
-                                className={`
-                                  w-full py-2 px-4 border-2 border-dashed rounded-lg
-                                  transition-all duration-200 flex items-center justify-center space-x-2
-                                  ${config.color.border} ${config.color.hover} hover:border-solid
-                                  group
-                                `}
-                              >
-                                <Plus className={`w-4 h-4 ${config.color.text} group-hover:scale-110 transition-transform`} />
-                                <span className={`text-sm font-medium ${config.color.text}`}>
-                                  Add {config.name} (Enter)
-                                </span>
-                              </button>
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                );
-              };
-
-              // Render positions by account
-              const renderByAccount = () => {
-                  const otherAssetsPositions = positions.otherAssets.filter(p => 
-                  p.data.asset_name && p.data.current_value
-                );
-                
-                return (
-                  <div className="space-y-4">
-                    {accounts.filter(account => {
-                      // Apply account filter
-                      const passesAccountFilter = selectedAccountFilter.has(account.id);
-                      // Apply institution filter
-                      const passesInstitutionFilter = selectedInstitutionFilter.has(account.institution);
-                      // Both filters must pass
-                      return passesAccountFilter && passesInstitutionFilter;
-                    }).map(account => {
-                      const accountStats = stats.byAccount[account.id];
-                      const hasPositions = accountStats && accountStats.count > 0;
-                      
-                      return (
-                        <div key={account.id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                          {/* Account Header with asset type buttons */}
-                          <div className="px-4 py-3 bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center space-x-4">
-                                <div>
-                                  <h3 className="font-semibold text-gray-800">{account.account_name}</h3>
-                                  <p className="text-sm text-gray-600 mt-1">
-                                    {accountStats ? `${accountStats.count} position${accountStats.count !== 1 ? 's' : ''}` : 'No positions'} • 
-                                    {showValues && accountStats ? ` ${formatCurrency(accountStats.value)}` : ' ••••'}
-                                  </p>
-                                </div>
-                                
-                                {/* Asset type buttons always visible */}
-                                <div className="flex items-center space-x-2 ml-8">
-                                  {Object.entries(assetTypes).map(([type, config]) => {
-                                    const Icon = config.icon;
-                                    const typeCount = accountStats?.positions.filter(p => p.assetType === type).length || 0;
-                                    const hasTypePositions = typeCount > 0;
-                                    
-                                    return (
-                                      <button
-                                        key={type}
-                                        onClick={() => addNewRowForAccount(account.id, type)}
-                                        className={`
-                                          inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-medium
-                                          transition-all duration-200 group
-                                          ${hasTypePositions 
-                                            ? `${config.color.bg} text-white hover:shadow-md` 
-                                            : `${config.color.lightBg} ${config.color.text} hover:${config.color.bg} hover:text-white`
-                                          }
-                                        `}
-                                        title={`Add ${config.name}`}
-                                      >
-                                        <Icon className="w-3.5 h-3.5 mr-1.5" />
-                                        <span>{config.name}</span>
-                                        {typeCount > 0 && (
-                                          <span className="ml-1.5 px-1.5 py-0.5 bg-white/20 rounded-full text-[10px] font-bold">
-                                            {typeCount}
-                                          </span>
-                                        )}
-                                        <Plus className="w-3 h-3 ml-1 opacity-0 group-hover:opacity-100 transition-opacity" />
-                                      </button>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Positions by Type */}
-                          <div className="p-4 space-y-4">
-                            {hasPositions ? (
-                              Object.entries(assetTypes).map(([type, config]) => {
-                                const typePositions = positions[type].filter(p => p.data.account_id === account.id);
-                                if (typePositions.length === 0) return null;
-
-                                const Icon = config.icon;
-                                const sectionKey = `${account.id}-${type}`;
-                                const isExpanded = accountExpandedSections[sectionKey] !== false; // Default expanded
-                                
-                                return (
-                                  <div key={type} className="border border-gray-200 rounded-lg overflow-hidden">
-                                    <div 
-                                      onClick={() => setAccountExpandedSections(prev => ({
-                                        ...prev,
-                                        [sectionKey]: !isExpanded
-                                      }))}
-                                      className={`px-3 py-2 ${config.color.lightBg} border-b ${config.color.border} cursor-pointer hover:brightness-95 transition-all`}
-                                    >
-                                      <h4 className={`font-medium text-sm ${config.color.text} flex items-center justify-between`}>
-                                        <div className="flex items-center">
-                                          <Icon className="w-4 h-4 mr-2" />
-                                          {config.name}
-                                          <span className={`ml-2 px-1.5 py-0.5 text-xs ${config.color.bg} text-white rounded-full`}>
-                                            {typePositions.length}
-                                          </span>
-                                        </div>
-                                        <ChevronDown className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
-                                      </h4>
-                                    </div>
-                                    
-                                    {isExpanded && (
-                                      <div className="overflow-x-auto">
-                                        <table className="w-full text-sm">
-                                          <thead>
-                                            <tr className="bg-gray-50 border-b border-gray-200">
-                                              {config.fields.filter(f => f.key !== 'account_id').map(field => (
-                                                <th key={field.key} className="px-2 py-2 text-left text-xs font-medium text-gray-600">
-                                                  {field.label}
-                                                  {field.required && <span className="text-red-500 ml-0.5">*</span>}
-                                                </th>
-                                              ))}
-                                              <th className="px-2 py-2 text-center text-xs font-medium text-gray-600">Actions</th>
-                                            </tr>
-                                          </thead>
-                                          <tbody>
-                                            {typePositions.map((position, index) => (
-                                              <tr key={position.id} className="border-b border-gray-100 hover:bg-gray-50">
-                                                {config.fields.filter(f => f.key !== 'account_id').map(field => (
-                                                  <td key={field.key} className="px-1 py-1">
-                                                    {renderCellInput(
-                                                      type,
-                                                      position,
-                                                      field,
-                                                      `${type}-${position.id}-${field.key}`
-                                                    )}
-                                                  </td>
-                                                ))}
-                                                <td className="px-1 py-1">
-                                                  <div className="flex items-center justify-center space-x-1">
-                                                    <button
-                                                      onClick={() => duplicatePosition(type, position)}
-                                                      className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-all"
-                                                      title="Duplicate"
-                                                    >
-                                                      <Copy className="w-3 h-3" />
-                                                    </button>
-                                                    <button
-                                                      onClick={() => deletePosition(type, position.id)}
-                                                      className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-all"
-                                                      title="Delete"
-                                                    >
-                                                      <Trash2 className="w-3 h-3" />
-                                                    </button>
-                                                  </div>
-                                                </td>
-                                              </tr>
-                                            ))}
-                                          </tbody>
-                                        </table>
-                                        <div className="p-2 bg-gray-50 border-t border-gray-100">
-                                          <button
-                                            onClick={() => addNewRowForAccount(account.id, type)}
-                                            className={`
-                                              w-full py-1.5 px-3 text-xs font-medium rounded
-                                              ${config.color.lightBg} ${config.color.text} 
-                                              hover:${config.color.bg} hover:text-white transition-all
-                                              flex items-center justify-center space-x-1
-                                            `}
-                                          >
-                                            <Plus className="w-3 h-3" />
-                                            <span>Add {config.name}</span>
-                                          </button>
-                                        </div>
-                                      </div>
-                                    )}
-                                  </div>
-                                );
-                              })
-                            ) : (
-                              <p className="text-gray-500 text-sm text-center py-4">
-                                Click any asset type button above to start adding positions
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-
-                      {/* Add Other Assets section at the end if there are any */}
-                      {otherAssetsPositions.length > 0 && (
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mt-4">
-                          <div className="px-4 py-3 bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <h3 className="font-semibold text-gray-800">Other Assets (Not in Accounts)</h3>
-                                <p className="text-sm text-gray-600 mt-1">
-                                  {otherAssetsPositions.length} asset{otherAssetsPositions.length !== 1 ? 's' : ''} • 
-                                  {showValues ? ` ${formatCurrency(stats.byType.otherAssets?.value || 0)}` : ' ••••'}
-                                </p>
-                              </div>
-                              
-                              <button
-                                onClick={() => {
-                                  addNewRow('otherAssets');
-                                  if (!expandedSections.otherAssets) {
-                                    setExpandedSections(prev => ({ ...prev, otherAssets: true }));
-                                  }
-                                }}
-                                className={`
-                                  inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-medium
-                                  transition-all duration-200 group
-                                  ${assetTypes.otherAssets.color.lightBg} ${assetTypes.otherAssets.color.text} 
-                                  hover:${assetTypes.otherAssets.color.bg} hover:text-white
-                                `}
-                              >
-                                <Home className="w-3.5 h-3.5 mr-1.5" />
-                                <span>Add Other Asset</span>
-                                <Plus className="w-3 h-3 ml-1 opacity-0 group-hover:opacity-100 transition-opacity" />
-                              </button>
-                            </div>
-                          </div>
-
-                          <div className="p-4">
-                            <div className="overflow-x-auto">
-                              <table className="w-full text-sm">
-                                <thead>
-                                  <tr className="bg-gray-50 border-b border-gray-200">
-                                    {assetTypes.otherAssets.fields.map(field => (
-                                      <th key={field.key} className="px-2 py-2 text-left text-xs font-medium text-gray-600">
-                                        {field.label}
-                                        {field.required && <span className="text-red-500 ml-0.5">*</span>}
-                                      </th>
-                                    ))}
-                                    <th className="px-2 py-2 text-center text-xs font-medium text-gray-600">Actions</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {otherAssetsPositions.map((position, index) => (
+                                  {typePositions.map((position) => (
                                     <tr key={position.id} className="border-b border-gray-100 hover:bg-gray-50">
-                                      {assetTypes.otherAssets.fields.map(field => (
+                                      {/* Row checkbox */}
+                                      <td className="px-3 py-2">
+                                        <div className="flex items-center space-x-2">
+                                          <input
+                                            type="checkbox"
+                                            checked={selectedIds.has(position.id)}
+                                            onChange={(e) => toggleRowSelected(position.id, e.target.checked)}
+                                            aria-label="Select row"
+                                          />
+                                        </div>
+                                      </td>
+
+                                      {/* All fields except account_id */}
+                                      {config.fields.filter(f => f.key !== 'account_id').map(field => (
                                         <td key={field.key} className="px-1 py-1">
                                           {renderCellInput(
-                                            'otherAssets',
+                                            type,
                                             position,
                                             field,
-                                            `otherAssets-${position.id}-${field.key}`
+                                            `${type}-${position.id}-${field.key}`
                                           )}
                                         </td>
                                       ))}
+
+                                      {/* Status */}
+                                      <td className="px-2 py-2">
+                                        {(() => {
+                                          const s = getRowStatus(position);
+                                          const styles = {
+                                            ready:      "bg-emerald-50 text-emerald-700 border-emerald-200",
+                                            draft:      "bg-amber-50 text-amber-700 border-amber-200",
+                                            submitting: "bg-blue-50 text-blue-700 border-blue-200",
+                                            added:      "bg-indigo-50 text-indigo-700 border-indigo-200",
+                                            error:      "bg-red-50 text-red-700 border-red-200",
+                                          }[s] || "bg-gray-50 text-gray-600 border-gray-200";
+
+                                          return (
+                                            <span className={`inline-flex items-center px-2 py-0.5 text-[11px] rounded border ${styles}`}>
+                                              {s}
+                                            </span>
+                                          );
+                                        })()}
+                                      </td>
+
+                                      {/* Actions */}
                                       <td className="px-1 py-1">
                                         <div className="flex items-center justify-center space-x-1">
                                           <button
-                                            onClick={() => duplicatePosition('otherAssets', position)}
+                                            onClick={() => duplicatePosition(type, position)}
                                             className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-all"
                                             title="Duplicate"
                                           >
                                             <Copy className="w-3 h-3" />
                                           </button>
                                           <button
-                                            onClick={() => deletePosition('otherAssets', position.id)}
+                                            onClick={() => deletePosition(type, position.id)}
                                             className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-all"
                                             title="Delete"
                                           >
@@ -2559,606 +2763,735 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                                     </tr>
                                   ))}
                                 </tbody>
-                              </table>
+
+                            </table>
+                            <div className="p-2 bg-gray-50 border-t border-gray-100">
+                              <button
+                                onClick={() => addNewRowForAccount(account.id, type)}
+                                className={`
+                                  w-full py-1.5 px-3 text-xs font-medium rounded
+                                  ${config.color.lightBg} ${config.color.text} 
+                                  hover:${config.color.bg} hover:text-white transition-all
+                                  flex items-center justify-center space-x-1
+                                `}
+                              >
+                                <Plus className="w-3 h-3" />
+                                <span>Add {config.name}</span>
+                              </button>
                             </div>
-                          </div>
-                        </div>
-                      )}
-
-                  </div>
-                );
-              };
-
-              // Calculate position value helper
-              const calculatePositionValue = (type, position) => {
-                switch (type) {
-                  case 'security':
-                    return (position.data.shares || 0) * (position.data.price || 0);
-                  case 'crypto':
-                    return (position.data.quantity || 0) * (position.data.current_price || 0);
-                  case 'metal':
-                    return (position.data.quantity || 0) * (position.data.current_price_per_unit || position.data.purchase_price || 0);
-                  case 'otherAssets':
-                    return position.data.current_value || 0;
-                  case 'cash':
-                    return position.data.amount || 0;
-                  default:
-                    return 0;
-                }
-              };
-
-              // Format currency helper
-              const formatCurrency = (value) => {
-                if (value >= 1000000) {
-                  return `$${(value / 1000000).toFixed(1)}M`;
-                } else if (value >= 1000) {
-                  return `$${(value / 1000).toFixed(1)}K`;
-                }
-                return `$${value.toFixed(2)}`;
-              };
-
-              return (
-                <FixedModal
-                  isOpen={isOpen}
-                  onClose={onClose}
-                  title="Quick Position Entry"
-                  size="max-w-[1600px]"
-                >
-                  <div className="h-[90vh] flex flex-col bg-gray-50">
-                    {/* Enhanced Header with Action Bar */}
-                    <div className="flex-shrink-0 bg-white border-b border-gray-200 px-6 py-4">
-                      {/* Top Action Bar */}
-                      <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center space-x-4">
-                          <button
-                            onClick={clearAll}
-                            className="px-4 py-2 text-sm bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all flex items-center space-x-2 group"
-                          >
-                            <Trash2 className="w-4 h-4 group-hover:text-red-600 transition-colors" />
-                            <span>Clear All</span>
-                          </button>
-                          
-                          <button
-                            onClick={onClose}
-                            className="px-4 py-2 text-sm bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all"
-                          >
-                            Cancel
-                          </button>
-
-                          {/* View mode toggle with label */}
-                          <div className="ml-4 flex items-center space-x-3">
-                            <span className="text-sm text-gray-600">Add positions by:</span>
-                            <ToggleSwitch
-                              value={viewMode}
-                              onChange={setViewMode}
-                              leftLabel="Asset Type"
-                              rightLabel="Account"
-                              leftIcon={Layers}
-                              rightIcon={Wallet}
-                            />
-                          </div>
-                          </div>
-
-                          {/* Filter Row - Only show in account view */}
-                          {viewMode && accounts.length > 0 && (
-                            <div className="flex items-center space-x-3 mt-3 pt-3 border-t border-gray-100">
-                              <span className="text-xs text-gray-500 font-medium">Filters:</span>
-                              <AccountFilter
-                                accounts={accounts}
-                                selectedAccounts={selectedAccountFilter}
-                                onChange={setSelectedAccountFilter}
-                                filterType="accounts"
-                              />
-                              <AccountFilter
-                                accounts={accounts}
-                                selectedAccounts={selectedInstitutionFilter}
-                                onChange={setSelectedInstitutionFilter}
-                                filterType="institutions"
-                              />
-                              <div className="ml-auto flex items-center space-x-2 text-xs text-gray-500">
-                                <Info className="w-3 h-3" />
-                                <span>Filters apply together</span>
-                              </div>
-                            </div>
-                          )}
-
-                        <div className="flex items-center space-x-3">
-                          {/* Settings buttons */}
-                          <button
-                            onClick={() => setShowValues(!showValues)}
-                            className={`p-2 rounded-lg transition-all duration-200 ${
-                              showValues 
-                                ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' 
-                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                            }`}
-                            title={showValues ? 'Hide values' : 'Show values'}
-                          >
-                            {showValues ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-                          </button>
-                          
-                          <button
-                            onClick={() => setShowKeyboardShortcuts(!showKeyboardShortcuts)}
-                            className={`p-2 rounded-lg transition-all duration-200 ${
-                              showKeyboardShortcuts 
-                                ? 'bg-purple-100 text-purple-700 hover:bg-purple-200' 
-                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                            }`}
-                            title="Keyboard shortcuts (Ctrl+K)"
-                          >
-                            <Keyboard className="w-4 h-4" />
-                          </button>
-                          
-                          <div className="h-6 w-px bg-gray-300"></div>
-                          
-                          {/* View Queue button */}
-                          <button
-                            onClick={() => setShowQueue(true)}
-                            className="px-4 py-2 text-sm bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all flex items-center space-x-2"
-                          >
-                            <ClipboardList className="w-4 h-4" />
-                            <span>View Queue</span>
-                            {stats.totalPositions > 0 && (
-                              <span className="ml-1 px-2 py-0.5 bg-gray-900 text-white text-xs rounded-full font-bold">
-                                {stats.totalPositions}
-                              </span>
-                            )}
-                          </button>
-                          
-                          {/* Submit button */}
-                          <button
-                            onClick={submitAll}
-                            disabled={stats.totalPositions === 0 || isSubmitting}
-                            className={`
-                              px-6 py-2 text-sm font-semibold rounded-lg transition-all duration-200 
-                              flex items-center space-x-2 shadow-sm hover:shadow-md transform hover:scale-105
-                              ${stats.totalPositions === 0 || isSubmitting
-                                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                                : 'bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:from-green-700 hover:to-emerald-700'
-                              }
-                            `}
-                          >
-                            {isSubmitting ? (
-                              <>
-                                <Loader2 className="w-4 h-4 animate-spin" />
-                                <span>Saving...</span>
-                              </>
-                            ) : (
-                              <>
-                                <CheckCircle className="w-4 h-4" />
-                                <span>Add {stats.totalPositions} Position{stats.totalPositions !== 1 ? 's' : ''}</span>
-                              </>
-                            )}
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Stats Bar */}
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-6">
-                          {/* Total stats */}
-                          <div className="flex items-center space-x-4">
-                            <div className="flex items-center space-x-2">
-                              <Hash className="w-4 h-4 text-gray-400" />
-                              <span className="text-sm text-gray-600">Total Positions:</span>
-                              <span className="text-lg font-bold text-gray-900">
-                                <AnimatedNumber value={stats.totalPositions} />
-                              </span>
-                            </div>
-                            
-                            <div className="h-5 w-px bg-gray-300"></div>
-                            
-                            <div className="flex items-center space-x-2">
-                              <DollarSign className="w-4 h-4 text-gray-400" />
-                              <span className="text-sm text-gray-600">Total Value:</span>
-                              <span className="text-lg font-bold text-gray-900">
-                                {showValues ? (
-                                  <AnimatedNumber value={stats.totalValue} prefix="$" decimals={0} />
-                                ) : (
-                                  '••••••'
-                                )}
-                              </span>
-                            </div>
-                            
-                            {stats.totalPerformance !== 0 && (
-                              <>
-                                <div className="h-5 w-px bg-gray-300"></div>
-                                <div className="flex items-center space-x-2">
-                                  {stats.totalPerformance >= 0 ? (
-                                    <TrendingUp className="w-4 h-4 text-green-600" />
-                                  ) : (
-                                    <TrendingDown className="w-4 h-4 text-red-600" />
-                                  )}
-                                  <span className="text-sm text-gray-600">Performance:</span>
-                                  <span className={`text-lg font-bold ${
-                                    stats.totalPerformance >= 0 ? 'text-green-600' : 'text-red-600'
-                                  }`}>
-                                    {showValues ? (
-                                      <>
-                                        {stats.totalPerformance >= 0 ? '+' : ''}
-                                        <AnimatedNumber value={stats.totalPerformance} decimals={1} suffix="%" />
-                                      </>
-                                    ) : (
-                                      '••••'
-                                    )}
-                                  </span>
-                                </div>
-                              </>
-                            )}
-                          </div>
-
-                          {/* Type breakdown */}
-                          <div className="flex items-center space-x-2">
-                            <div className="h-5 w-px bg-gray-300"></div>
-                            {Object.entries(assetTypes).map(([key, config]) => {
-                              const typeStats = stats.byType[key];
-                              if (!typeStats || typeStats.count === 0) return null;
-                              
-                              const Icon = config.icon;
-                              return (
-                                <div 
-                                  key={key}
-                                  className={`
-                                    flex items-center space-x-1 px-2 py-1 rounded-lg text-xs
-                                    ${config.color.lightBg} ${config.color.text}
-                                  `}
-                                >
-                                  <Icon className="w-3 h-3" />
-                                  <span className="font-medium">{typeStats.count}</span>
-                                  {showValues && (
-                                    <span className="text-[10px] opacity-75">
-                                      ({formatCurrency(typeStats.value)})
-                                    </span>
-                                  )}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-
-                        {/* Progress indicator */}
-                        {stats.totalPositions > 0 && (
-                          <div className="flex items-center space-x-3">
-                            <span className="text-xs text-gray-500">Progress</span>
-                            <ProgressIndicator 
-                              current={stats.totalPositions - stats.errors.length} 
-                              total={stats.totalPositions}
-                              className="w-24"
-                            />
-                            <span className="text-xs font-medium text-gray-700">
-                              {Math.round(((stats.totalPositions - stats.errors.length) / stats.totalPositions) * 100)}%
-                            </span>
                           </div>
                         )}
                       </div>
+                    );
+                  })
+                ) : (
+                  <p className="text-gray-500 text-sm text-center py-4">
+                    Click any asset type button above to start adding positions
+                  </p>
+                )}
+              </div>
+            </div>
+          );
+        })}
 
-                      {/* Asset Type Filters (only show in asset type view) */}
-                      {!viewMode && (
-                        <div className="flex items-center space-x-2 mt-4">
-                          <span className="text-xs text-gray-500 mr-2">Filter:</span>
-                          <button
-                            onClick={() => setActiveFilter('all')}
-                            className={`
-                              px-3 py-1.5 text-xs font-medium rounded-lg transition-all duration-200
-                              ${activeFilter === 'all' 
-                                ? 'bg-gray-900 text-white shadow-sm' 
-                                : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
-                              }
-                            `}
-                          >
-                            All Types
-                          </button>
-                          {Object.entries(assetTypes).map(([key, config]) => (
-                            <AssetTypeBadge
-                              key={key}
-                              type={config.name}
-                              count={stats.byType[key]?.count || 0}
-                              icon={config.icon}
-                              color={config.color}
-                              active={activeFilter === key}
-                              onClick={() => setActiveFilter(activeFilter === key ? 'all' : key)}
-                            />
+          {/* Add Other Assets section at the end if there are any */}
+          {otherAssetsPositions.length > 0 && (
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mt-4">
+              <div className="px-4 py-3 bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="font-semibold text-gray-800">Other Assets (Not in Accounts)</h3>
+                    <p className="text-sm text-gray-600 mt-1">
+                      {otherAssetsPositions.length} asset{otherAssetsPositions.length !== 1 ? 's' : ''} • 
+                      {showValues ? ` ${formatCurrency(stats.byType.otherAssets?.value || 0)}` : ' ••••'}
+                    </p>
+                  </div>
+                  
+                  <button
+                    onClick={() => {
+                      addNewRow('otherAssets');
+                      if (!expandedSections.otherAssets) {
+                        setExpandedSections(prev => ({ ...prev, otherAssets: true }));
+                      }
+                    }}
+                    className={`
+                      inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-medium
+                      transition-all duration-200 group
+                      ${assetTypes.otherAssets.color.lightBg} ${assetTypes.otherAssets.color.text} 
+                      hover:${assetTypes.otherAssets.color.bg} hover:text-white
+                    `}
+                  >
+                    <Home className="w-3.5 h-3.5 mr-1.5" />
+                    <span>Add Other Asset</span>
+                    <Plus className="w-3 h-3 ml-1 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-4">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-gray-50 border-b border-gray-200">
+                        {assetTypes.otherAssets.fields.map(field => (
+                          <th key={field.key} className="px-2 py-2 text-left text-xs font-medium text-gray-600">
+                            {field.label}
+                            {field.required && <span className="text-red-500 ml-0.5">*</span>}
+                          </th>
+                        ))}
+                        <th className="px-2 py-2 text-center text-xs font-medium text-gray-600">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {otherAssetsPositions.map((position, index) => (
+                        <tr key={position.id} className="border-b border-gray-100 hover:bg-gray-50">
+                          {assetTypes.otherAssets.fields.map(field => (
+                            <td key={field.key} className="px-1 py-1">
+                              {renderCellInput(
+                                'otherAssets',
+                                position,
+                                field,
+                                `otherAssets-${position.id}-${field.key}`
+                              )}
+                            </td>
                           ))}
-                        </div>
-                      )}
-
-                      {/* Keyboard shortcuts hint */}
-                      {showKeyboardShortcuts && (
-                        <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg animate-in slide-in-from-top duration-300">
-                          <div className="flex items-start space-x-2">
-                            <Keyboard className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
-                            <div className="flex-1">
-                              <p className="text-xs font-medium text-blue-900 mb-1">Keyboard Shortcuts</p>
-                              <div className="grid grid-cols-3 gap-x-4 gap-y-1 text-[10px] text-blue-700">
-                                <div><kbd className="px-1 py-0.5 bg-white rounded text-blue-900 font-mono">Tab</kbd> Next field</div>
-                                <div><kbd className="px-1 py-0.5 bg-white rounded text-blue-900 font-mono">Enter</kbd> Next field / New row</div>
-                                <div><kbd className="px-1 py-0.5 bg-white rounded text-blue-900 font-mono">Ctrl+Enter</kbd> Submit all</div>
-                                <div><kbd className="px-1 py-0.5 bg-white rounded text-blue-900 font-mono">↑↓</kbd> Navigate rows</div>
-                                <div><kbd className="px-1 py-0.5 bg-white rounded text-blue-900 font-mono">Ctrl+D</kbd> Duplicate row</div>
-                                <div><kbd className="px-1 py-0.5 bg-white rounded text-blue-900 font-mono">Ctrl+Del</kbd> Delete row</div>
-                                <div><kbd className="px-1 py-0.5 bg-white rounded text-blue-900 font-mono">Alt+↑↓</kbd> Move row</div>
-                                <div><kbd className="px-1 py-0.5 bg-white rounded text-blue-900 font-mono">Shift+Enter</kbd> Insert above</div>
-                                <div><kbd className="px-1 py-0.5 bg-white rounded text-blue-900 font-mono">Ctrl+K</kbd> Toggle shortcuts</div>
-                              </div>
-                            </div>
-                            <button
-                              onClick={() => setShowKeyboardShortcuts(false)}
-                              className="p-1 hover:bg-blue-100 rounded transition-colors"
-                            >
-                              <X className="w-3 h-3 text-blue-600" />
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Scrollable Content Area */}
-                      <div className="flex-1 overflow-y-auto overflow-x-visible p-6 space-y-4 relative" style={{ zIndex: 1 }}>
-                      {viewMode ? (
-                        // Account View
-                        renderByAccount()
-                      ) : (
-                        // Asset Type View
-                        <>
-                          {Object.keys(assetTypes)
-                            .filter(type => activeFilter === 'all' || activeFilter === type)
-                            .map(assetType => renderAssetSection(assetType))}
-                            
-                          {/* Empty state when filtered */}
-                          {activeFilter !== 'all' && !positions[activeFilter]?.length && (
-                            <div className="text-center py-12">
-                              <div className={`inline-flex p-4 rounded-full ${assetTypes[activeFilter].color.lightBg} mb-4`}>
-                                {React.createElement(assetTypes[activeFilter].icon, {
-                                  className: `w-8 h-8 ${assetTypes[activeFilter].color.text}`
-                                })}
-                              </div>
-                              <p className="text-gray-600 mb-4">No {assetTypes[activeFilter].name.toLowerCase()} positions yet</p>
+                          <td className="px-1 py-1">
+                            <div className="flex items-center justify-center space-x-1">
                               <button
-                                onClick={() => {
-                                  addNewRow(activeFilter);
-                                  setExpandedSections(prev => ({ ...prev, [activeFilter]: true }));
-                                }}
-                                className={`
-                                  inline-flex items-center px-4 py-2 rounded-lg font-medium transition-all duration-200
-                                  ${assetTypes[activeFilter].color.bg} text-white hover:shadow-md hover:scale-105
-                                `}
+                                onClick={() => duplicatePosition('otherAssets', position)}
+                                className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-all"
+                                title="Duplicate"
                               >
-                                <Plus className="w-4 h-4 mr-2" />
-                                Add {assetTypes[activeFilter].name}
+                                <Copy className="w-3 h-3" />
+                              </button>
+                              <button
+                                onClick={() => deletePosition('otherAssets', position.id)}
+                                className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-all"
+                                title="Delete"
+                              >
+                                <Trash2 className="w-3 h-3" />
                               </button>
                             </div>
-                          )}
-                        </>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+      </div>
+    );
+  };
+
+  // Calculate position value helper
+  const calculatePositionValue = (type, position) => {
+    switch (type) {
+      case 'security':
+        return (position.data.shares || 0) * (position.data.price || 0);
+      case 'crypto':
+        return (position.data.quantity || 0) * (position.data.current_price || 0);
+      case 'metal':
+        return (position.data.quantity || 0) * (position.data.current_price_per_unit || position.data.purchase_price || 0);
+      case 'otherAssets':
+        return position.data.current_value || 0;
+      case 'cash':
+        return position.data.amount || 0;
+      default:
+        return 0;
+    }
+  };
+
+  // Format currency helper
+  const formatCurrency = (value) => {
+    if (value >= 1000000) {
+      return `$${(value / 1000000).toFixed(1)}M`;
+    } else if (value >= 1000) {
+      return `$${(value / 1000).toFixed(1)}K`;
+    }
+    return `$${value.toFixed(2)}`;
+  };
+
+  return (
+    <FixedModal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Quick Position Entry"
+      size="max-w-[1600px]"
+    >
+      <div className="h-[90vh] flex flex-col bg-gray-50">
+        {/* Enhanced Header with Action Bar */}
+        <div className="flex-shrink-0 bg-white border-b border-gray-200 px-6 py-4">
+          {/* Top Action Bar */}
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex-1 rounded-lg px-3 py-2 bg-[#0B213F] text-white shadow-sm">
+            <div className="flex items-center space-x-4">
+              <button
+                onClick={clearAll}
+                className="px-4 py-2 text-sm bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all flex items-center space-x-2 group"
+              >
+                <Trash2 className="w-4 h-4 group-hover:text-red-600 transition-colors" />
+                <span>Clear All</span>
+              </button>
+              
+              <button
+                onClick={onClose}
+                className="px-4 py-2 text-sm bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all"
+              >
+                Cancel
+              </button>
+           
+              {/* NEW: Bulk delete for selected rows */}
+              <button
+                onClick={deleteSelected}
+                disabled={selectedIds.size === 0}
+                className={`px-3 py-1.5 text-sm rounded-md border ${
+                  selectedIds.size === 0
+                    ? "bg-white/5 text-white/50 border-white/10 cursor-not-allowed"
+                    : "bg-red-500/10 text-red-100 border-red-200/30 hover:bg-red-500/15 hover:text-white"
+                }`}
+                title="Delete selected rows"
+              >
+                Delete Selected ({selectedIds.size})
+              </button>
+
+              {/* View mode toggle with label */}
+              <div className="ml-4 flex items-center space-x-3">
+                <span className="text-sm text-gray-600">Add positions by:</span>
+                <ToggleSwitch
+                  value={viewMode}
+                  onChange={setViewMode}
+                  leftLabel="Asset Type"
+                  rightLabel="Account"
+                  leftIcon={Layers}
+                  rightIcon={Wallet}
+                />
+              </div>
+              </div>
+
+              {/* Filter Row - Only show in account view */}
+              {viewMode && accounts.length > 0 && (
+                <div className="flex items-center space-x-3 mt-3 pt-3 border-t border-gray-100">
+                  <span className="text-xs text-gray-500 font-medium">Filters:</span>
+                  <AccountFilter
+                    accounts={accounts}
+                    selectedAccounts={selectedAccountFilter}
+                    onChange={setSelectedAccountFilter}
+                    filterType="accounts"
+                  />
+                  <AccountFilter
+                    accounts={accounts}
+                    selectedAccounts={selectedInstitutionFilter}
+                    onChange={setSelectedInstitutionFilter}
+                    filterType="institutions"
+                  />
+                  <div className="ml-auto flex items-center space-x-2 text-xs text-gray-500">
+                    <Info className="w-3 h-3" />
+                    <span>Filters apply together</span>
+                  </div>
+                </div>
+              )}
+
+            <div className="flex items-center space-x-3">
+              {/* Settings buttons */}
+              <button
+                onClick={() => setShowValues(!showValues)}
+                className={`p-2 rounded-lg transition-all duration-200 ${
+                  showValues 
+                    ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' 
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+                title={showValues ? 'Hide values' : 'Show values'}
+              >
+                {showValues ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+              </button>
+              
+              <button
+                onClick={() => setShowKeyboardShortcuts(!showKeyboardShortcuts)}
+                className={`p-2 rounded-lg transition-all duration-200 ${
+                  showKeyboardShortcuts 
+                    ? 'bg-purple-100 text-purple-700 hover:bg-purple-200' 
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+                title="Keyboard shortcuts (Ctrl+K)"
+              >
+                <Keyboard className="w-4 h-4" />
+              </button>
+              
+              <div className="h-6 w-px bg-gray-300"></div>
+              
+              {/* View Queue button */}
+              <button
+                onClick={() => setShowQueue(true)}
+                className="px-4 py-2 text-sm bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all flex items-center space-x-2"
+              >
+                <ClipboardList className="w-4 h-4" />
+                <span>View Queue</span>
+                {stats.totalPositions > 0 && (
+                  <span className="ml-1 px-2 py-0.5 bg-gray-900 text-white text-xs rounded-full font-bold">
+                    {stats.totalPositions}
+                  </span>
+                )}
+              </button>
+              
+              {/* Submit button */}
+              <button
+                onClick={submitAll}
+                disabled={stats.totalPositions === 0 || isSubmitting}
+                className={`
+                  px-6 py-2 text-sm font-semibold rounded-lg transition-all duration-200 
+                  flex items-center space-x-2 shadow-sm hover:shadow-md transform hover:scale-105
+                  ${stats.totalPositions === 0 || isSubmitting
+                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    : 'bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:from-green-700 hover:to-emerald-700'
+                  }
+                `}
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Saving...</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle className="w-4 h-4" />
+                    <span>Add {stats.totalPositions} Position{stats.totalPositions !== 1 ? 's' : ''}</span>
+                  </>
+                )}
+              </button>
+            </div>
+            </div>
+          </div>
+
+          {/* Stats Bar */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-6">
+              {/* Total stats */}
+              <div className="flex items-center space-x-4">
+                <div className="flex items-center space-x-2">
+                  <Hash className="w-4 h-4 text-gray-400" />
+                  <span className="text-sm text-gray-600">Total Positions:</span>
+                  <span className="text-lg font-bold text-gray-900">
+                    <AnimatedNumber value={stats.totalPositions} />
+                  </span>
+                </div>
+                
+                <div className="h-5 w-px bg-gray-300"></div>
+                
+                <div className="flex items-center space-x-2">
+                  <DollarSign className="w-4 h-4 text-gray-400" />
+                  <span className="text-sm text-gray-600">Total Value:</span>
+                  <span className="text-lg font-bold text-gray-900">
+                    {showValues ? (
+                      <AnimatedNumber value={stats.totalValue} prefix="$" decimals={0} />
+                    ) : (
+                      '••••••'
+                    )}
+                  </span>
+                </div>
+                
+                {stats.totalPerformance !== 0 && (
+                  <>
+                    <div className="h-5 w-px bg-gray-300"></div>
+                    <div className="flex items-center space-x-2">
+                      {stats.totalPerformance >= 0 ? (
+                        <TrendingUp className="w-4 h-4 text-green-600" />
+                      ) : (
+                        <TrendingDown className="w-4 h-4 text-red-600" />
+                      )}
+                      <span className="text-sm text-gray-600">Performance:</span>
+                      <span className={`text-lg font-bold ${
+                        stats.totalPerformance >= 0 ? 'text-green-600' : 'text-red-600'
+                      }`}>
+                        {showValues ? (
+                          <>
+                            {stats.totalPerformance >= 0 ? '+' : ''}
+                            <AnimatedNumber value={stats.totalPerformance} decimals={1} suffix="%" />
+                          </>
+                        ) : (
+                          '••••'
+                        )}
+                      </span>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Type breakdown */}
+              <div className="flex items-center space-x-2">
+                <div className="h-5 w-px bg-gray-300"></div>
+                {Object.entries(assetTypes).map(([key, config]) => {
+                  const typeStats = stats.byType[key];
+                  if (!typeStats || typeStats.count === 0) return null;
+                  
+                  const Icon = config.icon;
+                  return (
+                    <div 
+                      key={key}
+                      className={`
+                        flex items-center space-x-1 px-2 py-1 rounded-lg text-xs
+                        ${config.color.lightBg} ${config.color.text}
+                      `}
+                    >
+                      <Icon className="w-3 h-3" />
+                      <span className="font-medium">{typeStats.count}</span>
+                      {showValues && (
+                        <span className="text-[10px] opacity-75">
+                          ({formatCurrency(typeStats.value)})
+                        </span>
                       )}
                     </div>
+                  );
+                })}
+              </div>
+            </div>
 
-                    {/* Enhanced Message Display */}
-                    {message.text && (
-                      <div className={`
-                        absolute bottom-6 left-6 right-6 p-4 rounded-lg shadow-lg border
-                        animate-in slide-in-from-bottom duration-300 z-40
-                        ${message.type === 'error' 
-                          ? 'bg-red-50 border-red-200' 
-                          : message.type === 'warning' 
-                            ? 'bg-amber-50 border-amber-200' 
-                            : message.type === 'info'
-                              ? 'bg-blue-50 border-blue-200'
-                              : 'bg-green-50 border-green-200'
-                        }
-                      `}>
-                        <div className="flex items-start space-x-3">
-                          <div className={`
-                            flex-shrink-0 p-2 rounded-full
-                            ${message.type === 'error' 
-                              ? 'bg-red-100' 
-                              : message.type === 'warning' 
-                                ? 'bg-amber-100' 
-                                : message.type === 'info'
-                                  ? 'bg-blue-100'
-                                  : 'bg-green-100'
-                            }
-                          `}>
-                            {message.type === 'error' ? <AlertCircle className="w-5 h-5 text-red-600" /> :
-                              message.type === 'warning' ? <AlertCircle className="w-5 h-5 text-amber-600" /> :
-                              message.type === 'info' ? <Info className="w-5 h-5 text-blue-600" /> :
-                              <CheckCircle className="w-5 h-5 text-green-600" />}
-                          </div>
-                          <div className="flex-1">
-                            <p className={`
-                              font-medium text-sm
-                              ${message.type === 'error' 
-                                ? 'text-red-900' 
-                                : message.type === 'warning' 
-                                  ? 'text-amber-900' 
-                                  : message.type === 'info'
-                                    ? 'text-blue-900'
-                                    : 'text-green-900'
-                              }
-                            `}>
-                              {message.text}
-                            </p>
-                            {message.details.length > 0 && (
-                              <ul className={`
-                                mt-2 space-y-1 text-xs
-                                ${message.type === 'error' 
-                                  ? 'text-red-700' 
-                                  : message.type === 'warning' 
-                                    ? 'text-amber-700' 
-                                    : message.type === 'info'
-                                      ? 'text-blue-700'
-                                      : 'text-green-700'
-                                }
-                              `}>
-                                {message.details.slice(0, 3).map((detail, index) => (
-                                  <li key={index} className="flex items-start space-x-1">
-                                    <span className="block w-1 h-1 rounded-full bg-current mt-1.5 flex-shrink-0"></span>
-                                    <span>{detail}</span>
-                                  </li>
-                                ))}
-                                {message.details.length > 3 && (
-                                  <li className="font-medium">
-                                    ... and {message.details.length - 3} more
-                                  </li>
-                                )}
-                              </ul>
-                            )}
-                          </div>
-                          <button
-                            onClick={() => setMessage({ type: '', text: '', details: [] })}
-                            className={`
-                              p-1 rounded transition-colors
-                              ${message.type === 'error' 
-                                ? 'hover:bg-red-100' 
-                                : message.type === 'warning' 
-                                  ? 'hover:bg-amber-100' 
-                                  : message.type === 'info'
-                                    ? 'hover:bg-blue-100'
-                                    : 'hover:bg-green-100'
-                              }
-                            `}
-                          >
-                            <X className={`
-                              w-4 h-4
-                              ${message.type === 'error' 
-                                ? 'text-red-600' 
-                                : message.type === 'warning' 
-                                  ? 'text-amber-600' 
-                                  : message.type === 'info'
-                                    ? 'text-blue-600'
-                                    : 'text-green-600'
-                              }
-                            `} />
-                          </button>
-                        </div>
-                      </div>
-                    )}
+            {/* Progress indicator */}
+            {stats.totalPositions > 0 && (
+              <div className="flex items-center space-x-3">
+                <span className="text-xs text-gray-500">Progress</span>
+                <ProgressIndicator 
+                  current={stats.totalPositions - stats.errors.length} 
+                  total={stats.totalPositions}
+                  className="w-24"
+                />
+                <span className="text-xs font-medium text-gray-700">
+                  {Math.round(((stats.totalPositions - stats.errors.length) / stats.totalPositions) * 100)}%
+                </span>
+              </div>
+            )}
+          </div>
 
-                    {/* Queue Modal */}
-                    <QueueModal
-                      isOpen={showQueue}
-                      onClose={() => setShowQueue(false)}
-                      positions={positions}
-                      assetTypes={assetTypes}
-                      accounts={accounts}
-                      onClearCompleted={clearCompletedPositions}
-                    />
+          {/* Asset Type Filters (only show in asset type view) */}
+          {!viewMode && (
+            <div className="flex items-center space-x-2 mt-4">
+              <span className="text-xs text-gray-500 mr-2">Filter:</span>
+              <button
+                onClick={() => setActiveFilter('all')}
+                className={`
+                  px-3 py-1.5 text-xs font-medium rounded-lg transition-all duration-200
+                  ${activeFilter === 'all' 
+                    ? 'bg-gray-900 text-white shadow-sm' 
+                    : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
+                  }
+                `}
+              >
+                All Types
+              </button>
+              {Object.entries(assetTypes).map(([key, config]) => (
+                <AssetTypeBadge
+                  key={key}
+                  type={config.name}
+                  count={stats.byType[key]?.count || 0}
+                  icon={config.icon}
+                  color={config.color}
+                  active={activeFilter === key}
+                  onClick={() => setActiveFilter(activeFilter === key ? 'all' : key)}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Keyboard shortcuts hint */}
+          {showKeyboardShortcuts && (
+            <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg animate-in slide-in-from-top duration-300">
+              <div className="flex items-start space-x-2">
+                <Keyboard className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-xs font-medium text-blue-900 mb-1">Keyboard Shortcuts</p>
+                  <div className="grid grid-cols-3 gap-x-4 gap-y-1 text-[10px] text-blue-700">
+                    <div><kbd className="px-1 py-0.5 bg-white rounded text-blue-900 font-mono">Tab</kbd> Next field</div>
+                    <div><kbd className="px-1 py-0.5 bg-white rounded text-blue-900 font-mono">Enter</kbd> Next field / New row</div>
+                    <div><kbd className="px-1 py-0.5 bg-white rounded text-blue-900 font-mono">Ctrl+Enter</kbd> Submit all</div>
+                    <div><kbd className="px-1 py-0.5 bg-white rounded text-blue-900 font-mono">↑↓</kbd> Navigate rows</div>
+                    <div><kbd className="px-1 py-0.5 bg-white rounded text-blue-900 font-mono">Ctrl+D</kbd> Duplicate row</div>
+                    <div><kbd className="px-1 py-0.5 bg-white rounded text-blue-900 font-mono">Ctrl+Del</kbd> Delete row</div>
+                    <div><kbd className="px-1 py-0.5 bg-white rounded text-blue-900 font-mono">Alt+↑↓</kbd> Move row</div>
+                    <div><kbd className="px-1 py-0.5 bg-white rounded text-blue-900 font-mono">Shift+Enter</kbd> Insert above</div>
+                    <div><kbd className="px-1 py-0.5 bg-white rounded text-blue-900 font-mono">Ctrl+K</kbd> Toggle shortcuts</div>
                   </div>
+                </div>
+                <button
+                  onClick={() => setShowKeyboardShortcuts(false)}
+                  className="p-1 hover:bg-blue-100 rounded transition-colors"
+                >
+                  <X className="w-3 h-3 text-blue-600" />
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
 
-                  <style jsx>{`
-                    @keyframes slide-in-from-top {
-                      from {
-                        opacity: 0;
-                        transform: translateY(-10px);
-                      }
-                      to {
-                        opacity: 1;
-                        transform: translateY(0);
-                      }
+        {/* Scrollable Content Area */}
+          <div className="flex-1 overflow-y-auto overflow-x-visible p-6 space-y-4 relative" style={{ zIndex: 1 }}>
+          {viewMode ? (
+            // Account View
+            renderByAccount()
+          ) : (
+            // Asset Type View
+            <>
+              {Object.keys(assetTypes)
+                .filter(type => activeFilter === 'all' || activeFilter === type)
+                .map(assetType => renderAssetSection(assetType))}
+                
+              {/* Empty state when filtered */}
+              {activeFilter !== 'all' && !positions[activeFilter]?.length && (
+                <div className="text-center py-12">
+                  <div className={`inline-flex p-4 rounded-full ${assetTypes[activeFilter].color.lightBg} mb-4`}>
+                    {React.createElement(assetTypes[activeFilter].icon, {
+                      className: `w-8 h-8 ${assetTypes[activeFilter].color.text}`
+                    })}
+                  </div>
+                  <p className="text-gray-600 mb-4">No {assetTypes[activeFilter].name.toLowerCase()} positions yet</p>
+                  <button
+                    onClick={() => {
+                      addNewRow(activeFilter);
+                      setExpandedSections(prev => ({ ...prev, [activeFilter]: true }));
+                    }}
+                    className={`
+                      inline-flex items-center px-4 py-2 rounded-lg font-medium transition-all duration-200
+                      ${assetTypes[activeFilter].color.bg} text-white hover:shadow-md hover:scale-105
+                    `}
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add {assetTypes[activeFilter].name}
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Enhanced Message Display */}
+        {message.text && (
+          <div className={`
+            absolute bottom-6 left-6 right-6 p-4 rounded-lg shadow-lg border
+            animate-in slide-in-from-bottom duration-300 z-40
+            ${message.type === 'error' 
+              ? 'bg-red-50 border-red-200' 
+              : message.type === 'warning' 
+                ? 'bg-amber-50 border-amber-200' 
+                : message.type === 'info'
+                  ? 'bg-blue-50 border-blue-200'
+                  : 'bg-green-50 border-green-200'
+            }
+          `}>
+            <div className="flex items-start space-x-3">
+              <div className={`
+                flex-shrink-0 p-2 rounded-full
+                ${message.type === 'error' 
+                  ? 'bg-red-100' 
+                  : message.type === 'warning' 
+                    ? 'bg-amber-100' 
+                    : message.type === 'info'
+                      ? 'bg-blue-100'
+                      : 'bg-green-100'
+                }
+              `}>
+                {message.type === 'error' ? <AlertCircle className="w-5 h-5 text-red-600" /> :
+                  message.type === 'warning' ? <AlertCircle className="w-5 h-5 text-amber-600" /> :
+                  message.type === 'info' ? <Info className="w-5 h-5 text-blue-600" /> :
+                  <CheckCircle className="w-5 h-5 text-green-600" />}
+              </div>
+              <div className="flex-1">
+                <p className={`
+                  font-medium text-sm
+                  ${message.type === 'error' 
+                    ? 'text-red-900' 
+                    : message.type === 'warning' 
+                      ? 'text-amber-900' 
+                      : message.type === 'info'
+                        ? 'text-blue-900'
+                        : 'text-green-900'
+                  }
+                `}>
+                  {message.text}
+                </p>
+                {message.details.length > 0 && (
+                  <ul className={`
+                    mt-2 space-y-1 text-xs
+                    ${message.type === 'error' 
+                      ? 'text-red-700' 
+                      : message.type === 'warning' 
+                        ? 'text-amber-700' 
+                        : message.type === 'info'
+                          ? 'text-blue-700'
+                          : 'text-green-700'
                     }
-                    
-                    @keyframes slide-in-from-bottom {
-                      from {
-                        opacity: 0;
-                        transform: translateY(10px);
-                      }
-                      to {
-                        opacity: 1;
-                        transform: translateY(0);
-                      }
-                    }
-                    
-                    @keyframes slide-in-from-left {
-                      from {
-                        opacity: 0;
-                        transform: translateX(-10px);
-                      }
-                      to {
-                        opacity: 1;
-                        transform: translateX(0);
-                      }
-                    }
-                    
-                    @keyframes slide-out-to-right {
-                      from {
-                        opacity: 1;
-                        transform: translateX(0);
-                      }
-                      to {
-                        opacity: 0;
-                        transform: translateX(10px);
-                      }
-                    }
-                    
-                    .animate-in {
-                      animation-fill-mode: both;
-                    }
-                    
-                    .animate-out {
-                      animation-fill-mode: both;
-                    }
-                    
-                    /* Custom scrollbar */
-                    .overflow-y-auto::-webkit-scrollbar {
-                      width: 8px;
-                    }
-                    
-                    .overflow-y-auto::-webkit-scrollbar-track {
-                      background: #f3f4f6;
-                      border-radius: 4px;
-                    }
-                    
-                    .overflow-y-auto::-webkit-scrollbar-thumb {
-                      background: #d1d5db;
-                      border-radius: 4px;
-                    }
-                    
-                    .overflow-y-auto::-webkit-scrollbar-thumb:hover {
-                      background: #9ca3af;
-                    }
-                    
-                    /* Focus styles */
-                    input:focus, select:focus {
-                      outline: none;
-                    }
-                    
-                    /* Number input spinner removal */
-                    input[type="number"]::-webkit-inner-spin-button,
-                    input[type="number"]::-webkit-outer-spin-button {
-                      -webkit-appearance: none;
-                      margin: 0;
-                    }
-                    
-                    input[type="number"] {
-                      -moz-appearance: textfield;
-                    }
-                    
-                    /* Smooth hover transitions */
-                    button, input, select {
-                      transition: all 0.2s ease;
-                    }
-                    
-                    /* High contrast mode support */
-                    @media (prefers-contrast: high) {
-                      .border-gray-200 {
-                        border-color: #374151;
-                      }
-                      
-                      .text-gray-600 {
-                        color: #1f2937;
-                      }
-                    }
-                    
-                    /* Reduced motion support */
-                    @media (prefers-reduced-motion: reduce) {
-                      * {
-                        animation-duration: 0.01ms !important;
-                        animation-iteration-count: 1 !important;
-                        transition-duration: 0.01ms !important;
-                      }
-                    }
-                  `}</style>
-                </FixedModal>
-              );
-              };
+                  `}>
+                    {message.details.slice(0, 3).map((detail, index) => (
+                      <li key={index} className="flex items-start space-x-1">
+                        <span className="block w-1 h-1 rounded-full bg-current mt-1.5 flex-shrink-0"></span>
+                        <span>{detail}</span>
+                      </li>
+                    ))}
+                    {message.details.length > 3 && (
+                      <li className="font-medium">
+                        ... and {message.details.length - 3} more
+                      </li>
+                    )}
+                  </ul>
+                )}
+              </div>
+              <button
+                onClick={() => setMessage({ type: '', text: '', details: [] })}
+                className={`
+                  p-1 rounded transition-colors
+                  ${message.type === 'error' 
+                    ? 'hover:bg-red-100' 
+                    : message.type === 'warning' 
+                      ? 'hover:bg-amber-100' 
+                      : message.type === 'info'
+                        ? 'hover:bg-blue-100'
+                        : 'hover:bg-green-100'
+                  }
+                `}
+              >
+                <X className={`
+                  w-4 h-4
+                  ${message.type === 'error' 
+                    ? 'text-red-600' 
+                    : message.type === 'warning' 
+                      ? 'text-amber-600' 
+                      : message.type === 'info'
+                        ? 'text-blue-600'
+                        : 'text-green-600'
+                  }
+                `} />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Queue Modal */}
+        <QueueModal
+          isOpen={showQueue}
+          onClose={() => setShowQueue(false)}
+          positions={positions}
+          assetTypes={assetTypes}
+          accounts={accounts}
+          onClearCompleted={clearCompletedPositions}
+        />
+      </div>
+
+      <style jsx>{`
+        @keyframes slide-in-from-top {
+          from {
+            opacity: 0;
+            transform: translateY(-10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        
+        @keyframes slide-in-from-bottom {
+          from {
+            opacity: 0;
+            transform: translateY(10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        
+        @keyframes slide-in-from-left {
+          from {
+            opacity: 0;
+            transform: translateX(-10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateX(0);
+          }
+        }
+        
+        @keyframes slide-out-to-right {
+          from {
+            opacity: 1;
+            transform: translateX(0);
+          }
+          to {
+            opacity: 0;
+            transform: translateX(10px);
+          }
+        }
+        
+        .animate-in {
+          animation-fill-mode: both;
+        }
+        
+        .animate-out {
+          animation-fill-mode: both;
+        }
+        
+        /* Custom scrollbar */
+        .overflow-y-auto::-webkit-scrollbar {
+          width: 8px;
+        }
+        
+        .overflow-y-auto::-webkit-scrollbar-track {
+          background: #f3f4f6;
+          border-radius: 4px;
+        }
+        
+        .overflow-y-auto::-webkit-scrollbar-thumb {
+          background: #d1d5db;
+          border-radius: 4px;
+        }
+        
+        .overflow-y-auto::-webkit-scrollbar-thumb:hover {
+          background: #9ca3af;
+        }
+        
+        /* Focus styles */
+        input:focus, select:focus {
+          outline: none;
+        }
+        
+        /* Number input spinner removal */
+        input[type="number"]::-webkit-inner-spin-button,
+        input[type="number"]::-webkit-outer-spin-button {
+          -webkit-appearance: none;
+          margin: 0;
+        }
+        
+        input[type="number"] {
+          -moz-appearance: textfield;
+        }
+        
+        /* Smooth hover transitions */
+        button, input, select {
+          transition: all 0.2s ease;
+        }
+        
+        /* High contrast mode support */
+        @media (prefers-contrast: high) {
+          .border-gray-200 {
+            border-color: #374151;
+          }
+          
+          .text-gray-600 {
+            color: #1f2937;
+          }
+        }
+        
+        /* Reduced motion support */
+        @media (prefers-reduced-motion: reduce) {
+          * {
+            animation-duration: 0.01ms !important;
+            animation-iteration-count: 1 !important;
+            transition-duration: 0.01ms !important;
+          }
+        }
+      `}</style>
+    </FixedModal>
+  );
+  };
 
 // Export with proper display name
 AddQuickPositionModal.displayName = 'AddQuickPositionModal';
