@@ -1572,25 +1572,30 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
   const hydratedRef = useRef(false);
 
   // Run once when seeded rows are in state
-useEffect(() => {
-    if (!isOpen || hydratedRef.current) return;
+  useEffect(() => {
+      if (!isOpen || hydratedRef.current) return;
 
-    const total =
-      (positions.security?.length || 0) +
-      (positions.crypto?.length || 0) +
-      (positions.metal?.length || 0);
+      const total =
+        (positions.security?.length || 0) +
+        (positions.crypto?.length || 0) +
+        (positions.metal?.length || 0);
 
-    if (total === 0) return;
+      if (total === 0) return;
 
-    // Defer one tick so row UIs mount
-    const t = setTimeout(() => {
-      try { autoHydrateSeededPrices?.(); } catch (e) { console.error(e); }
-      hydratedRef.current = true;
-    }, 0);
+      // Defer one tick so row UIs mount
+      const t = setTimeout(() => {
+        try { autoHydrateSeededPrices?.(); } catch (e) { console.error(e); }
+        hydratedRef.current = true;
+      }, 0);
 
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen]); // Only run when modal opens
+      return () => clearTimeout(t);
+      // IMPORTANT: depend on positions' counts, not the function (avoid TDZ)
+    }, [
+      isOpen,
+      positions.security.length,
+      positions.crypto.length,
+      positions.metal.length
+    ]);
 
 
   
@@ -2634,20 +2639,11 @@ useEffect(() => {
                 <>
                   <div className="overflow-x-auto overflow-y-visible" ref={el => tableRefs.current[assetType] = el}>
                     <table className="w-full">
-                        <thead>
-                          <tr className="bg-gray-50 border-b border-gray-200">
-                            <th className="w-12 px-3 py-3 text-left">
-                              <input
-                                type="checkbox"
-                                onChange={(e) => toggleAllSelectedForType(assetType, e.target.checked)}
-                                checked={
-                                  typePositions.length > 0 && 
-                                  typePositions.every(p => selectedIds.has(p.id))
-                                }
-                                className="rounded border-gray-300 text-blue-600 focus:ring-2 focus:ring-blue-500"
-                                aria-label={`Select all ${config.name}`}
-                              />
-                            </th>
+                      <thead>
+                        <tr className="bg-gray-50 border-b border-gray-200">
+                          <th className="w-12 px-3 py-3 text-left">
+                            <span className="text-xs font-semibold text-gray-600">#</span>
+                          </th>
                           {config.fields.map(field => (
                             <th key={field.key} className={`${field.width} px-2 py-3 text-left`}>
                               <span className="text-xs font-semibold text-gray-600 flex items-center">
@@ -3171,7 +3167,7 @@ useEffect(() => {
         <div className="flex-shrink-0 bg-white border-b border-gray-200 px-6 py-4">
           {/* Top Action Bar */}
           <div className="flex items-center justify-between mb-4">
-            <div className="flex-1 rounded-xl px-4 py-3 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white shadow-xl border border-slate-700/50">
+            <div className="flex-1 rounded-lg px-3 py-2 bg-[#0B213F] text-white shadow-sm">
             <div className="flex items-center space-x-4">
               <button
                 onClick={clearAll}
@@ -3182,226 +3178,52 @@ useEffect(() => {
               </button>
               
               <button
-                onClick={() => {
-                  const addedCount = Object.values(positions).reduce((sum, arr) => 
-                    sum + arr.filter(p => p.status === 'added').length, 0
-                  );
-                  
-                  if (addedCount === 0) {
-                    showMessage('info', 'No imported positions to remove');
-                    return;
-                  }
-                  
-                  if (!window.confirm(`Remove ${addedCount} imported position${addedCount !== 1 ? 's' : ''}?`)) {
-                    return;
-                  }
-                  
-                  const updated = {};
-                  Object.entries(positions).forEach(([type, arr]) => {
-                    updated[type] = arr.filter(p => p.status !== 'added');
-                  });
-                  
-                  setPositions(updated);
-                  localStorage.setItem(`quickpositions:work:${seedId}`, JSON.stringify(updated));
-                  showMessage('success', `Removed ${addedCount} imported position${addedCount !== 1 ? 's' : ''}`);
-                }}
-                className="px-4 py-2 text-sm bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all flex items-center space-x-2 group"
-              >
-                <CheckCheck className="w-4 h-4 text-green-600" />
-                <span>Remove Imported</span>
-              </button>
-              
-              <button
                 onClick={onClose}
                 className="px-4 py-2 text-sm bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all"
               >
                 Cancel
               </button>
            
-            {/* Bulk actions for selected rows */}
+              {/* NEW: Bulk delete for selected rows */}
               <button
                 onClick={deleteSelected}
                 disabled={selectedIds.size === 0}
-                className={`px-3 py-1.5 text-sm font-medium rounded-lg border transition-all ${
+                className={`px-3 py-1.5 text-sm rounded-md border ${
                   selectedIds.size === 0
-                    ? "bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed"
-                    : "bg-red-50 text-red-700 border-red-200 hover:bg-red-100 hover:border-red-300"
+                    ? "bg-white/5 text-white/50 border-white/10 cursor-not-allowed"
+                    : "bg-red-500/10 text-red-100 border-red-200/30 hover:bg-red-500/15 hover:text-white"
                 }`}
                 title="Delete selected rows"
               >
-                <Trash2 className="w-4 h-4 inline mr-1.5" />
                 Delete Selected ({selectedIds.size})
               </button>
-              
-              <button
-                onClick={async () => {
-                  if (selectedIds.size === 0) return;
-                  
-                  // Filter to only include selected positions
-                  const selectedEntries = [];
-                  Object.entries(positions).forEach(([type, arr]) => {
-                    arr.forEach(pos => {
-                      if (selectedIds.has(pos.id)) {
-                        selectedEntries.push({ type, position: pos });
-                      }
-                    });
-                  });
-                  
-                  if (selectedEntries.length === 0) {
-                    showMessage('info', 'No valid positions selected');
-                    return;
-                  }
-                  
-                  // Reuse the submission logic but only for selected
-                  setIsSubmitting(true);
-                  let successCount = 0;
-                  let errorCount = 0;
-                  const errors = [];
-                  const updatedPositions = { ...positions };
-                  const successfulPositionData = [];
 
-                  try {
-                    showMessage('info', `Importing ${selectedEntries.length} selected positions...`, [], 0);
+              {/* NEW: Filter to show only issue rows */}
+              {/* Status Filter */}
+              <div className="flex items-center space-x-1 ml-2">
+                {[
+                  {k:'any',label:'All'},
+                  {k:'ready',label:'Ready'},
+                  {k:'draft',label:'Draft'},
+                  {k:'submitting',label:'Submitting'},
+                  {k:'added',label:'Added'},
+                  {k:'error',label:'Error'},
+                  {k:'issues',label:'Issues'},
+                ].map(opt => (
+                  <button
+                    key={opt.k}
+                    onClick={() => setStatusFilter(statusFilter === opt.k ? 'any' : opt.k)}
+                    className={`px-2.5 py-1.5 text-xs rounded-md border transition
+                      ${statusFilter === opt.k
+                        ? 'bg-gray-900 text-white border-gray-900'
+                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
+                    title={opt.k === 'issues' ? 'Draft or Error' : `Show ${opt.label}`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
 
-                    for (let i = 0; i < selectedEntries.length; i++) {
-                      const { type, position } = selectedEntries[i];
-                      
-                      updatedPositions[type] = (updatedPositions[type] || []).map(pos =>
-                        pos.id === position.id ? { ...pos, status: 'submitting' } : pos
-                      );
-                      setPositions({ ...updatedPositions });
-
-                      try {
-                        const cleanData = {};
-                        Object.entries(position.data).forEach(([key, value]) => {
-                          if (value !== '' && value !== null && value !== undefined) {
-                            cleanData[key] = value;
-                          }
-                        });
-
-                        // Use existing submission logic
-                        switch (type) {
-                          case 'security':
-                            await addSecurityPosition(position.data.account_id, cleanData);
-                            break;
-                          case 'crypto': {
-                            const cryptoData = {
-                              coin_symbol: cleanData.symbol,
-                              coin_type: cleanData.name || cleanData.symbol,
-                              quantity: cleanData.quantity,
-                              purchase_price: cleanData.purchase_price,
-                              purchase_date: cleanData.purchase_date,
-                              account_id: cleanData.account_id,
-                              storage_type: cleanData.storage_type || 'Exchange',
-                              notes: cleanData.notes || null,
-                              tags: cleanData.tags || [],
-                              is_favorite: cleanData.is_favorite || false
-                            };
-                            await addCryptoPosition(position.data.account_id, cryptoData);
-                            break;
-                          }
-                          case 'metal': {
-                            const metalData = {
-                              metal_type: cleanData.metal_type,
-                              coin_symbol: cleanData.symbol,
-                              quantity: cleanData.quantity,
-                              unit: cleanData.unit || 'oz',
-                              purchase_price: cleanData.purchase_price,
-                              cost_basis: (cleanData.quantity || 0) * (cleanData.purchase_price || 0),
-                              purchase_date: cleanData.purchase_date,
-                              storage_location: cleanData.storage_location,
-                              description: `${cleanData.symbol} - ${cleanData.name}`
-                            };
-                            await addMetalPosition(position.data.account_id, metalData);
-                            break;
-                          }
-                          case 'otherAssets':
-                            await addOtherAsset(cleanData);
-                            break;
-                          case 'cash': {
-                            const cashData = {
-                              ...cleanData,
-                              name: cleanData.cash_type,
-                              interest_rate: cleanData.interest_rate ? cleanData.interest_rate / 100 : null
-                            };
-                            await addCashPosition(position.data.account_id, cashData);
-                            break;
-                          }
-                        }
-
-                        successCount++;
-                        
-                        const account = type !== 'otherAssets' 
-                          ? accounts.find(a => a.id === position.data.account_id) 
-                          : null;
-                        
-                        successfulPositionData.push({
-                          type,
-                          ticker: position.data.ticker,
-                          symbol: position.data.symbol,
-                          asset_name: position.data.asset_name,
-                          metal_type: position.data.metal_type,
-                          currency: position.data.currency,
-                          shares: position.data.shares,
-                          quantity: position.data.quantity,
-                          amount: position.data.amount,
-                          account_name: account?.account_name || (type === 'otherAssets' ? 'Other Assets' : 'Unknown Account'),
-                          account_id: position.data.account_id
-                        });
-
-                        updatedPositions[type] = (updatedPositions[type] || []).map(pos =>
-                          pos.id === position.id ? { ...pos, status: 'added' } : pos
-                        );
-
-                        const progress = Math.round(((i + 1) / selectedEntries.length) * 100);
-                        showMessage('info', `Importing selected... ${progress}%`, [`${successCount} of ${selectedEntries.length} completed`], 0);
-
-                      } catch (error) {
-                        console.error(`Error adding ${type} position:`, error);
-                        errorCount++;
-                        errors.push(`${assetTypes[type].name}: ${error.message || 'Unknown error'}`);
-
-                        updatedPositions[type] = (updatedPositions[type] || []).map(pos =>
-                          pos.id === position.id ? { ...pos, status: 'error', errorMessage: error.message } : pos
-                        );
-                      }
-                    }
-
-                    setPositions(updatedPositions);
-
-                    if (successCount > 0) {
-                      showMessage('success', `Successfully imported ${successCount} selected position${successCount !== 1 ? 's' : ''}!`,
-                        errorCount > 0 ? [`${errorCount} positions failed`] : []
-                      );
-                      
-                      if (onPositionsSaved) {
-                        onPositionsSaved(successCount, successfulPositionData);
-                      }
-                      
-                      // Clear selection after successful import
-                      setSelectedIds(new Set());
-                    } else {
-                      showMessage('error', 'Failed to import selected positions', errors.slice(0, 5));
-                    }
-
-                  } catch (e) {
-                    console.error('Error importing selected:', e);
-                    showMessage('error', 'Failed to import selected positions', [e.message]);
-                  } finally {
-                    setIsSubmitting(false);
-                  }
-                }}
-                disabled={selectedIds.size === 0 || isSubmitting}
-                className={`px-3 py-1.5 text-sm font-medium rounded-lg border transition-all ${
-                  selectedIds.size === 0 || isSubmitting
-                    ? "bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed"
-                    : "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100 hover:border-blue-300"
-                }`}
-                title="Import only selected rows"
-              >
-                <Upload className="w-4 h-4 inline mr-1.5" />
-                Import Selected ({selectedIds.size})
-              </button>
 
               {/* NEW: Submit only ready rows */}
               <button
@@ -3627,12 +3449,10 @@ useEffect(() => {
 
           {/* Asset Type Filters (only show in asset type view) */}
           {!viewMode && (
-            <div className="space-y-3 mt-4">
-              {/* Asset Type Filter */}
-              <div className="flex items-center space-x-2">
-                <span className="text-xs font-semibold text-gray-700 mr-2">Filter by Asset Type:</span>
-                <button
-                  onClick={() => setActiveFilter('all')}
+            <div className="flex items-center space-x-2 mt-4">
+              <span className="text-xs text-gray-500 mr-2">Filter:</span>
+              <button
+                onClick={() => setActiveFilter('all')}
                 className={`
                   px-3 py-1.5 text-xs font-medium rounded-lg transition-all duration-200
                   ${activeFilter === 'all' 
@@ -3642,6 +3462,21 @@ useEffect(() => {
                 `}
               >
                 All Types
+              </button>
+
+              {/* NEW: Issues filter */}
+              <button
+                onClick={() => setActiveFilter(activeFilter === 'issues' ? 'all' : 'issues')}
+                className={`
+                  px-3 py-1.5 text-xs font-medium rounded-lg transition-all duration-200
+                  ${activeFilter === 'issues' 
+                    ? 'bg-amber-600 text-white shadow-sm' 
+                    : 'bg-white text-amber-700 hover:bg-amber-50 border border-amber-200'
+                  }
+                `}
+                title="Show only rows with issues (draft or error)"
+              >
+                Issues
               </button>
 
               {Object.entries(assetTypes).map(([key, config]) => (
@@ -3655,31 +3490,6 @@ useEffect(() => {
                   onClick={() => setActiveFilter(activeFilter === key ? 'all' : key)}
                 />
               ))}
-              </div>
-              
-              {/* Status Filter */}
-              <div className="flex items-center space-x-2">
-                <span className="text-xs font-semibold text-gray-700 mr-2">Filter by Status:</span>
-                {[
-                  {k:'any',label:'All Statuses'},
-                  {k:'ready',label:'Ready'},
-                  {k:'draft',label:'Draft'},
-                  {k:'submitting',label:'Submitting'},
-                  {k:'added',label:'Added'},
-                  {k:'error',label:'Error'},
-                ].map(opt => (
-                  <button
-                    key={opt.k}
-                    onClick={() => setStatusFilter(opt.k)}
-                    className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all duration-200
-                      ${statusFilter === opt.k
-                        ? 'bg-blue-600 text-white shadow-sm ring-2 ring-blue-300' 
-                        : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'}`}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
             </div>
           )}
 
