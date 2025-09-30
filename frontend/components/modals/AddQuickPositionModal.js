@@ -3265,23 +3265,24 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
       title="Quick Position Entry"
       size="max-w-[1600px]"
     >
-      <div className="h-[90vh] flex flex-col bg-gradient-to-br from-gray-50 to-gray-100">
+      <div className="h-[90vh] flex flex-col bg-gray-50">
         {/* Enhanced Header with Action Bar */}
-        <div className="flex-shrink-0 bg-white shadow-sm px-6 py-4">
+        <div className="flex-shrink-0 bg-white border-b border-gray-200 px-6 py-4">
           {/* Top Action Bar */}
           <div className="flex items-center justify-between mb-4">
+            <div className="flex-1 rounded-lg px-3 py-2 bg-[#0B213F] text-white shadow-sm">
             <div className="flex items-center space-x-4">
               <button
                 onClick={clearAll}
-                className="px-4 py-2 text-sm bg-white border border-gray-200 text-gray-700 font-medium rounded-lg hover:bg-gray-50 hover:border-red-300 hover:text-red-600 transition-all flex items-center space-x-2 group shadow-sm"
+                className="px-4 py-2 text-sm bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all flex items-center space-x-2 group"
               >
-                <Trash2 className="w-4 h-4 transition-colors" />
+                <Trash2 className="w-4 h-4 group-hover:text-red-600 transition-colors" />
                 <span>Clear All</span>
               </button>
               
               <button
                 onClick={onClose}
-                className="px-4 py-2 text-sm bg-white border border-gray-200 text-gray-700 font-medium rounded-lg hover:bg-gray-50 hover:border-gray-300 transition-all shadow-sm"
+                className="px-4 py-2 text-sm bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all"
               >
                 Cancel
               </button>
