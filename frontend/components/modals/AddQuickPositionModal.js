@@ -3821,7 +3821,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                     </button>
                   );
                 })}
-                  ))}
+        
                 </div>
               </div>
             )}
