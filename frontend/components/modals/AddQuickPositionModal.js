@@ -428,10 +428,12 @@ const AccountFilter = ({ accounts, selectedAccounts, onChange, filterType = 'acc
 };
 
 // Queue modal component
-const QueueModal = ({ isOpen, onClose, positions, assetTypes, accounts, onClearCompleted }) => {
-  const getStatusBadge = (status) => {
+const QueueModal = ({ isOpen, onClose, positions, assetTypes, accounts, onClearCompleted, getRowStatus }) => {
+  const getStatusBadge = (position) => {
+    const status = getRowStatus(position);
+    
     switch (status) {
-      case 'success':
+      case 'added':
         return (
           <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
             <CheckCircle className="w-3 h-3 mr-1" />
@@ -445,12 +447,26 @@ const QueueModal = ({ isOpen, onClose, positions, assetTypes, accounts, onClearC
             Error
           </span>
         );
-      case 'pending':
+      case 'submitting':
+        return (
+          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+            <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+            Submitting
+          </span>
+        );
+      case 'ready':
+        return (
+          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">
+            <CheckCircle className="w-3 h-3 mr-1" />
+            Ready
+          </span>
+        );
+      case 'draft':
       default:
         return (
-          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
             <Clock className="w-3 h-3 mr-1" />
-            Not Submitted
+            Draft
           </span>
         );
     }
@@ -474,13 +490,14 @@ const QueueModal = ({ isOpen, onClose, positions, assetTypes, accounts, onClearC
   }, [positions]);
 
   const stats = useMemo(() => {
-    const counts = { total: 0, success: 0, error: 0, pending: 0 };
+    const counts = { total: 0, added: 0, error: 0, ready: 0, draft: 0, submitting: 0 };
     allPositions.forEach(pos => {
       counts.total++;
-      counts[pos.status || 'pending']++;
+      const status = getRowStatus(pos);
+      counts[status] = (counts[status] || 0) + 1;
     });
     return counts;
-  }, [allPositions]);
+  }, [allPositions, getRowStatus]);
 
   if (!isOpen) return null;
 
@@ -507,16 +524,24 @@ const QueueModal = ({ isOpen, onClose, positions, assetTypes, accounts, onClearC
               <span className="font-semibold">{stats.total}</span>
             </div>
             <div className="flex items-center space-x-2">
+              <span className="text-gray-500">Ready:</span>
+              <span className="font-semibold text-emerald-600">{stats.ready}</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <span className="text-gray-500">Draft:</span>
+              <span className="font-semibold text-amber-600">{stats.draft}</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <span className="text-gray-500">Submitting:</span>
+              <span className="font-semibold text-blue-600">{stats.submitting}</span>
+            </div>
+            <div className="flex items-center space-x-2">
               <span className="text-gray-500">Added:</span>
-              <span className="font-semibold text-green-600">{stats.success}</span>
+              <span className="font-semibold text-green-600">{stats.added}</span>
             </div>
             <div className="flex items-center space-x-2">
               <span className="text-gray-500">Errors:</span>
               <span className="font-semibold text-red-600">{stats.error}</span>
-            </div>
-            <div className="flex items-center space-x-2">
-              <span className="text-gray-500">Pending:</span>
-              <span className="font-semibold text-gray-600">{stats.pending}</span>
             </div>
           </div>
         </div>
@@ -571,7 +596,7 @@ const QueueModal = ({ isOpen, onClose, positions, assetTypes, accounts, onClearC
                             {position.data.shares || position.data.quantity || position.data.amount || '-'} units
                           </div>
                         </div>
-                        {getStatusBadge(position.status)}
+                        {getStatusBadge(position)}
                       </div>
                     </div>
                     {position.errorMessage && (
@@ -589,17 +614,17 @@ const QueueModal = ({ isOpen, onClose, positions, assetTypes, accounts, onClearC
         <div className="px-6 py-4 border-t border-gray-200 flex justify-between">
           <button
             onClick={onClearCompleted}
-            disabled={stats.success === 0}
+            disabled={stats.added === 0}
             className={`
               px-4 py-2 text-sm font-medium rounded-lg transition-all
-              ${stats.success === 0 
+              ${stats.added === 0 
                 ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
                 : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
               }
             `}
           >
             <CheckCheck className="w-4 h-4 inline mr-2" />
-            Clear Added ({stats.success})
+            Clear Added ({stats.added})
           </button>
           <button
             onClick={onClose}
@@ -2024,7 +2049,12 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
         updatedPositions[type] = (updatedPositions[type] || []).map(pos =>
           pos.id === position.id ? { ...pos, status: 'submitting' } : pos
         );
-        setPositions({ ...updatedPositions });  
+        setPositions({ ...updatedPositions });
+        
+        // Yield to browser to allow UI updates every 5 submissions
+        if (i % 5 === 0) {
+          await new Promise(resolve => setTimeout(resolve, 0));
+        }
 
         try {
           const cleanData = {};
@@ -2595,21 +2625,23 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
         key={assetType} 
         className={`
           bg-white rounded-xl shadow-sm border overflow-hidden transition-all duration-300
-          ${isExpanded ? 'border-gray-200 shadow-md' : 'border-gray-100'}
-          ${typePositions.length > 0 ? 'ring-1 ring-gray-100' : ''}
+          ${isExpanded ? 'border-gray-200 shadow-lg ring-2 ring-blue-50' : 'border-gray-200 hover:shadow-md hover:border-gray-300'}
         `}
       >
         {/* Section Header - Entire row is clickable */}
-        <div 
-          onClick={() => toggleSection(assetType)}
-          className={`
-            px-4 py-3 cursor-pointer transition-all duration-200
-            ${isExpanded 
-              ? `bg-gradient-to-r ${config.color.gradient} text-white shadow-sm` 
-              : 'bg-gray-50 hover:bg-gray-100'
-              }
-            `}
+          <div 
+            onClick={() => toggleSection(assetType)}
+            className={`
+              px-4 py-3 cursor-pointer transition-all duration-200 relative overflow-hidden
+              ${isExpanded 
+                ? `bg-gradient-to-r ${config.color.gradient} text-white shadow-inner` 
+                : 'bg-gradient-to-r from-gray-50 to-gray-100 hover:from-gray-100 hover:to-gray-50'
+                }
+              `}
           >
+            {isExpanded && (
+              <div className="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent pointer-events-none" />
+            )}
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-3 flex-1">
                 <div className={`
@@ -3235,24 +3267,23 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
       title="Quick Position Entry"
       size="max-w-[1600px]"
     >
-      <div className="h-[90vh] flex flex-col bg-gray-50">
+      <div className="h-[90vh] flex flex-col bg-gradient-to-br from-gray-50 to-gray-100">
         {/* Enhanced Header with Action Bar */}
-        <div className="flex-shrink-0 bg-white border-b border-gray-200 px-6 py-4">
+        <div className="flex-shrink-0 bg-white shadow-sm px-6 py-4">
           {/* Top Action Bar */}
           <div className="flex items-center justify-between mb-4">
-            <div className="flex-1 rounded-lg px-3 py-2 bg-[#0B213F] text-white shadow-sm">
             <div className="flex items-center space-x-4">
               <button
                 onClick={clearAll}
-                className="px-4 py-2 text-sm bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all flex items-center space-x-2 group"
+                className="px-4 py-2 text-sm bg-white border border-gray-200 text-gray-700 font-medium rounded-lg hover:bg-gray-50 hover:border-red-300 hover:text-red-600 transition-all flex items-center space-x-2 group shadow-sm"
               >
-                <Trash2 className="w-4 h-4 group-hover:text-red-600 transition-colors" />
+                <Trash2 className="w-4 h-4 transition-colors" />
                 <span>Clear All</span>
               </button>
               
               <button
                 onClick={onClose}
-                className="px-4 py-2 text-sm bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all"
+                className="px-4 py-2 text-sm bg-white border border-gray-200 text-gray-700 font-medium rounded-lg hover:bg-gray-50 hover:border-gray-300 transition-all shadow-sm"
               >
                 Cancel
               </button>
@@ -3370,14 +3401,17 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                 onClick={submitAll}
                 disabled={stats.totalPositions === 0 || isSubmitting}
                 className={`
-                  px-6 py-2 text-sm font-semibold rounded-lg transition-all duration-200 
-                  flex items-center space-x-2 shadow-sm hover:shadow-md transform hover:scale-105
+                  px-6 py-2.5 text-sm font-semibold rounded-lg transition-all duration-200 
+                  flex items-center space-x-2 shadow-md hover:shadow-lg transform hover:scale-105 relative overflow-hidden
                   ${stats.totalPositions === 0 || isSubmitting
                     ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                     : 'bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:from-green-700 hover:to-emerald-700'
                   }
                 `}
               >
+                {!isSubmitting && stats.totalPositions > 0 && (
+                  <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 animate-shimmer" />
+                )}
                 {isSubmitting ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
@@ -3395,7 +3429,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
           </div>
 
           {/* Stats Bar */}
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl px-6 py-4 border border-blue-100 shadow-sm">
             <div className="flex items-center space-x-6">
               {/* Total stats */}
               <div className="flex items-center space-x-4">
@@ -3501,10 +3535,10 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                 <button
                   onClick={() => setActiveFilter('all')}
                   className={`
-                    px-3 py-1.5 text-xs font-medium rounded-lg transition-all duration-200
+                    px-3 py-1.5 text-xs font-medium rounded-lg transition-all duration-200 transform
                     ${activeFilter === 'all' 
-                      ? 'bg-gray-900 text-white shadow-sm' 
-                      : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
+                      ? 'bg-gray-900 text-white shadow-md scale-105' 
+                      : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200 hover:scale-102 shadow-sm'
                     }
                   `}
                 >
@@ -3758,10 +3792,20 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
           assetTypes={assetTypes}
           accounts={accounts}
           onClearCompleted={clearCompletedPositions}
+          getRowStatus={getRowStatus}
         />
       </div>
 
       <style jsx>{`
+        @keyframes shimmer {
+          0% { transform: translateX(-100%); }
+          100% { transform: translateX(100%); }
+        }
+        
+        .animate-shimmer {
+          animation: shimmer 2s infinite;
+        }
+        
         @keyframes slide-in-from-top {
           from {
             opacity: 0;
