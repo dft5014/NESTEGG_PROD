@@ -3782,52 +3782,52 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                     {k:'added', label:'Added', color:'indigo', icon: CheckCheck},
                     {k:'error', label:'Error', color:'red', icon: XCircle},
                     {k:'issues', label:'Needs Attention', color:'orange', icon: AlertTriangle}
-                  ].map(opt => {
-                    const count = Object.values(positions).reduce((sum, arr) =>
-                      sum + arr.filter(p => {
-                        if (opt.k === 'any') return true;
-                        if (opt.k === 'issues') {
-                          const s = getRowStatus(p);
-                          return s === 'draft' || s === 'error';
+                ].map(opt => {
+                  const count = Object.values(positions).reduce((sum, arr) =>
+                    sum + arr.filter(p => {
+                      if (opt.k === 'any') return true;
+                      if (opt.k === 'issues') {
+                        const s = getRowStatus(p);
+                        return s === 'draft' || s === 'error';
+                      }
+                      return getRowStatus(p) === opt.k;
+                    }).length, 0
+                  );
+                  
+                  const Icon = opt.icon;
+                  
+                  return (
+                    <button
+                      key={opt.k}
+                      onClick={() => setStatusFilter(opt.k)}
+                      className={`
+                        relative px-3 py-1.5 text-xs font-medium rounded-lg transition-all duration-200
+                        flex items-center space-x-2
+                        ${statusFilter === opt.k
+                          ? 'bg-blue-600 text-white shadow-md ring-2 ring-blue-300 scale-105' 
+                          : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200 hover:border-gray-300'
                         }
-                        return getRowStatus(p) === opt.k;
-                      }).length, 0
-                    );
-                    
-                    const Icon = opt.icon;
-                    
-                    return (
-                      <button
-                        key={opt.k}
-                        onClick={() => setStatusFilter(opt.k)}
-                        className={`
-                          relative px-3 py-1.5 text-xs font-medium rounded-lg transition-all duration-200
-                          flex items-center space-x-2
-                          ${statusFilter === opt.k
-                            ? `bg-${opt.color}-600 text-white shadow-md ring-2 ring-${opt.color}-300 scale-105` 
-                            : `bg-white text-gray-700 hover:bg-${opt.color}-50 border border-gray-200 hover:border-${opt.color}-300`
+                      `}
+                    >
+                      {Icon && <Icon className="w-3.5 h-3.5" />}
+                      <span>{opt.label}</span>
+                      {count > 0 && (
+                        <span className={`
+                          px-1.5 py-0.5 text-[10px] font-bold rounded-full
+                          ${statusFilter === opt.k 
+                            ? 'bg-white/20 text-white' 
+                            : 'bg-gray-100 text-gray-700'
                           }
-                        `}
-                      >
-                        {Icon && <Icon className="w-3.5 h-3.5" />}
-                        <span>{opt.label}</span>
-                        {count > 0 && (
-                          <span className={`
-                            px-1.5 py-0.5 text-[10px] font-bold rounded-full
-                            ${statusFilter === opt.k 
-                              ? 'bg-white/20 text-white' 
-                              : `bg-${opt.color}-100 text-${opt.color}-700`
-                            }
-                          `}>
-                            {count}
-                          </span>
-                        )}
-                        {count > 0 && opt.k === 'issues' && statusFilter !== opt.k && (
-                          <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-                        )}
-                      </button>
-                    );
-                  })}
+                        `}>
+                          {count}
+                        </span>
+                      )}
+                      {count > 0 && opt.k === 'issues' && statusFilter !== opt.k && (
+                        <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+                      )}
+                    </button>
+                  );
+                })}
                   ))}
                 </div>
               </div>
