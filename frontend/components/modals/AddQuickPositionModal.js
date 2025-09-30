@@ -3493,9 +3493,9 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
             )}
           </div>
 
-{/* Asset Type Filters (only show in asset type view) */}
+          {/* Asset Type Filters (only show in asset type view) */}
           {!viewMode && (
-            <>
+            <div className="space-y-2">
               <div className="flex items-center space-x-2 mt-4">
                 <span className="text-xs text-gray-500 mr-2">Filter by Asset Type:</span>
                 <button
@@ -3525,7 +3525,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
               </div>
               
               {/* Status Filter Row */}
-              <div className="flex items-center space-x-2 mt-2">
+              <div className="flex items-center space-x-2">
                 <span className="text-xs text-gray-500 mr-2">Filter by Status:</span>
                 {[
                   {k:'any',label:'All'},
@@ -3576,6 +3576,8 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                   );
                 })}
               </div>
+            </div>
+          )}
 
           {/* Keyboard shortcuts hint */}
           {showKeyboardShortcuts && (
