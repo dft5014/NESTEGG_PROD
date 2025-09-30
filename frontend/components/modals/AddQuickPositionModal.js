@@ -3412,6 +3412,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                 {!isSubmitting && stats.totalPositions > 0 && (
                   <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 animate-shimmer" />
                 )}
+                
                 {isSubmitting ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
@@ -3797,15 +3798,6 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
       </div>
 
       <style jsx>{`
-        @keyframes shimmer {
-          0% { transform: translateX(-100%); }
-          100% { transform: translateX(100%); }
-        }
-        
-        .animate-shimmer {
-          animation: shimmer 2s infinite;
-        }
-        
         @keyframes slide-in-from-top {
           from {
             opacity: 0;
