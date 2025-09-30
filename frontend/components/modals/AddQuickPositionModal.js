@@ -3797,7 +3797,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
         />
       </div>
 
-      <style>{`
+      <style dangerouslySetInnerHTML={{__html: `
         @keyframes shimmer {
           0% { transform: translateX(-100%); }
           100% { transform: translateX(100%); }
@@ -3918,7 +3918,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
             transition-duration: 0.01ms !important;
           }
         }
-      `}</style>
+      `}} />
     </FixedModal>
   );
   };
