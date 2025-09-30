@@ -3797,6 +3797,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
         />
         
       </div>
+       </div>
     </FixedModal>
   );
 };
