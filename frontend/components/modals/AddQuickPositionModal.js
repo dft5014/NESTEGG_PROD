@@ -3195,449 +3195,431 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
         title="Quick Position Entry"
         size="max-w-[1600px]"
       >
-        <div className="h-[90vh] flex flex-col bg-gray-50">
-          {/* Enhanced Header with Action Bar */}
-          <div className="flex-shrink-0 bg-white border-b border-gray-200 px-6 py-4">
-            {/* Top Action Bar */}
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex-1 rounded-xl px-4 py-3 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white shadow-xl border border-slate-700/50">
-              <div className="flex items-center space-x-4">
-                <button
-                  onClick={clearAll}
-                  className="px-4 py-2 text-sm bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all flex items-center space-x-2 group"
-                >
-                  <Trash2 className="w-4 h-4 group-hover:text-red-600 transition-colors" />
-                  <span>Clear All</span>
-                </button>
-                
-                <button
-                  onClick={() => {
-                    const addedCount = Object.values(positions).reduce((sum, arr) => 
-                      sum + arr.filter(p => p.status === 'added').length, 0
-                    );
-                    
-                    if (addedCount === 0) {
-                      showMessage('info', 'No imported positions to remove');
-                      return;
-                    }
-                    
-                    if (!window.confirm(`Remove ${addedCount} imported position${addedCount !== 1 ? 's' : ''}?`)) {
-                      return;
-                    }
-                    
-                    const updated = {};
-                    Object.entries(positions).forEach(([type, arr]) => {
-                      updated[type] = arr.filter(p => p.status !== 'added');
-                    });
-                    
-                    setPositions(updated);
-                    localStorage.setItem(`quickpositions:work:${seedId}`, JSON.stringify(updated));
-                    showMessage('success', `Removed ${addedCount} imported position${addedCount !== 1 ? 's' : ''}`);
-                  }}
-                  className="px-4 py-2 text-sm bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all flex items-center space-x-2 group"
-                >
-                  <CheckCheck className="w-4 h-4 text-green-600" />
-                  <span>Remove Imported</span>
-                </button>
-                
-                <button
-                  onClick={onClose}
-                  className="px-4 py-2 text-sm bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all"
-                >
-                  Cancel
-                </button>
-            
-              {/* Bulk actions for selected rows */}
-                <div className="flex items-center space-x-2">
-                  <button
-                    onClick={() => {
-                      const issueIds = getAllIssueRowIds();
-                      setSelectedIds(new Set(issueIds));
-                      showMessage('info', `Selected ${issueIds.length} row${issueIds.length !== 1 ? 's' : ''} with issues`);
-                    }}
-                    className="px-3 py-1.5 text-xs font-medium rounded-lg bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition-all"
-                    title="Select all rows with validation issues"
-                  >
-                    <AlertTriangle className="w-3 h-3 inline mr-1" />
-                    Select Issues
-                  </button>
-                  
-                  <button
-                    onClick={() => {
-                      const readyRows = getAllReadyRows();
-                      const readyIds = readyRows.map(r => r.position.id);
-                      setSelectedIds(new Set(readyIds));
-                      showMessage('info', `Selected ${readyIds.length} ready row${readyIds.length !== 1 ? 's' : ''}`);
-                    }}
-                    className="px-3 py-1.5 text-xs font-medium rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition-all"
-                    title="Select all ready-to-submit rows"
-                  >
-                    <CheckCircle className="w-3 h-3 inline mr-1" />
-                    Select Ready
-                  </button>
-                  
-                  <div className="h-5 w-px bg-gray-300"></div>
-                  
-                  <button
-                    onClick={deleteSelected}
-                    disabled={selectedIds.size === 0}
-                  className={`px-3 py-1.5 text-sm font-medium rounded-lg border transition-all ${
-                    selectedIds.size === 0
-                      ? "bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed"
-                      : "bg-red-50 text-red-700 border-red-200 hover:bg-red-100 hover:border-red-300"
-                  }`}
-                  title="Delete selected rows"
-                >
-                  <Trash2 className="w-4 h-4 inline mr-1.5" />
-                  Delete Selected ({selectedIds.size})
-                </button>
-                
-                <button
-                  onClick={async () => {
-                    if (selectedIds.size === 0) return;
-                    
-                    // Filter to only include selected positions
-                    const selectedEntries = [];
-                    Object.entries(positions).forEach(([type, arr]) => {
-                      arr.forEach(pos => {
-                        if (selectedIds.has(pos.id)) {
-                          selectedEntries.push({ type, position: pos });
-                        }
-                      });
-                    });
-                    
-                    if (selectedEntries.length === 0) {
-                      showMessage('info', 'No valid positions selected');
-                      return;
-                    }
-                    
-                    // Reuse the submission logic but only for selected
-                    setIsSubmitting(true);
-                    let successCount = 0;
-                    let errorCount = 0;
-                    const errors = [];
-                    const updatedPositions = { ...positions };
-                    const successfulPositionData = [];
+        <>
+          <div className="h-[90vh] flex flex-col bg-gray-50">
+            {/* Enhanced Header with Action Bar */}
+            <div className="flex-shrink-0 bg-white border-b border-gray-200 px-6 py-4">
+              {/* Top Action Bar */}
+              <div className="mb-4">
+                <div className="flex-1 rounded-xl px-4 py-3 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white shadow-xl border border-slate-700/50">
+                  {/* Row: core actions + bulk actions + view toggle */}
+                  <div className="flex flex-wrap items-center gap-3">
+                    {/* Core actions */}
+                    <button
+                      onClick={clearAll}
+                      className="px-4 py-2 text-sm bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all flex items-center space-x-2 group"
+                    >
+                      <Trash2 className="w-4 h-4 group-hover:text-red-600 transition-colors" />
+                      <span>Clear All</span>
+                    </button>
 
-                    try {
-                      showMessage('info', `Importing ${selectedEntries.length} selected positions...`, [], 0);
-
-                      for (let i = 0; i < selectedEntries.length; i++) {
-                        const { type, position } = selectedEntries[i];
-                        
-                        updatedPositions[type] = (updatedPositions[type] || []).map(pos =>
-                          pos.id === position.id ? { ...pos, status: 'submitting' } : pos
+                    <button
+                      onClick={() => {
+                        const addedCount = Object.values(positions).reduce(
+                          (sum, arr) => sum + arr.filter(p => p.status === 'added').length,
+                          0
                         );
-                        setPositions({ ...updatedPositions });
 
-                        try {
-                          const cleanData = {};
-                          Object.entries(position.data).forEach(([key, value]) => {
-                            if (value !== '' && value !== null && value !== undefined) {
-                              cleanData[key] = value;
-                            }
+                        if (addedCount === 0) {
+                          showMessage('info', 'No imported positions to remove');
+                          return;
+                        }
+
+                        if (
+                          !window.confirm(
+                            `Remove ${addedCount} imported position${addedCount !== 1 ? 's' : ''}?`
+                          )
+                        ) {
+                          return;
+                        }
+
+                        const updated = {};
+                        Object.entries(positions).forEach(([type, arr]) => {
+                          updated[type] = arr.filter(p => p.status !== 'added');
+                        });
+
+                        setPositions(updated);
+                        localStorage.setItem(
+                          `quickpositions:work:${seedId}`,
+                          JSON.stringify(updated)
+                        );
+                        showMessage(
+                          'success',
+                          `Removed ${addedCount} imported position${addedCount !== 1 ? 's' : ''}`
+                        );
+                      }}
+                      className="px-4 py-2 text-sm bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all flex items-center space-x-2 group"
+                    >
+                      <CheckCheck className="w-4 h-4 text-green-600" />
+                      <span>Remove Imported</span>
+                    </button>
+
+                    <button
+                      onClick={onClose}
+                      className="px-4 py-2 text-sm bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all"
+                    >
+                      Cancel
+                    </button>
+
+                    {/* Bulk actions for selected rows */}
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => {
+                          const issueIds = getAllIssueRowIds();
+                          setSelectedIds(new Set(issueIds));
+                          showMessage(
+                            'info',
+                            `Selected ${issueIds.length} row${issueIds.length !== 1 ? 's' : ''} with issues`
+                          );
+                        }}
+                        className="px-3 py-1.5 text-xs font-medium rounded-lg bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition-all"
+                        title="Select all rows with validation issues"
+                      >
+                        <AlertTriangle className="w-3 h-3 inline mr-1" />
+                        Select Issues
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          const readyRows = getAllReadyRows();
+                          const readyIds = readyRows.map(r => r.position.id);
+                          setSelectedIds(new Set(readyIds));
+                          showMessage(
+                            'info',
+                            `Selected ${readyIds.length} ready row${readyIds.length !== 1 ? 's' : ''}`
+                          );
+                        }}
+                        className="px-3 py-1.5 text-xs font-medium rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition-all"
+                        title="Select all ready-to-submit rows"
+                      >
+                        <CheckCircle className="w-3 h-3 inline mr-1" />
+                        Select Ready
+                      </button>
+
+                      <div className="h-5 w-px bg-gray-300" />
+
+                      <button
+                        onClick={deleteSelected}
+                        disabled={selectedIds.size === 0}
+                        className={`px-3 py-1.5 text-sm font-medium rounded-lg border transition-all ${
+                          selectedIds.size === 0
+                            ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                            : 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100 hover:border-red-300'
+                        }`}
+                        title="Delete selected rows"
+                      >
+                        <Trash2 className="w-4 h-4 inline mr-1.5" />
+                        Delete Selected ({selectedIds.size})
+                      </button>
+
+                      <button
+                        onClick={async () => {
+                          if (selectedIds.size === 0) return;
+
+                          // Filter to only include selected positions
+                          const selectedEntries = [];
+                          Object.entries(positions).forEach(([type, arr]) => {
+                            arr.forEach(pos => {
+                              if (selectedIds.has(pos.id)) {
+                                selectedEntries.push({ type, position: pos });
+                              }
+                            });
                           });
 
-                          // Use existing submission logic
-                          switch (type) {
-                            case 'security':
-                              await addSecurityPosition(position.data.account_id, cleanData);
-                              break;
-                            case 'crypto': {
-                              const cryptoData = {
-                                coin_symbol: cleanData.symbol,
-                                coin_type: cleanData.name || cleanData.symbol,
-                                quantity: cleanData.quantity,
-                                purchase_price: cleanData.purchase_price,
-                                purchase_date: cleanData.purchase_date,
-                                account_id: cleanData.account_id,
-                                storage_type: cleanData.storage_type || 'Exchange',
-                                notes: cleanData.notes || null,
-                                tags: cleanData.tags || [],
-                                is_favorite: cleanData.is_favorite || false
-                              };
-                              await addCryptoPosition(position.data.account_id, cryptoData);
-                              break;
-                            }
-                            case 'metal': {
-                              const metalData = {
-                                metal_type: cleanData.metal_type,
-                                coin_symbol: cleanData.symbol,
-                                quantity: cleanData.quantity,
-                                unit: cleanData.unit || 'oz',
-                                purchase_price: cleanData.purchase_price,
-                                cost_basis: (cleanData.quantity || 0) * (cleanData.purchase_price || 0),
-                                purchase_date: cleanData.purchase_date,
-                                storage_location: cleanData.storage_location,
-                                description: `${cleanData.symbol} - ${cleanData.name}`
-                              };
-                              await addMetalPosition(position.data.account_id, metalData);
-                              break;
-                            }
-                            case 'otherAssets':
-                              await addOtherAsset(cleanData);
-                              break;
-                            case 'cash': {
-                              const cashData = {
-                                ...cleanData,
-                                name: cleanData.cash_type,
-                                interest_rate: cleanData.interest_rate ? cleanData.interest_rate / 100 : null
-                              };
-                              await addCashPosition(position.data.account_id, cashData);
-                              break;
-                            }
+                          if (selectedEntries.length === 0) {
+                            showMessage('info', 'No valid positions selected');
+                            return;
                           }
 
-                          successCount++;
-                          
-                          const account = type !== 'otherAssets' 
-                            ? accounts.find(a => a.id === position.data.account_id) 
-                            : null;
-                          
-                          successfulPositionData.push({
-                            type,
-                            ticker: position.data.ticker,
-                            symbol: position.data.symbol,
-                            asset_name: position.data.asset_name,
-                            metal_type: position.data.metal_type,
-                            currency: position.data.currency,
-                            shares: position.data.shares,
-                            quantity: position.data.quantity,
-                            amount: position.data.amount,
-                            account_name: account?.account_name || (type === 'otherAssets' ? 'Other Assets' : 'Unknown Account'),
-                            account_id: position.data.account_id
-                          });
+                          // Reuse the submission logic but only for selected
+                          setIsSubmitting(true);
+                          let successCount = 0;
+                          let errorCount = 0;
+                          const errors = [];
+                          const updatedPositions = { ...positions };
+                          const successfulPositionData = [];
 
-                          updatedPositions[type] = (updatedPositions[type] || []).map(pos =>
-                            pos.id === position.id ? { ...pos, status: 'added' } : pos
-                          );
+                          try {
+                            showMessage(
+                              'info',
+                              `Importing ${selectedEntries.length} selected positions...`,
+                              [],
+                              0
+                            );
 
-                          const progress = Math.round(((i + 1) / selectedEntries.length) * 100);
-                          showMessage('info', `Importing selected... ${progress}%`, [`${successCount} of ${selectedEntries.length} completed`], 0);
+                            for (let i = 0; i < selectedEntries.length; i++) {
+                              const { type, position } = selectedEntries[i];
 
-                        } catch (error) {
-                          console.error(`Error adding ${type} position:`, error);
-                          errorCount++;
-                          errors.push(`${assetTypes[type].name}: ${error.message || 'Unknown error'}`);
+                              updatedPositions[type] = (updatedPositions[type] || []).map(pos =>
+                                pos.id === position.id ? { ...pos, status: 'submitting' } : pos
+                              );
+                              setPositions({ ...updatedPositions });
 
-                          updatedPositions[type] = (updatedPositions[type] || []).map(pos =>
-                            pos.id === position.id ? { ...pos, status: 'error', errorMessage: error.message } : pos
-                          );
-                        }
-                      }
+                              try {
+                                const cleanData = {};
+                                Object.entries(position.data).forEach(([key, value]) => {
+                                  if (value !== '' && value !== null && value !== undefined) {
+                                    cleanData[key] = value;
+                                  }
+                                });
 
-                      setPositions(updatedPositions);
+                                switch (type) {
+                                  case 'security':
+                                    await addSecurityPosition(position.data.account_id, cleanData);
+                                    break;
+                                  case 'crypto': {
+                                    const cryptoData = {
+                                      coin_symbol: cleanData.symbol,
+                                      coin_type: cleanData.name || cleanData.symbol,
+                                      quantity: cleanData.quantity,
+                                      purchase_price: cleanData.purchase_price,
+                                      purchase_date: cleanData.purchase_date,
+                                      account_id: cleanData.account_id,
+                                      storage_type: cleanData.storage_type || 'Exchange',
+                                      notes: cleanData.notes || null,
+                                      tags: cleanData.tags || [],
+                                      is_favorite: cleanData.is_favorite || false
+                                    };
+                                    await addCryptoPosition(position.data.account_id, cryptoData);
+                                    break;
+                                  }
+                                  case 'metal': {
+                                    const metalData = {
+                                      metal_type: cleanData.metal_type,
+                                      coin_symbol: cleanData.symbol,
+                                      quantity: cleanData.quantity,
+                                      unit: cleanData.unit || 'oz',
+                                      purchase_price: cleanData.purchase_price,
+                                      cost_basis:
+                                        (cleanData.quantity || 0) * (cleanData.purchase_price || 0),
+                                      purchase_date: cleanData.purchase_date,
+                                      storage_location: cleanData.storage_location,
+                                      description: `${cleanData.symbol} - ${cleanData.name}`
+                                    };
+                                    await addMetalPosition(position.data.account_id, metalData);
+                                    break;
+                                  }
+                                  case 'otherAssets':
+                                    await addOtherAsset(cleanData);
+                                    break;
+                                  case 'cash': {
+                                    const cashData = {
+                                      ...cleanData,
+                                      name: cleanData.cash_type,
+                                      interest_rate: cleanData.interest_rate
+                                        ? cleanData.interest_rate / 100
+                                        : null
+                                    };
+                                    await addCashPosition(position.data.account_id, cashData);
+                                    break;
+                                  }
+                                  default:
+                                    break;
+                                }
 
-                      if (successCount > 0) {
-                        showMessage('success', `Successfully imported ${successCount} selected position${successCount !== 1 ? 's' : ''}!`,
-                          errorCount > 0 ? [`${errorCount} positions failed`] : []
-                        );
-                        
-                        if (onPositionsSaved) {
-                          onPositionsSaved(successCount, successfulPositionData);
-                        }
-                        
-                        // Clear selection after successful import
-                        setSelectedIds(new Set());
-                      } else {
-                        showMessage('error', 'Failed to import selected positions', errors.slice(0, 5));
-                      }
+                                successCount++;
 
-                    } catch (e) {
-                      console.error('Error importing selected:', e);
-                      showMessage('error', 'Failed to import selected positions', [e.message]);
-                    } finally {
-                      setIsSubmitting(false);
-                    }
-                  }}
-                  disabled={selectedIds.size === 0 || isSubmitting}
-                  className={`px-3 py-1.5 text-sm font-medium rounded-lg border transition-all ${
-                    selectedIds.size === 0 || isSubmitting
-                      ? "bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed"
-                      : "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100 hover:border-blue-300"
-                  }`}
-                  title="Import only selected rows"
-                >
-                  <Upload className="w-4 h-4 inline mr-1.5" />
-                  Import Selected ({selectedIds.size})
-                </button>
+                                const account =
+                                  type !== 'otherAssets'
+                                    ? accounts.find(a => a.id === position.data.account_id)
+                                    : null;
 
-                {/* NEW: Submit only ready rows */}
-                <button
-                  onClick={submitReadyOnly}
-                  disabled={isSubmitting}
-                  className={`px-3 py-1.5 text-sm rounded-md border ${
-                    isSubmitting
-                      ? "bg-gray-300 text-gray-500 cursor-not-allowed"
-                      : "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
-                  }`}
-                  title="Submit only rows that are ready"
-                >
-                  Submit Ready Only
-                </button>
+                                successfulPositionData.push({
+                                  type,
+                                  ticker: position.data.ticker,
+                                  symbol: position.data.symbol,
+                                  asset_name: position.data.asset_name,
+                                  metal_type: position.data.metal_type,
+                                  currency: position.data.currency,
+                                  shares: position.data.shares,
+                                  quantity: position.data.quantity,
+                                  amount: position.data.amount,
+                                  account_name:
+                                    account?.account_name ||
+                                    (type === 'otherAssets' ? 'Other Assets' : 'Unknown Account'),
+                                  account_id: position.data.account_id
+                                });
 
+                                updatedPositions[type] = (updatedPositions[type] || []).map(pos =>
+                                  pos.id === position.id ? { ...pos, status: 'added' } : pos
+                                );
 
-                {/* View mode toggle with label */}
-                <div className="ml-4 flex items-center space-x-3">
-                  <span className="text-sm text-gray-600">Add positions by:</span>
-                  <ToggleSwitch
-                    value={viewMode}
-                    onChange={setViewMode}
-                    leftLabel="Asset Type"
-                    rightLabel="Account"
-                    leftIcon={Layers}
-                    rightIcon={Wallet}
-                  />
-                </div>
-                </div>
+                                const progress = Math.round(
+                                  ((i + 1) / selectedEntries.length) * 100
+                                );
+                                showMessage(
+                                  'info',
+                                  `Importing selected... ${progress}%`,
+                                  [`${successCount} of ${selectedEntries.length} completed`],
+                                  0
+                                );
+                              } catch (error) {
+                                console.error(`Error adding ${type} position:`, error);
+                                errorCount++;
+                                errors.push(
+                                  `${assetTypes[type].name}: ${error.message || 'Unknown error'}`
+                                );
 
-                {/* Filter Row - Only show in account view */}
-                {viewMode && accounts.length > 0 && (
-                  <div className="flex items-center space-x-3 mt-3 pt-3 border-t border-gray-100">
-                    <span className="text-xs text-gray-500 font-medium">Filters:</span>
-                    <AccountFilter
-                      accounts={accounts}
-                      selectedAccounts={selectedAccountFilter}
-                      onChange={setSelectedAccountFilter}
-                      filterType="accounts"
-                    />
-                    <AccountFilter
-                      accounts={accounts}
-                      selectedAccounts={selectedInstitutionFilter}
-                      onChange={setSelectedInstitutionFilter}
-                      filterType="institutions"
-                    />
-                    <div className="ml-auto flex items-center space-x-2 text-xs text-gray-500">
-                      <Info className="w-3 h-3" />
-                      <span>Filters apply together</span>
+                                updatedPositions[type] = (updatedPositions[type] || []).map(pos =>
+                                  pos.id === position.id
+                                    ? { ...pos, status: 'error', errorMessage: error.message }
+                                    : pos
+                                );
+                              }
+                            }
+
+                            setPositions(updatedPositions);
+
+                            if (successCount > 0) {
+                              showMessage(
+                                'success',
+                                `Successfully imported ${successCount} selected position${
+                                  successCount !== 1 ? 's' : ''
+                                }!`,
+                                errorCount > 0 ? [`${errorCount} positions failed`] : []
+                              );
+
+                              if (onPositionsSaved) {
+                                onPositionsSaved(successCount, successfulPositionData);
+                              }
+
+                              // Clear selection after successful import
+                              setSelectedIds(new Set());
+                            } else {
+                              showMessage(
+                                'error',
+                                'Failed to import selected positions',
+                                errors.slice(0, 5)
+                              );
+                            }
+                          } catch (e) {
+                            console.error('Error importing selected:', e);
+                            showMessage('error', 'Failed to import selected positions', [e.message]);
+                          } finally {
+                            setIsSubmitting(false);
+                          }
+                        }}
+                        disabled={selectedIds.size === 0 || isSubmitting}
+                        className={`px-3 py-1.5 text-sm font-medium rounded-lg border transition-all ${
+                          selectedIds.size === 0 || isSubmitting
+                            ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                            : 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100 hover:border-blue-300'
+                        }`}
+                        title="Import only selected rows"
+                      >
+                        <Upload className="w-4 h-4 inline mr-1.5" />
+                        Import Selected ({selectedIds.size})
+                      </button>
+
+                      {/* NEW: Submit only ready rows */}
+                      <button
+                        onClick={submitReadyOnly}
+                        disabled={isSubmitting}
+                        className={`px-3 py-1.5 text-sm rounded-md border ${
+                          isSubmitting
+                            ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                            : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                        }`}
+                        title="Submit only rows that are ready"
+                      >
+                        Submit Ready Only
+                      </button>
+                    </div>
+
+                    {/* View mode toggle with label */}
+                    <div className="ml-auto flex items-center space-x-3">
+                      <span className="text-sm text-gray-300">Add positions by:</span>
+                      <ToggleSwitch
+                        value={viewMode}
+                        onChange={setViewMode}
+                        leftLabel="Asset Type"
+                        rightLabel="Account"
+                        leftIcon={Layers}
+                        rightIcon={Wallet}
+                      />
                     </div>
                   </div>
-                )}
 
-              <div className="flex items-center space-x-3">
-                {/* Settings buttons */}
-                <button
-                  onClick={() => setShowValues(!showValues)}
-                  className={`p-2 rounded-lg transition-all duration-200 ${
-                    showValues 
-                      ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' 
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  }`}
-                  title={showValues ? 'Hide values' : 'Show values'}
-                >
-                  {showValues ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-                </button>
-                
-                <button
-                  onClick={() => setShowKeyboardShortcuts(!showKeyboardShortcuts)}
-                  className={`p-2 rounded-lg transition-all duration-200 ${
-                    showKeyboardShortcuts 
-                      ? 'bg-purple-100 text-purple-700 hover:bg-purple-200' 
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  }`}
-                  title="Keyboard shortcuts (Ctrl+K)"
-                >
-                  <Keyboard className="w-4 h-4" />
-                </button>
-                
-                <div className="h-6 w-px bg-gray-300"></div>
-                
-                {/* View Queue button */}
-                <button
-                  onClick={() => setShowQueue(true)}
-                  className="px-4 py-2 text-sm bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all flex items-center space-x-2"
-                >
-                  <ClipboardList className="w-4 h-4" />
-                  <span>View Queue</span>
-                  {stats.totalPositions > 0 && (
-                    <span className="ml-1 px-2 py-0.5 bg-gray-900 text-white text-xs rounded-full font-bold">
-                      {stats.totalPositions}
-                    </span>
-                  )}
-                </button>
-                
-                {/* Submit button */}
-                <button
-                  onClick={submitAll}
-                  disabled={stats.totalPositions === 0 || isSubmitting}
-                  className={`
-                    px-6 py-2 text-sm font-semibold rounded-lg transition-all duration-200 
-                    flex items-center space-x-2 shadow-sm hover:shadow-md transform hover:scale-105
-                    ${stats.totalPositions === 0 || isSubmitting
-                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                      : 'bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:from-green-700 hover:to-emerald-700'
-                    }
-                  `}
-                >
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Saving...</span>
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle className="w-4 h-4" />
-                      <span>Add {stats.totalPositions} Position{stats.totalPositions !== 1 ? 's' : ''}</span>
-                    </>
-                  )}
-                </button>
-              </div>
-              </div>
-            </div>
-
-            {/* Stats Bar */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-6">
-                {/* Total stats */}
-                <div className="flex items-center space-x-4">
-                  <div className="flex items-center space-x-2">
-                    <Hash className="w-4 h-4 text-gray-400" />
-                    <span className="text-sm text-gray-600">Total Positions:</span>
-                    <span className="text-lg font-bold text-gray-900">
-                      <AnimatedNumber value={stats.totalPositions} />
-                    </span>
-                  </div>
-                  
-                  <div className="h-5 w-px bg-gray-300"></div>
-                  
-                  <div className="flex items-center space-x-2">
-                    <DollarSign className="w-4 h-4 text-gray-400" />
-                    <span className="text-sm text-gray-600">Total Value:</span>
-                    <span className="text-lg font-bold text-gray-900">
-                      {showValues ? (
-                        <AnimatedNumber value={stats.totalValue} prefix="$" decimals={0} />
-                      ) : (
-                        '••••••'
-                      )}
-                    </span>
-                  </div>
-                  
-                  {stats.totalPerformance !== 0 && (
-                    <>
-                      <div className="h-5 w-px bg-gray-300"></div>
-                      <div className="flex items-center space-x-2">
-                        {stats.totalPerformance >= 0 ? (
-                          <TrendingUp className="w-4 h-4 text-green-600" />
-                        ) : (
-                          <TrendingDown className="w-4 h-4 text-red-600" />
-                        )}
-                        <span className="text-sm text-gray-600">Performance:</span>
-                        <span className={`text-lg font-bold ${
-                          stats.totalPerformance >= 0 ? 'text-green-600' : 'text-red-600'
-                        }`}>
-                          {showValues ? (
-                            <>
-                              {stats.totalPerformance >= 0 ? '+' : ''}
-                              <AnimatedNumber value={stats.totalPerformance} decimals={1} suffix="%" />
-                            </>
-                          ) : (
-                            '••••'
-                          )}
-                        </span>
+                  {/* Filter Row - Only show in account view */}
+                  {viewMode && accounts.length > 0 && (
+                    <div className="flex items-center space-x-3 mt-3 pt-3 border-t border-gray-100">
+                      <span className="text-xs text-gray-300 font-medium">Filters:</span>
+                      <AccountFilter
+                        accounts={accounts}
+                        selectedAccounts={selectedAccountFilter}
+                        onChange={setSelectedAccountFilter}
+                        filterType="accounts"
+                      />
+                      <AccountFilter
+                        accounts={accounts}
+                        selectedAccounts={selectedInstitutionFilter}
+                        onChange={setSelectedInstitutionFilter}
+                        filterType="institutions"
+                      />
+                      <div className="ml-auto flex items-center space-x-2 text-xs text-gray-400">
+                        <Info className="w-3 h-3" />
+                        <span>Filters apply together</span>
                       </div>
-                    </>
+                    </div>
                   )}
                 </div>
+              </div>
+
+              {/* Stats Bar */}
+              <div className="flex items-start justify-between">
+                <div className="flex items-center space-x-6">
+                  {/* Total stats */}
+                  <div className="flex items-center space-x-4">
+                    <div className="flex items-center space-x-2">
+                      <Hash className="w-4 h-4 text-gray-400" />
+                      <span className="text-sm text-gray-600">Total Positions:</span>
+                      <span className="text-lg font-bold text-gray-900">
+                        <AnimatedNumber value={stats.totalPositions} />
+                      </span>
+                    </div>
+
+                    <div className="h-5 w-px bg-gray-300" />
+
+                    <div className="flex items-center space-x-2">
+                      <DollarSign className="w-4 h-4 text-gray-400" />
+                      <span className="text-sm text-gray-600">Total Value:</span>
+                      <span className="text-lg font-bold text-gray-900">
+                        {showValues ? (
+                          <AnimatedNumber value={stats.totalValue} prefix="$" decimals={0} />
+                        ) : (
+                          '••••••'
+                        )}
+                      </span>
+                    </div>
+
+                    {stats.totalPerformance !== 0 && (
+                      <>
+                        <div className="h-5 w-px bg-gray-300" />
+                        <div className="flex items-center space-x-2">
+                          {stats.totalPerformance >= 0 ? (
+                            <TrendingUp className="w-4 h-4 text-green-600" />
+                          ) : (
+                            <TrendingDown className="w-4 h-4 text-red-600" />
+                          )}
+                          <span className="text-sm text-gray-600">Performance:</span>
+                          <span
+                            className={`text-lg font-bold ${
+                              stats.totalPerformance >= 0 ? 'text-green-600' : 'text-red-600'
+                            }`}
+                          >
+                            {showValues ? (
+                              <>
+                                {stats.totalPerformance >= 0 ? '+' : ''}
+                                <AnimatedNumber value={stats.totalPerformance} decimals={1} suffix="%" />
+                              </>
+                            ) : (
+                              '••••'
+                            )}
+                          </span>
+                        </div>
+                      </>
+                    )}
+                  </div>
 
                   {/* Validation Summary - only show if there are issues */}
                   {stats.errors.length > 0 && (
@@ -3646,14 +3628,15 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                         <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
                         <div className="flex-1">
                           <h4 className="text-sm font-semibold text-amber-900 mb-2">
-                            {stats.errors.length} issue{stats.errors.length !== 1 ? 's' : ''} need attention
+                            {stats.errors.length} issue{stats.errors.length !== 1 ? 's' : ''} need
+                            attention
                           </h4>
                           <div className="space-y-1 max-h-24 overflow-y-auto">
                             {stats.errors.slice(0, 5).map((error, idx) => {
                               const config = assetTypes[error.type];
                               const position = positions[error.type].find(p => p.id === error.id);
                               const rowIndex = positions[error.type].indexOf(position) + 1;
-                              
+
                               return (
                                 <button
                                   key={`${error.type}-${error.id}`}
@@ -3661,17 +3644,24 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                                     setActiveFilter(error.type);
                                     setExpandedSections(prev => ({ ...prev, [error.type]: true }));
                                     setTimeout(() => {
-                                      const firstError = Object.keys(error.errors).find(k => error.errors[k]);
+                                      const firstError = Object.keys(error.errors).find(
+                                        k => error.errors[k]
+                                      );
                                       const cellKey = `${error.type}-${error.id}-${firstError}`;
                                       cellRefs.current[cellKey]?.focus();
                                     }, 100);
                                   }}
                                   className="text-xs text-amber-800 hover:text-amber-900 hover:underline text-left block"
                                 >
-                                  {config.name} row {rowIndex}: {Object.entries(error.errors)
+                                  {config.name} row {rowIndex}:{' '}
+                                  {Object.entries(error.errors)
                                     .filter(([_, v]) => v)
-                                    .map(([k, _]) => config.fields.find(f => f.key === k)?.label || k)
-                                    .join(', ')} missing
+                                    .map(
+                                      ([k, _]) =>
+                                        config.fields.find(f => f.key === k)?.label || k
+                                    )
+                                    .join(', ')}{' '}
+                                  missing
                                 </button>
                               );
                             })}
@@ -3686,459 +3676,505 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                     </div>
                   )}
 
+                  {/* Type breakdown */}
+                  <div className="flex items-center space-x-2">
+                    <div className="h-5 w-px bg-gray-300" />
+                    {Object.entries(assetTypes).map(([key, config]) => {
+                      const typeStats = stats.byType[key];
+                      if (!typeStats || typeStats.count === 0) return null;
 
-                {/* Type breakdown */}
-                <div className="flex items-center space-x-2">
-                  <div className="h-5 w-px bg-gray-300"></div>
-                  {Object.entries(assetTypes).map(([key, config]) => {
-                    const typeStats = stats.byType[key];
-                    if (!typeStats || typeStats.count === 0) return null;
-                    
-                    const Icon = config.icon;
-                    return (
-                      <div 
-                        key={key}
-                        className={`
-                          flex items-center space-x-1 px-2 py-1 rounded-lg text-xs
-                          ${config.color.lightBg} ${config.color.text}
-                        `}
-                      >
-                        <Icon className="w-3 h-3" />
-                        <span className="font-medium">{typeStats.count}</span>
-                        {showValues && (
-                          <span className="text-[10px] opacity-75">
-                            ({formatCurrency(typeStats.value)})
-                          </span>
-                        )}
-                      </div>
-                    );
-                  })}
+                      const Icon = config.icon;
+                      return (
+                        <div
+                          key={key}
+                          className={`flex items-center space-x-1 px-2 py-1 rounded-lg text-xs ${config.color.lightBg} ${config.color.text}`}
+                        >
+                          <Icon className="w-3 h-3" />
+                          <span className="font-medium">{typeStats.count}</span>
+                          {showValues && (
+                            <span className="text-[10px] opacity-75">
+                              ({formatCurrency(typeStats.value)})
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
+
+                {/* Progress indicator */}
+                {stats.totalPositions > 0 && (
+                  <div className="flex items-center space-x-3">
+                    <span className="text-xs text-gray-500">Progress</span>
+                    <ProgressIndicator
+                      current={stats.totalPositions - stats.errors.length}
+                      total={stats.totalPositions}
+                      className="w-24"
+                    />
+                    <span className="text-xs font-medium text-gray-700">
+                      {Math.round(
+                        ((stats.totalPositions - stats.errors.length) / stats.totalPositions) * 100
+                      )}
+                      %
+                    </span>
+                  </div>
+                )}
               </div>
 
-              {/* Progress indicator */}
-              {stats.totalPositions > 0 && (
-                <div className="flex items-center space-x-3">
-                  <span className="text-xs text-gray-500">Progress</span>
-                  <ProgressIndicator 
-                    current={stats.totalPositions - stats.errors.length} 
-                    total={stats.totalPositions}
-                    className="w-24"
-                  />
-                  <span className="text-xs font-medium text-gray-700">
-                    {Math.round(((stats.totalPositions - stats.errors.length) / stats.totalPositions) * 100)}%
-                  </span>
+              {/* Asset Type Filters (only show in asset type view) */}
+              {!viewMode && (
+                <div className="space-y-3 mt-4">
+                  {/* Asset Type Filter */}
+                  <div className="flex items-center space-x-2">
+                    <span className="text-xs font-semibold text-gray-700 mr-2">
+                      Filter by Asset Type:
+                    </span>
+                    <button
+                      onClick={() => setActiveFilter('all')}
+                      className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all duration-200 ${
+                        activeFilter === 'all'
+                          ? 'bg-gray-900 text-white shadow-sm'
+                          : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
+                      }`}
+                    >
+                      All Types
+                    </button>
+
+                    {Object.entries(assetTypes).map(([key, config]) => (
+                      <AssetTypeBadge
+                        key={key}
+                        type={config.name}
+                        count={stats.byType[key]?.count || 0}
+                        icon={config.icon}
+                        color={config.color}
+                        active={activeFilter === key}
+                        onClick={() => setActiveFilter(activeFilter === key ? 'all' : key)}
+                      />
+                    ))}
+                  </div>
+
+                  {/* Status Filter */}
+                  <div className="flex items-center space-x-2">
+                    <span className="text-xs font-semibold text-gray-700 mr-2">Filter by Status:</span>
+                    {[
+                      { k: 'any', label: 'All Statuses', color: 'gray' },
+                      { k: 'ready', label: 'Ready', color: 'emerald', icon: CheckCircle },
+                      { k: 'draft', label: 'Draft', color: 'amber', icon: Clock },
+                      { k: 'submitting', label: 'Submitting', color: 'blue', icon: Loader2 },
+                      { k: 'added', label: 'Added', color: 'indigo', icon: CheckCheck },
+                      { k: 'error', label: 'Error', color: 'red', icon: XCircle },
+                      { k: 'issues', label: 'Needs Attention', color: 'orange', icon: AlertTriangle }
+                    ].map(opt => {
+                      const count = Object.values(positions).reduce((sum, arr) => {
+                        return (
+                          sum +
+                          arr.filter(p => {
+                            if (opt.k === 'any') return true;
+                            if (opt.k === 'issues') {
+                              const s = getRowStatus(p);
+                              return s === 'draft' || s === 'error';
+                            }
+                            return getRowStatus(p) === opt.k;
+                          }).length
+                        );
+                      }, 0);
+
+                      const Icon = opt.icon;
+
+                      return (
+                        <button
+                          key={opt.k}
+                          onClick={() => setStatusFilter(opt.k)}
+                          className={`relative px-3 py-1.5 text-xs font-medium rounded-lg transition-all duration-200 flex items-center space-x-2 ${
+                            statusFilter === opt.k
+                              ? 'bg-blue-600 text-white shadow-md ring-2 ring-blue-300 scale-105'
+                              : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200 hover:border-gray-300'
+                          }`}
+                        >
+                          {Icon && <Icon className="w-3.5 h-3.5" />}
+                          <span>{opt.label}</span>
+                          {count > 0 && (
+                            <span
+                              className={`px-1.5 py-0.5 text-[10px] font-bold rounded-full ${
+                                statusFilter === opt.k ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-700'
+                              }`}
+                            >
+                              {count}
+                            </span>
+                          )}
+                          {count > 0 && opt.k === 'issues' && statusFilter !== opt.k && (
+                            <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Keyboard shortcuts hint */}
+              {showKeyboardShortcuts && (
+                <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg animate-in slide-in-from-top duration-300">
+                  <div className="flex items-start space-x-2">
+                    <Keyboard className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
+                    <div className="flex-1">
+                      <p className="text-xs font-medium text-blue-900 mb-1">Keyboard Shortcuts</p>
+                      <div className="grid grid-cols-3 gap-x-4 gap-y-1 text-[10px] text-blue-700">
+                        <div>
+                          <kbd className="px-1 py-0.5 bg-white rounded text-blue-900 font-mono">Tab</kbd>{' '}
+                          Next field
+                        </div>
+                        <div>
+                          <kbd className="px-1 py-0.5 bg-white rounded text-blue-900 font-mono">
+                            Enter
+                          </kbd>{' '}
+                          Next field / New row
+                        </div>
+                        <div>
+                          <kbd className="px-1 py-0.5 bg-white rounded text-blue-900 font-mono">
+                            Ctrl+Enter
+                          </kbd>{' '}
+                          Submit all
+                        </div>
+                        <div>
+                          <kbd className="px-1 py-0.5 bg-white rounded text-blue-900 font-mono">↑↓</kbd>{' '}
+                          Navigate rows
+                        </div>
+                        <div>
+                          <kbd className="px-1 py-0.5 bg-white rounded text-blue-900 font-mono">
+                            Ctrl+D
+                          </kbd>{' '}
+                          Duplicate row
+                        </div>
+                        <div>
+                          <kbd className="px-1 py-0.5 bg-white rounded text-blue-900 font-mono">
+                            Ctrl+Del
+                          </kbd>{' '}
+                          Delete row
+                        </div>
+                        <div>
+                          <kbd className="px-1 py-0.5 bg-white rounded text-blue-900 font-mono">
+                            Alt+↑↓
+                          </kbd>{' '}
+                          Move row
+                        </div>
+                        <div>
+                          <kbd className="px-1 py-0.5 bg-white rounded text-blue-900 font-mono">
+                            Shift+Enter
+                          </kbd>{' '}
+                          Insert above
+                        </div>
+                        <div>
+                          <kbd className="px-1 py-0.5 bg-white rounded text-blue-900 font-mono">
+                            Ctrl+K
+                          </kbd>{' '}
+                          Toggle shortcuts
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setShowKeyboardShortcuts(false)}
+                      className="p-1 hover:bg-blue-100 rounded transition-colors"
+                    >
+                      <X className="w-3 h-3 text-blue-600" />
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
 
-            {/* Asset Type Filters (only show in asset type view) */}
-            {!viewMode && (
-              <div className="space-y-3 mt-4">
-                {/* Asset Type Filter */}
-                <div className="flex items-center space-x-2">
-                  <span className="text-xs font-semibold text-gray-700 mr-2">Filter by Asset Type:</span>
-                  <button
-                    onClick={() => setActiveFilter('all')}
-                  className={`
-                    px-3 py-1.5 text-xs font-medium rounded-lg transition-all duration-200
-                    ${activeFilter === 'all' 
-                      ? 'bg-gray-900 text-white shadow-sm' 
-                      : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
-                    }
-                  `}
-                >
-                  All Types
-                </button>
+            {/* Scrollable Content Area */}
+            <div
+              className="flex-1 overflow-y-auto overflow-x-visible p-6 space-y-4 relative"
+              style={{ zIndex: 1 }}
+            >
+              {viewMode ? (
+                // Account View
+                renderByAccount()
+              ) : (
+                // Asset Type View
+                <>
+                  {Object.keys(assetTypes)
+                    .filter(type => activeFilter === 'all' || activeFilter === type)
+                    .map(assetType => renderAssetSection(assetType))}
 
-                {Object.entries(assetTypes).map(([key, config]) => (
-                  <AssetTypeBadge
-                    key={key}
-                    type={config.name}
-                    count={stats.byType[key]?.count || 0}
-                    icon={config.icon}
-                    color={config.color}
-                    active={activeFilter === key}
-                    onClick={() => setActiveFilter(activeFilter === key ? 'all' : key)}
-                  />
-                ))}
-                </div>
-                
-                {/* Status Filter */}
-                <div className="flex items-center space-x-2">
-                  <span className="text-xs font-semibold text-gray-700 mr-2">Filter by Status:</span>
-                  {[
-                    {k:'any', label:'All Statuses', color:'gray'},
-                    {k:'ready', label:'Ready', color:'emerald', icon: CheckCircle},
-                    {k:'draft', label:'Draft', color:'amber', icon: Clock},
-                    {k:'submitting', label:'Submitting', color:'blue', icon: Loader2},
-                    {k:'added', label:'Added', color:'indigo', icon: CheckCheck},
-                    {k:'error', label:'Error', color:'red', icon: XCircle},
-                    {k:'issues', label:'Needs Attention', color:'orange', icon: AlertTriangle}
-                ].map(opt => {
-                  const count = Object.values(positions).reduce((sum, arr) =>
-                    sum + arr.filter(p => {
-                      if (opt.k === 'any') return true;
-                      if (opt.k === 'issues') {
-                        const s = getRowStatus(p);
-                        return s === 'draft' || s === 'error';
-                      }
-                      return getRowStatus(p) === opt.k;
-                    }).length, 0
-                  );
-                  
-                  const Icon = opt.icon;
-                  
-                  return (
-                    <button
-                      key={opt.k}
-                      onClick={() => setStatusFilter(opt.k)}
-                      className={`
-                        relative px-3 py-1.5 text-xs font-medium rounded-lg transition-all duration-200
-                        flex items-center space-x-2
-                        ${statusFilter === opt.k
-                          ? 'bg-blue-600 text-white shadow-md ring-2 ring-blue-300 scale-105' 
-                          : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200 hover:border-gray-300'
-                        }
-                      `}
-                    >
-                      {Icon && <Icon className="w-3.5 h-3.5" />}
-                      <span>{opt.label}</span>
-                      {count > 0 && (
-                        <span className={`
-                          px-1.5 py-0.5 text-[10px] font-bold rounded-full
-                          ${statusFilter === opt.k 
-                            ? 'bg-white/20 text-white' 
-                            : 'bg-gray-100 text-gray-700'
-                          }
-                        `}>
-                          {count}
-                        </span>
-                      )}
-                      {count > 0 && opt.k === 'issues' && statusFilter !== opt.k && (
-                        <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-                      )}
-                    </button>
-                  );
-                })}
-                </div>
-              </div>
-            )}
-
-            {/* Keyboard shortcuts hint */}
-            {showKeyboardShortcuts && (
-              <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg animate-in slide-in-from-top duration-300">
-                <div className="flex items-start space-x-2">
-                  <Keyboard className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
-                  <div className="flex-1">
-                    <p className="text-xs font-medium text-blue-900 mb-1">Keyboard Shortcuts</p>
-                    <div className="grid grid-cols-3 gap-x-4 gap-y-1 text-[10px] text-blue-700">
-                      <div><kbd className="px-1 py-0.5 bg-white rounded text-blue-900 font-mono">Tab</kbd> Next field</div>
-                      <div><kbd className="px-1 py-0.5 bg-white rounded text-blue-900 font-mono">Enter</kbd> Next field / New row</div>
-                      <div><kbd className="px-1 py-0.5 bg-white rounded text-blue-900 font-mono">Ctrl+Enter</kbd> Submit all</div>
-                      <div><kbd className="px-1 py-0.5 bg-white rounded text-blue-900 font-mono">↑↓</kbd> Navigate rows</div>
-                      <div><kbd className="px-1 py-0.5 bg-white rounded text-blue-900 font-mono">Ctrl+D</kbd> Duplicate row</div>
-                      <div><kbd className="px-1 py-0.5 bg-white rounded text-blue-900 font-mono">Ctrl+Del</kbd> Delete row</div>
-                      <div><kbd className="px-1 py-0.5 bg-white rounded text-blue-900 font-mono">Alt+↑↓</kbd> Move row</div>
-                      <div><kbd className="px-1 py-0.5 bg-white rounded text-blue-900 font-mono">Shift+Enter</kbd> Insert above</div>
-                      <div><kbd className="px-1 py-0.5 bg-white rounded text-blue-900 font-mono">Ctrl+K</kbd> Toggle shortcuts</div>
+                  {/* Empty state when filtered */}
+                  {activeFilter !== 'all' && !positions[activeFilter]?.length && (
+                    <div className="text-center py-12">
+                      <div
+                        className={`inline-flex p-4 rounded-full ${assetTypes[activeFilter].color.lightBg} mb-4`}
+                      >
+                        {React.createElement(assetTypes[activeFilter].icon, {
+                          className: `w-8 h-8 ${assetTypes[activeFilter].color.text}`
+                        })}
+                      </div>
+                      <p className="text-gray-600 mb-4">
+                        No {assetTypes[activeFilter].name.toLowerCase()} positions yet
+                      </p>
+                      <button
+                        onClick={() => {
+                          addNewRow(activeFilter);
+                          setExpandedSections(prev => ({ ...prev, [activeFilter]: true }));
+                        }}
+                        className={`inline-flex items-center px-4 py-2 rounded-lg font-medium transition-all duration-200 ${assetTypes[activeFilter].color.bg} text-white hover:shadow-md hover:scale-105`}
+                      >
+                        <Plus className="w-4 h-4 mr-2" />
+                        Add {assetTypes[activeFilter].name}
+                      </button>
                     </div>
+                  )}
+                </>
+              )}
+            </div>
+
+            {/* Enhanced Message Display */}
+            {message.text && (
+              <div
+                className={`absolute bottom-6 left-6 right-6 p-4 rounded-lg shadow-lg border animate-in slide-in-from-bottom duration-300 z-40 ${
+                  message.type === 'error'
+                    ? 'bg-red-50 border-red-200'
+                    : message.type === 'warning'
+                    ? 'bg-amber-50 border-amber-200'
+                    : message.type === 'info'
+                    ? 'bg-blue-50 border-blue-200'
+                    : 'bg-green-50 border-green-200'
+                }`}
+              >
+                <div className="flex items-start space-x-3">
+                  <div
+                    className={`flex-shrink-0 p-2 rounded-full ${
+                      message.type === 'error'
+                        ? 'bg-red-100'
+                        : message.type === 'warning'
+                        ? 'bg-amber-100'
+                        : message.type === 'info'
+                        ? 'bg-blue-100'
+                        : 'bg-green-100'
+                    }`}
+                  >
+                    {message.type === 'error' ? (
+                      <AlertCircle className="w-5 h-5 text-red-600" />
+                    ) : message.type === 'warning' ? (
+                      <AlertCircle className="w-5 h-5 text-amber-600" />
+                    ) : message.type === 'info' ? (
+                      <Info className="w-5 h-5 text-blue-600" />
+                    ) : (
+                      <CheckCircle className="w-5 h-5 text-green-600" />
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <p
+                      className={`font-medium text-sm ${
+                        message.type === 'error'
+                          ? 'text-red-900'
+                          : message.type === 'warning'
+                          ? 'text-amber-900'
+                          : message.type === 'info'
+                          ? 'text-blue-900'
+                          : 'text-green-900'
+                      }`}
+                    >
+                      {message.text}
+                    </p>
+                    {message.details.length > 0 && (
+                      <ul
+                        className={`mt-2 space-y-1 text-xs ${
+                          message.type === 'error'
+                            ? 'text-red-700'
+                            : message.type === 'warning'
+                            ? 'text-amber-700'
+                            : message.type === 'info'
+                            ? 'text-blue-700'
+                            : 'text-green-700'
+                        }`}
+                      >
+                        {message.details.slice(0, 3).map((detail, index) => (
+                          <li key={index} className="flex items-start space-x-1">
+                            <span className="block w-1 h-1 rounded-full bg-current mt-1.5 flex-shrink-0" />
+                            <span>{detail}</span>
+                          </li>
+                        ))}
+                        {message.details.length > 3 && (
+                          <li className="font-medium">... and {message.details.length - 3} more</li>
+                        )}
+                      </ul>
+                    )}
                   </div>
                   <button
-                    onClick={() => setShowKeyboardShortcuts(false)}
-                    className="p-1 hover:bg-blue-100 rounded transition-colors"
+                    onClick={() => setMessage({ type: '', text: '', details: [] })}
+                    className={`p-1 rounded transition-colors ${
+                      message.type === 'error'
+                        ? 'hover:bg-red-100'
+                        : message.type === 'warning'
+                        ? 'hover:bg-amber-100'
+                        : message.type === 'info'
+                        ? 'hover:bg-blue-100'
+                        : 'hover:bg-green-100'
+                    }`}
                   >
-                    <X className="w-3 h-3 text-blue-600" />
+                    <X
+                      className={`w-4 h-4 ${
+                        message.type === 'error'
+                          ? 'text-red-600'
+                          : message.type === 'warning'
+                          ? 'text-amber-600'
+                          : message.type === 'info'
+                          ? 'text-blue-600'
+                          : 'text-green-600'
+                      }`}
+                    />
                   </button>
                 </div>
               </div>
             )}
+
+            {/* Queue Modal */}
+            <QueueModal
+              isOpen={showQueue}
+              onClose={() => setShowQueue(false)}
+              positions={positions}
+              assetTypes={assetTypes}
+              accounts={accounts}
+              onClearCompleted={clearCompletedPositions}
+            />
           </div>
 
-          {/* Scrollable Content Area */}
-            <div className="flex-1 overflow-y-auto overflow-x-visible p-6 space-y-4 relative" style={{ zIndex: 1 }}>
-            {viewMode ? (
-              // Account View
-              renderByAccount()
-            ) : (
-              // Asset Type View
-              <>
-                {Object.keys(assetTypes)
-                  .filter(type => activeFilter === 'all' || activeFilter === type)
-                  .map(assetType => renderAssetSection(assetType))}
-                  
-                {/* Empty state when filtered */}
-                {activeFilter !== 'all' && !positions[activeFilter]?.length && (
-                  <div className="text-center py-12">
-                    <div className={`inline-flex p-4 rounded-full ${assetTypes[activeFilter].color.lightBg} mb-4`}>
-                      {React.createElement(assetTypes[activeFilter].icon, {
-                        className: `w-8 h-8 ${assetTypes[activeFilter].color.text}`
-                      })}
-                    </div>
-                    <p className="text-gray-600 mb-4">No {assetTypes[activeFilter].name.toLowerCase()} positions yet</p>
-                    <button
-                      onClick={() => {
-                        addNewRow(activeFilter);
-                        setExpandedSections(prev => ({ ...prev, [activeFilter]: true }));
-                      }}
-                      className={`
-                        inline-flex items-center px-4 py-2 rounded-lg font-medium transition-all duration-200
-                        ${assetTypes[activeFilter].color.bg} text-white hover:shadow-md hover:scale-105
-                      `}
-                    >
-                      <Plus className="w-4 h-4 mr-2" />
-                      Add {assetTypes[activeFilter].name}
-                    </button>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-
-          {/* Enhanced Message Display */}
-          {message.text && (
-            <div className={`
-              absolute bottom-6 left-6 right-6 p-4 rounded-lg shadow-lg border
-              animate-in slide-in-from-bottom duration-300 z-40
-              ${message.type === 'error' 
-                ? 'bg-red-50 border-red-200' 
-                : message.type === 'warning' 
-                  ? 'bg-amber-50 border-amber-200' 
-                  : message.type === 'info'
-                    ? 'bg-blue-50 border-blue-200'
-                    : 'bg-green-50 border-green-200'
+          <style jsx>{`
+            @keyframes slide-in-from-top {
+              from {
+                opacity: 0;
+                transform: translateY(-10px);
               }
-            `}>
-              <div className="flex items-start space-x-3">
-                <div className={`
-                  flex-shrink-0 p-2 rounded-full
-                  ${message.type === 'error' 
-                    ? 'bg-red-100' 
-                    : message.type === 'warning' 
-                      ? 'bg-amber-100' 
-                      : message.type === 'info'
-                        ? 'bg-blue-100'
-                        : 'bg-green-100'
-                  }
-                `}>
-                  {message.type === 'error' ? <AlertCircle className="w-5 h-5 text-red-600" /> :
-                    message.type === 'warning' ? <AlertCircle className="w-5 h-5 text-amber-600" /> :
-                    message.type === 'info' ? <Info className="w-5 h-5 text-blue-600" /> :
-                    <CheckCircle className="w-5 h-5 text-green-600" />}
-                </div>
-                <div className="flex-1">
-                  <p className={`
-                    font-medium text-sm
-                    ${message.type === 'error' 
-                      ? 'text-red-900' 
-                      : message.type === 'warning' 
-                        ? 'text-amber-900' 
-                        : message.type === 'info'
-                          ? 'text-blue-900'
-                          : 'text-green-900'
-                    }
-                  `}>
-                    {message.text}
-                  </p>
-                  {message.details.length > 0 && (
-                    <ul className={`
-                      mt-2 space-y-1 text-xs
-                      ${message.type === 'error' 
-                        ? 'text-red-700' 
-                        : message.type === 'warning' 
-                          ? 'text-amber-700' 
-                          : message.type === 'info'
-                            ? 'text-blue-700'
-                            : 'text-green-700'
-                      }
-                    `}>
-                      {message.details.slice(0, 3).map((detail, index) => (
-                        <li key={index} className="flex items-start space-x-1">
-                          <span className="block w-1 h-1 rounded-full bg-current mt-1.5 flex-shrink-0"></span>
-                          <span>{detail}</span>
-                        </li>
-                      ))}
-                      {message.details.length > 3 && (
-                        <li className="font-medium">
-                          ... and {message.details.length - 3} more
-                        </li>
-                      )}
-                    </ul>
-                  )}
-                </div>
-                <button
-                  onClick={() => setMessage({ type: '', text: '', details: [] })}
-                  className={`
-                    p-1 rounded transition-colors
-                    ${message.type === 'error' 
-                      ? 'hover:bg-red-100' 
-                      : message.type === 'warning' 
-                        ? 'hover:bg-amber-100' 
-                        : message.type === 'info'
-                          ? 'hover:bg-blue-100'
-                          : 'hover:bg-green-100'
-                    }
-                  `}
-                >
-                  <X className={`
-                    w-4 h-4
-                    ${message.type === 'error' 
-                      ? 'text-red-600' 
-                      : message.type === 'warning' 
-                        ? 'text-amber-600' 
-                        : message.type === 'info'
-                          ? 'text-blue-600'
-                          : 'text-green-600'
-                    }
-                  `} />
-                </button>
-              </div>
-            </div>
-          )}
+              to {
+                opacity: 1;
+                transform: translateY(0);
+              }
+            }
 
-          {/* Queue Modal */}
-          <QueueModal
-            isOpen={showQueue}
-            onClose={() => setShowQueue(false)}
-            positions={positions}
-            assetTypes={assetTypes}
-            accounts={accounts}
-            onClearCompleted={clearCompletedPositions}
-          />
-        </div>
+            @keyframes slide-in-from-bottom {
+              from {
+                opacity: 0;
+                transform: translateY(10px);
+              }
+              to {
+                opacity: 1;
+                transform: translateY(0);
+              }
+            }
 
-        <style jsx>{`
-          @keyframes slide-in-from-top {
-            from {
-              opacity: 0;
-              transform: translateY(-10px);
+            @keyframes slide-in-from-left {
+              from {
+                opacity: 0;
+                transform: translateX(-10px);
+              }
+              to {
+                opacity: 1;
+                transform: translateX(0);
+              }
             }
-            to {
-              opacity: 1;
-              transform: translateY(0);
+
+            @keyframes slide-out-to-right {
+              from {
+                opacity: 1;
+                transform: translateX(0);
+              }
+              to {
+                opacity: 0;
+                transform: translateX(10px);
+              }
             }
-          }
-          
-          @keyframes slide-in-from-bottom {
-            from {
-              opacity: 0;
-              transform: translateY(10px);
+
+            .animate-in {
+              animation-fill-mode: both;
             }
-            to {
-              opacity: 1;
-              transform: translateY(0);
+
+            .animate-out {
+              animation-fill-mode: both;
             }
-          }
-          
-          @keyframes slide-in-from-left {
-            from {
-              opacity: 0;
-              transform: translateX(-10px);
+
+            /* Custom scrollbar */
+            .overflow-y-auto::-webkit-scrollbar {
+              width: 8px;
             }
-            to {
-              opacity: 1;
-              transform: translateX(0);
+
+            .overflow-y-auto::-webkit-scrollbar-track {
+              background: #f3f4f6;
+              border-radius: 4px;
             }
-          }
-          
-          @keyframes slide-out-to-right {
-            from {
-              opacity: 1;
-              transform: translateX(0);
+
+            .overflow-y-auto::-webkit-scrollbar-thumb {
+              background: #d1d5db;
+              border-radius: 4px;
             }
-            to {
-              opacity: 0;
-              transform: translateX(10px);
+
+            .overflow-y-auto::-webkit-scrollbar-thumb:hover {
+              background: #9ca3af;
             }
-          }
-          
-          .animate-in {
-            animation-fill-mode: both;
-          }
-          
-          .animate-out {
-            animation-fill-mode: both;
-          }
-          
-          /* Custom scrollbar */
-          .overflow-y-auto::-webkit-scrollbar {
-            width: 8px;
-          }
-          
-          .overflow-y-auto::-webkit-scrollbar-track {
-            background: #f3f4f6;
-            border-radius: 4px;
-          }
-          
-          .overflow-y-auto::-webkit-scrollbar-thumb {
-            background: #d1d5db;
-            border-radius: 4px;
-          }
-          
-          .overflow-y-auto::-webkit-scrollbar-thumb:hover {
-            background: #9ca3af;
-          }
-          
-          /* Focus styles */
-          input:focus, select:focus {
-            outline: none;
-          }
-          
-          /* Number input spinner removal */
-          input[type="number"]::-webkit-inner-spin-button,
-          input[type="number"]::-webkit-outer-spin-button {
-            -webkit-appearance: none;
-            margin: 0;
-          }
-          
-          input[type="number"] {
-            -moz-appearance: textfield;
-          }
-          
-          /* Smooth hover transitions */
-          button, input, select {
-            transition: all 0.2s ease;
-          }
-          
-          /* High contrast mode support */
-          @media (prefers-contrast: high) {
-            .border-gray-200 {
-              border-color: #374151;
+
+            /* Focus styles */
+            input:focus,
+            select:focus {
+              outline: none;
             }
-            
-            .text-gray-600 {
-              color: #1f2937;
+
+            /* Number input spinner removal */
+            input[type='number']::-webkit-inner-spin-button,
+            input[type='number']::-webkit-outer-spin-button {
+              -webkit-appearance: none;
+              margin: 0;
             }
-          }
-          
-          /* Reduced motion support */
-          @media (prefers-reduced-motion: reduce) {
-            * {
-              animation-duration: 0.01ms !important;
-              animation-iteration-count: 1 !important;
-              transition-duration: 0.01ms !important;
+
+            input[type='number'] {
+              -moz-appearance: textfield;
             }
-          }
-          
-          /* Price update animation */
-          @keyframes price-updated {
-            0% {
-              background-color: #dbeafe;
-              transform: scale(1.05);
+
+            /* Smooth hover transitions */
+            button,
+            input,
+            select {
+              transition: all 0.2s ease;
             }
-            100% {
-              background-color: transparent;
-              transform: scale(1);
+
+            /* High contrast mode support */
+            @media (prefers-contrast: high) {
+              .border-gray-200 {
+                border-color: #374151;
+              }
+
+              .text-gray-600 {
+                color: #1f2937;
+              }
             }
-          }
-          
-          .price-updated {
-            animation: price-updated 0.6s ease-out;
-          }
-        `}</style>
+
+            /* Reduced motion support */
+            @media (prefers-reduced-motion: reduce) {
+              * {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+              }
+            }
+
+            /* Price update animation */
+            @keyframes price-updated {
+              0% {
+                background-color: #dbeafe;
+                transform: scale(1.05);
+              }
+              100% {
+                background-color: transparent;
+                transform: scale(1);
+              }
+            }
+
+            .price-updated {
+              animation: price-updated 0.6s ease-out;
+            }
+          `}</style>
+        </>
       </FixedModal>
     );
-  };
+
 
   // Export with proper display name
 AddQuickPositionModal.displayName = 'AddQuickPositionModal';
