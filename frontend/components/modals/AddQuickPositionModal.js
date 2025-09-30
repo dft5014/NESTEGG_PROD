@@ -4138,7 +4138,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
         `}</style>
       </FixedModal>
     );
-    };
+  };
 
   // Export with proper display name
 AddQuickPositionModal.displayName = 'AddQuickPositionModal';
