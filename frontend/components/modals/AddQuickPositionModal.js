@@ -1449,13 +1449,6 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
     const searchKey = `${assetType}-${positionId}`;
     setSelectedSecurities((prev) => ({ ...prev, [searchKey]: security }));
 
-    const px = getQuotePrice(security);
-    
-    // Optimistic UI update with animation trigger
-    const updatedPositionId = positionId;
-    const searchKey = `${assetType}-${positionId}`;
-    setSelectedSecurities((prev) => ({ ...prev, [searchKey]: security }));
-
     const px = getQuotePrice(security); // numeric or undefined
 
     setPositions((prev) => ({
@@ -2285,7 +2278,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
       const value = position.data[field.key] || '';
       const isPriceField = ['price', 'current_price', 'current_price_per_unit'].includes(field.key);
       const isLoadingPrice = isHydrating && isPriceField && !value;
-      const value = position.data[field.key] || '';
+      const hasError = position.errors?.[field.key];
       const hasError = position.errors?.[field.key];
       const fieldIndex = assetTypes[assetType].fields.findIndex(f => f.key === field.key);
       const isRecent = recentlyUsedAccounts.includes(position.data.account_id);
