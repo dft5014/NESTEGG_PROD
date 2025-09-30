@@ -518,7 +518,7 @@ const QueueModal = ({ isOpen, onClose, positions, assetTypes, accounts, onClearC
             </button>
           </div>
           
-          <div className="mt-3 flex items-center space-x-6 text-sm">
+            <div className="mt-3 flex items-center space-x-6 text-sm">
             <div className="flex items-center space-x-2">
               <span className="text-gray-500">Total:</span>
               <span className="font-semibold">{stats.total}</span>
@@ -2049,12 +2049,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
         updatedPositions[type] = (updatedPositions[type] || []).map(pos =>
           pos.id === position.id ? { ...pos, status: 'submitting' } : pos
         );
-        setPositions({ ...updatedPositions });
-        
-        // Yield to browser to allow UI updates every 5 submissions
-        if (i % 5 === 0) {
-          await new Promise(resolve => setTimeout(resolve, 0));
-        }
+        setPositions({ ...updatedPositions });  
 
         try {
           const cleanData = {};
@@ -2625,23 +2620,21 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
         key={assetType} 
         className={`
           bg-white rounded-xl shadow-sm border overflow-hidden transition-all duration-300
-          ${isExpanded ? 'border-gray-200 shadow-lg ring-2 ring-blue-50' : 'border-gray-200 hover:shadow-md hover:border-gray-300'}
+          ${isExpanded ? 'border-gray-200 shadow-md' : 'border-gray-100'}
+          ${typePositions.length > 0 ? 'ring-1 ring-gray-100' : ''}
         `}
       >
         {/* Section Header - Entire row is clickable */}
-          <div 
-            onClick={() => toggleSection(assetType)}
-            className={`
-              px-4 py-3 cursor-pointer transition-all duration-200 relative overflow-hidden
-              ${isExpanded 
-                ? `bg-gradient-to-r ${config.color.gradient} text-white shadow-inner` 
-                : 'bg-gradient-to-r from-gray-50 to-gray-100 hover:from-gray-100 hover:to-gray-50'
-                }
-              `}
+        <div 
+          onClick={() => toggleSection(assetType)}
+          className={`
+            px-4 py-3 cursor-pointer transition-all duration-200
+            ${isExpanded 
+              ? `bg-gradient-to-r ${config.color.gradient} text-white shadow-sm` 
+              : 'bg-gray-50 hover:bg-gray-100'
+              }
+            `}
           >
-            {isExpanded && (
-              <div className="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent pointer-events-none" />
-            )}
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-3 flex-1">
                 <div className={`
@@ -3267,23 +3260,24 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
       title="Quick Position Entry"
       size="max-w-[1600px]"
     >
-      <div className="h-[90vh] flex flex-col bg-gradient-to-br from-gray-50 to-gray-100">
+      <div className="h-[90vh] flex flex-col bg-gray-50">
         {/* Enhanced Header with Action Bar */}
-        <div className="flex-shrink-0 bg-white shadow-sm px-6 py-4">
+        <div className="flex-shrink-0 bg-white border-b border-gray-200 px-6 py-4">
           {/* Top Action Bar */}
           <div className="flex items-center justify-between mb-4">
+            <div className="flex-1 rounded-lg px-3 py-2 bg-[#0B213F] text-white shadow-sm">
             <div className="flex items-center space-x-4">
               <button
                 onClick={clearAll}
-                className="px-4 py-2 text-sm bg-white border border-gray-200 text-gray-700 font-medium rounded-lg hover:bg-gray-50 hover:border-red-300 hover:text-red-600 transition-all flex items-center space-x-2 group shadow-sm"
+                className="px-4 py-2 text-sm bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all flex items-center space-x-2 group"
               >
-                <Trash2 className="w-4 h-4 transition-colors" />
+                <Trash2 className="w-4 h-4 group-hover:text-red-600 transition-colors" />
                 <span>Clear All</span>
               </button>
               
               <button
                 onClick={onClose}
-                className="px-4 py-2 text-sm bg-white border border-gray-200 text-gray-700 font-medium rounded-lg hover:bg-gray-50 hover:border-gray-300 transition-all shadow-sm"
+                className="px-4 py-2 text-sm bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all"
               >
                 Cancel
               </button>
@@ -3401,18 +3395,14 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                 onClick={submitAll}
                 disabled={stats.totalPositions === 0 || isSubmitting}
                 className={`
-                  px-6 py-2.5 text-sm font-semibold rounded-lg transition-all duration-200 
-                  flex items-center space-x-2 shadow-md hover:shadow-lg transform hover:scale-105 relative overflow-hidden
+                  px-6 py-2 text-sm font-semibold rounded-lg transition-all duration-200 
+                  flex items-center space-x-2 shadow-sm hover:shadow-md transform hover:scale-105
                   ${stats.totalPositions === 0 || isSubmitting
                     ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                     : 'bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:from-green-700 hover:to-emerald-700'
                   }
                 `}
               >
-                {!isSubmitting && stats.totalPositions > 0 && (
-                  <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 animate-shimmer" />
-                )}
-                
                 {isSubmitting ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
@@ -3430,7 +3420,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
           </div>
 
           {/* Stats Bar */}
-          <div className="flex items-center justify-between bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl px-6 py-4 border border-blue-100 shadow-sm">
+          <div className="flex items-center justify-between">
             <div className="flex items-center space-x-6">
               {/* Total stats */}
               <div className="flex items-center space-x-4">
@@ -3536,10 +3526,10 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                 <button
                   onClick={() => setActiveFilter('all')}
                   className={`
-                    px-3 py-1.5 text-xs font-medium rounded-lg transition-all duration-200 transform
+                    px-3 py-1.5 text-xs font-medium rounded-lg transition-all duration-200
                     ${activeFilter === 'all' 
-                      ? 'bg-gray-900 text-white shadow-md scale-105' 
-                      : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200 hover:scale-102 shadow-sm'
+                      ? 'bg-gray-900 text-white shadow-sm' 
+                      : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
                     }
                   `}
                 >
@@ -3795,12 +3785,124 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
           onClearCompleted={clearCompletedPositions}
           getRowStatus={getRowStatus}
         />
-        
       </div>
-       </div>
+
+      <style jsx>{`
+        @keyframes slide-in-from-top {
+          from {
+            opacity: 0;
+            transform: translateY(-10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        
+        @keyframes slide-in-from-bottom {
+          from {
+            opacity: 0;
+            transform: translateY(10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        
+        @keyframes slide-in-from-left {
+          from {
+            opacity: 0;
+            transform: translateX(-10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateX(0);
+          }
+        }
+        
+        @keyframes slide-out-to-right {
+          from {
+            opacity: 1;
+            transform: translateX(0);
+          }
+          to {
+            opacity: 0;
+            transform: translateX(10px);
+          }
+        }
+        
+        .animate-in {
+          animation-fill-mode: both;
+        }
+        
+        .animate-out {
+          animation-fill-mode: both;
+        }
+        
+        /* Custom scrollbar */
+        .overflow-y-auto::-webkit-scrollbar {
+          width: 8px;
+        }
+        
+        .overflow-y-auto::-webkit-scrollbar-track {
+          background: #f3f4f6;
+          border-radius: 4px;
+        }
+        
+        .overflow-y-auto::-webkit-scrollbar-thumb {
+          background: #d1d5db;
+          border-radius: 4px;
+        }
+        
+        .overflow-y-auto::-webkit-scrollbar-thumb:hover {
+          background: #9ca3af;
+        }
+        
+        /* Focus styles */
+        input:focus, select:focus {
+          outline: none;
+        }
+        
+        /* Number input spinner removal */
+        input[type="number"]::-webkit-inner-spin-button,
+        input[type="number"]::-webkit-outer-spin-button {
+          -webkit-appearance: none;
+          margin: 0;
+        }
+        
+        input[type="number"] {
+          -moz-appearance: textfield;
+        }
+        
+        /* Smooth hover transitions */
+        button, input, select {
+          transition: all 0.2s ease;
+        }
+        
+        /* High contrast mode support */
+        @media (prefers-contrast: high) {
+          .border-gray-200 {
+            border-color: #374151;
+          }
+          
+          .text-gray-600 {
+            color: #1f2937;
+          }
+        }
+        
+        /* Reduced motion support */
+        @media (prefers-reduced-motion: reduce) {
+          * {
+            animation-duration: 0.01ms !important;
+            animation-iteration-count: 1 !important;
+            transition-duration: 0.01ms !important;
+          }
+        }
+      `}</style>
     </FixedModal>
   );
-};
+  };
 
 // Export with proper display name
 AddQuickPositionModal.displayName = 'AddQuickPositionModal';
