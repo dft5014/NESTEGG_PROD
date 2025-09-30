@@ -1208,8 +1208,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
       setActiveFilter('all');
       setSearchResults({});
       setSelectedSecurities({});
-      setShowKeyboardShortcuts(true);
-      setTimeout(() => setShowKeyboardShortcuts(false), 3000);
+      setShowKeyboardShortcuts(false);
 
       setTimeout(() => {
         try { autoHydrateSeededPrices?.(); } catch (e) { console.error(e); }
@@ -1569,33 +1568,88 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
     }
   }, [positions, handleSelectSecurity]);
 
-  const hydratedRef = useRef(false);
+  const hydratedIdsRef = useRef(new Set());
 
-  // Run once when seeded rows are in state
-  useEffect(() => {
-      if (!isOpen || hydratedRef.current) return;
+    // Run once when seeded rows are in state - only hydrate rows that haven't been hydrated yet
+    useEffect(() => {
+        if (!isOpen) return;
 
-      const total =
-        (positions.security?.length || 0) +
-        (positions.crypto?.length || 0) +
-        (positions.metal?.length || 0);
+        const needsHydration = [];
+        
+        // Check security positions
+        positions.security.forEach(p => {
+          const q = p?.data?.ticker || p?.data?.symbol;
+          if (q && !hydratedIdsRef.current.has(p.id) && 
+              (p?.data?.price == null || p?.data?.price === '' || Number(p?.data?.price) === 0)) {
+            needsHydration.push({ type: 'security', id: p.id, q });
+          }
+        });
 
-      if (total === 0) return;
+        // Check crypto positions
+        positions.crypto.forEach(p => {
+          const q = p?.data?.symbol || p?.data?.ticker;
+          if (q && !hydratedIdsRef.current.has(p.id) && 
+              (p?.data?.current_price == null || p?.data?.current_price === '' || Number(p?.data?.current_price) === 0)) {
+            needsHydration.push({ type: 'crypto', id: p.id, q });
+          }
+        });
 
-      // Defer one tick so row UIs mount
-      const t = setTimeout(() => {
-        try { autoHydrateSeededPrices?.(); } catch (e) { console.error(e); }
-        hydratedRef.current = true;
-      }, 0);
+        // Check metal positions
+        positions.metal.forEach(p => {
+          const q = p?.data?.symbol || metalSymbolByType[p?.data?.metal_type];
+          if (q && !hydratedIdsRef.current.has(p.id) && 
+              (p?.data?.current_price_per_unit == null || p?.data?.current_price_per_unit === '' || Number(p?.data?.current_price_per_unit) === 0)) {
+            needsHydration.push({ type: 'metal', id: p.id, q });
+          }
+        });
 
-      return () => clearTimeout(t);
-      // IMPORTANT: depend on positions' counts, not the function (avoid TDZ)
-    }, [
-      isOpen,
-      positions.security.length,
-      positions.crypto.length,
-      positions.metal.length
-    ]);
+        if (needsHydration.length === 0) return;
+
+        // Defer one tick so row UIs mount
+        const t = setTimeout(async () => {
+          try {
+            // Hydrate and mark as hydrated
+            const chunks = await Promise.all(
+              needsHydration.map(async (item) => {
+                try {
+                  const results = await searchSecurities(item.q);
+                  let filtered = Array.isArray(results) ? results : [];
+                  if (item.type === 'security') {
+                    filtered = filtered.filter((r) => r.asset_type === 'security' || r.asset_type === 'index');
+                  } else if (item.type === 'crypto') {
+                    filtered = filtered.filter((r) => r.asset_type === 'crypto');
+                  }
+                  const exact = filtered.find(
+                    (r) => String(r.ticker || '').toUpperCase() === String(item.q).toUpperCase()
+                  );
+                  const chosen = exact || filtered[0];
+                  return chosen ? { ...item, chosen } : null;
+                } catch (e) {
+                  console.warn('Hydrate lookup failed', item, e);
+                  return null;
+                }
+              })
+            );
+
+            // Apply selections and mark as hydrated
+            for (const hit of chunks) {
+              if (hit?.chosen) {
+                handleSelectSecurity(hit.type, hit.id, hit.chosen);
+                hydratedIdsRef.current.add(hit.id);
+              }
+            }
+          } catch (e) {
+            console.error(e);
+          }
+        }, 0);
+
+        return () => clearTimeout(t);
+      }, [
+        isOpen,
+        positions.security.length,
+        positions.crypto.length,
+        positions.metal.length
+      ]);
 
 
   
@@ -3198,33 +3252,6 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                 Delete Selected ({selectedIds.size})
               </button>
 
-              {/* NEW: Filter to show only issue rows */}
-              {/* Status Filter */}
-              <div className="flex items-center space-x-1 ml-2">
-                {[
-                  {k:'any',label:'All'},
-                  {k:'ready',label:'Ready'},
-                  {k:'draft',label:'Draft'},
-                  {k:'submitting',label:'Submitting'},
-                  {k:'added',label:'Added'},
-                  {k:'error',label:'Error'},
-                  {k:'issues',label:'Issues'},
-                ].map(opt => (
-                  <button
-                    key={opt.k}
-                    onClick={() => setStatusFilter(statusFilter === opt.k ? 'any' : opt.k)}
-                    className={`px-2.5 py-1.5 text-xs rounded-md border transition
-                      ${statusFilter === opt.k
-                        ? 'bg-gray-900 text-white border-gray-900'
-                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
-                    title={opt.k === 'issues' ? 'Draft or Error' : `Show ${opt.label}`}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-
-
               {/* NEW: Submit only ready rows */}
               <button
                 onClick={submitReadyOnly}
@@ -3447,50 +3474,61 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
             )}
           </div>
 
-          {/* Asset Type Filters (only show in asset type view) */}
+{/* Asset Type Filters (only show in asset type view) */}
           {!viewMode && (
-            <div className="flex items-center space-x-2 mt-4">
-              <span className="text-xs text-gray-500 mr-2">Filter:</span>
-              <button
-                onClick={() => setActiveFilter('all')}
-                className={`
-                  px-3 py-1.5 text-xs font-medium rounded-lg transition-all duration-200
-                  ${activeFilter === 'all' 
-                    ? 'bg-gray-900 text-white shadow-sm' 
-                    : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
-                  }
-                `}
-              >
-                All Types
-              </button>
+            <>
+              <div className="flex items-center space-x-2 mt-4">
+                <span className="text-xs text-gray-500 mr-2">Filter by Asset Type:</span>
+                <button
+                  onClick={() => setActiveFilter('all')}
+                  className={`
+                    px-3 py-1.5 text-xs font-medium rounded-lg transition-all duration-200
+                    ${activeFilter === 'all' 
+                      ? 'bg-gray-900 text-white shadow-sm' 
+                      : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
+                    }
+                  `}
+                >
+                  All Types
+                </button>
 
-              {/* NEW: Issues filter */}
-              <button
-                onClick={() => setActiveFilter(activeFilter === 'issues' ? 'all' : 'issues')}
-                className={`
-                  px-3 py-1.5 text-xs font-medium rounded-lg transition-all duration-200
-                  ${activeFilter === 'issues' 
-                    ? 'bg-amber-600 text-white shadow-sm' 
-                    : 'bg-white text-amber-700 hover:bg-amber-50 border border-amber-200'
-                  }
-                `}
-                title="Show only rows with issues (draft or error)"
-              >
-                Issues
-              </button>
-
-              {Object.entries(assetTypes).map(([key, config]) => (
-                <AssetTypeBadge
-                  key={key}
-                  type={config.name}
-                  count={stats.byType[key]?.count || 0}
-                  icon={config.icon}
-                  color={config.color}
-                  active={activeFilter === key}
-                  onClick={() => setActiveFilter(activeFilter === key ? 'all' : key)}
-                />
-              ))}
-            </div>
+                {Object.entries(assetTypes).map(([key, config]) => (
+                  <AssetTypeBadge
+                    key={key}
+                    type={config.name}
+                    count={stats.byType[key]?.count || 0}
+                    icon={config.icon}
+                    color={config.color}
+                    active={activeFilter === key}
+                    onClick={() => setActiveFilter(activeFilter === key ? 'all' : key)}
+                  />
+                ))}
+              </div>
+              
+              {/* Status Filter Row */}
+              <div className="flex items-center space-x-2 mt-2">
+                <span className="text-xs text-gray-500 mr-2">Filter by Status:</span>
+                {[
+                  {k:'any',label:'All'},
+                  {k:'ready',label:'Ready'},
+                  {k:'draft',label:'Draft'},
+                  {k:'submitting',label:'Submitting'},
+                  {k:'added',label:'Added'},
+                  {k:'error',label:'Error'},
+                ].map(opt => (
+                  <button
+                    key={opt.k}
+                    onClick={() => setStatusFilter(opt.k)}
+                    className={`px-2.5 py-1.5 text-xs rounded-md border transition-all duration-200
+                      ${statusFilter === opt.k
+                        ? 'bg-gray-900 text-white border-gray-900'
+                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </>
           )}
 
           {/* Keyboard shortcuts hint */}
