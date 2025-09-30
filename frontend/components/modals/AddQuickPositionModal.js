@@ -708,17 +708,36 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
   const tableRefs = useRef({});
   const messageTimeoutRef = useRef(null);
 
-  // ── Validate a single row’s readiness
-  const validateRow = useCallback((row) => {
-    const t = row.type === "otherAssets" ? "other" : row.type;
-    const req = REQUIRED_BY_TYPE[t] || [];
-    const missing = [];
-    for (const k of req) {
-      const v = row.data?.[k];
-      if (v === undefined || v === null || v === "") missing.push(k);
-    }
-    return { ok: missing.length === 0, missing };
-  }, []);
+  // ── Validate a single row's readiness
+    const validateRow = useCallback((row) => {
+      const t = row.type === "otherAssets" ? "other" : row.type;
+      const req = REQUIRED_BY_TYPE[t] || [];
+      const missing = [];
+      
+      // Fields that must be positive numbers (not just present)
+      const numericFields = [
+        'shares', 'quantity', 'amount', 'price', 'purchase_price', 
+        'current_price', 'current_price_per_unit', 'cost_basis', 'current_value'
+      ];
+      
+      for (const k of req) {
+        const v = row.data?.[k];
+        
+        // Check for missing/empty
+        if (v === undefined || v === null || v === "") {
+          missing.push(k);
+        } 
+        // Check numeric fields are positive
+        else if (numericFields.includes(k)) {
+          const num = Number(v);
+          if (!Number.isFinite(num) || num <= 0) {
+            missing.push(k);
+          }
+        }
+      }
+      
+      return { ok: missing.length === 0, missing };
+    }, []);
 
   // ── Compute status label for UI (authoritative)
   const getRowStatus = (row) => {
@@ -3515,21 +3534,48 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                   {k:'submitting',label:'Submitting'},
                   {k:'added',label:'Added'},
                   {k:'error',label:'Error'},
-                ].map(opt => (
-                  <button
-                    key={opt.k}
-                    onClick={() => setStatusFilter(opt.k)}
-                    className={`px-2.5 py-1.5 text-xs rounded-md border transition-all duration-200
-                      ${statusFilter === opt.k
-                        ? 'bg-gray-900 text-white border-gray-900'
-                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
+                ].map(opt => {
+                  // Calculate count for this status
+                  let count = 0;
+                  if (opt.k === 'any') {
+                    // Count all positions
+                    Object.values(positions).forEach(typePositions => {
+                      count += typePositions.length;
+                    });
+                  } else {
+                    // Count positions with this specific status
+                    Object.values(positions).forEach(typePositions => {
+                      typePositions.forEach(pos => {
+                        if (getRowStatus(pos) === opt.k) {
+                          count++;
+                        }
+                      });
+                    });
+                  }
+                  
+                  return (
+                    <button
+                      key={opt.k}
+                      onClick={() => setStatusFilter(opt.k)}
+                      className={`px-2.5 py-1.5 text-xs rounded-md border transition-all duration-200 flex items-center space-x-1.5
+                        ${statusFilter === opt.k
+                          ? 'bg-gray-900 text-white border-gray-900'
+                          : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
+                    >
+                      <span>{opt.label}</span>
+                      {count > 0 && (
+                        <span className={`px-1.5 py-0.5 text-[10px] rounded-full font-bold
+                          ${statusFilter === opt.k
+                            ? 'bg-white/20 text-white'
+                            : 'bg-gray-100 text-gray-600'}`}
+                        >
+                          {count}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
-            </>
-          )}
 
           {/* Keyboard shortcuts hint */}
           {showKeyboardShortcuts && (
