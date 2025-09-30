@@ -3795,9 +3795,8 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
           onClearCompleted={clearCompletedPositions}
           getRowStatus={getRowStatus}
         />
-      </div>
-
-      <style dangerouslySetInnerHTML={{__html: `
+        
+        <style dangerouslySetInnerHTML={{__html: `
         @keyframes shimmer {
           0% { transform: translateX(-100%); }
           100% { transform: translateX(100%); }
@@ -3918,7 +3917,8 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
             transition-duration: 0.01ms !important;
           }
         }
-      `}} />
+        `}} />
+      </div>
     </FixedModal>
   );
   };
