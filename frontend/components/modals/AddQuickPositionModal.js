@@ -701,6 +701,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
   // Search state
   const [searchResults, setSearchResults] = useState({});
   const [isSearching, setIsSearching] = useState({});
+  const [isHydrating, setIsHydrating] = useState(false);
   const [selectedSecurities, setSelectedSecurities] = useState({});
   
   // Refs
@@ -1448,6 +1449,13 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
     const searchKey = `${assetType}-${positionId}`;
     setSelectedSecurities((prev) => ({ ...prev, [searchKey]: security }));
 
+    const px = getQuotePrice(security);
+    
+    // Optimistic UI update with animation trigger
+    const updatedPositionId = positionId;
+    const searchKey = `${assetType}-${positionId}`;
+    setSelectedSecurities((prev) => ({ ...prev, [searchKey]: security }));
+
     const px = getQuotePrice(security); // numeric or undefined
 
     setPositions((prev) => ({
@@ -1473,7 +1481,12 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
           if (d.purchase_price == null && d.current_price_per_unit != null) d.purchase_price = d.current_price_per_unit;
         }
 
-        return { ...pos, data: d, errors: { ...pos.errors } };
+        return { 
+          ...pos, 
+          data: d, 
+          errors: { ...pos.errors },
+          priceJustUpdated: px != null // Flag for animation
+        };
       }),
     }));
 
@@ -1508,6 +1521,8 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
 
   
   const autoHydrateSeededPrices = useCallback(async () => {
+    setIsHydrating(true);
+    showMessage('info', 'Looking up current prices...', [], 0);
     // Build work items off *current* positions
     const work = [];
 
@@ -1567,30 +1582,40 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
         handleSelectSecurity(hit.type, hit.id, hit.chosen);
       }
     }
+    
+    setIsHydrating(false);
+    const successCount = chunks.filter(c => c?.chosen).length;
+    if (successCount > 0) {
+      showMessage('success', `Updated ${successCount} price${successCount !== 1 ? 's' : ''}`, [], 3000);
+    }
   }, [positions, handleSelectSecurity]);
 
   const hydratedRef = useRef(false);
 
-    // Run once when seeded rows are in state
+  // Run once when seeded rows are in state AND accounts are loaded
   useEffect(() => {
-      if (!isOpen || hydratedRef.current) return;
+    if (!isOpen || hydratedRef.current) return;
+    if (!accounts || accounts.length === 0) return; // Wait for accounts
 
-      const total =
-        (positions.security?.length || 0) +
-        (positions.crypto?.length || 0) +
-        (positions.metal?.length || 0);
+    const total =
+      (positions.security?.length || 0) +
+      (positions.crypto?.length || 0) +
+      (positions.metal?.length || 0);
 
-      if (total === 0) return;
+    if (total === 0) return;
 
-      // Defer one tick so row UIs mount
-      const t = setTimeout(() => {
-        try { autoHydrateSeededPrices?.(); } catch (e) { console.error(e); }
+    // Defer to allow state to settle after backfill
+    const t = setTimeout(() => {
+      try { 
+        autoHydrateSeededPrices?.(); 
         hydratedRef.current = true;
-      }, 0);
+      } catch (e) { 
+        console.error('Price hydration error:', e); 
+      }
+    }, 500); // Increased delay to ensure backfill completes
 
-      return () => clearTimeout(t);
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isOpen]); // Only run when modal opens
+    return () => clearTimeout(t);
+  }, [isOpen, accounts.length, positions.security?.length, positions.crypto?.length, positions.metal?.length]);
 
 
     
@@ -2258,6 +2283,9 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
     // Render cell input with search dropdown
     const renderCellInput = (assetType, position, field, cellKey) => {
       const value = position.data[field.key] || '';
+      const isPriceField = ['price', 'current_price', 'current_price_per_unit'].includes(field.key);
+      const isLoadingPrice = isHydrating && isPriceField && !value;
+      const value = position.data[field.key] || '';
       const hasError = position.errors?.[field.key];
       const fieldIndex = assetTypes[assetType].fields.findIndex(f => f.key === field.key);
       const isRecent = recentlyUsedAccounts.includes(position.data.account_id);
@@ -2417,9 +2445,17 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
             );
           }
           
-        case 'number':
-          return (
-            <div className="relative w-full group">
+          case 'number':
+            return (
+              <div className="relative w-full group">
+                {isLoadingPrice && (
+                  <div className="absolute inset-0 bg-blue-50 rounded-lg flex items-center justify-center z-10">
+                    <div className="flex items-center space-x-2">
+                      <Loader2 className="w-3 h-3 text-blue-600 animate-spin" />
+                      <span className="text-xs text-blue-600">Loading...</span>
+                    </div>
+                  </div>
+                )}
               {field.prefix && (
                 <span className={`
                   absolute left-3 top-1/2 -translate-y-1/2 text-sm font-medium transition-colors duration-200
@@ -3219,9 +3255,39 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                 </button>
             
               {/* Bulk actions for selected rows */}
-                <button
-                  onClick={deleteSelected}
-                  disabled={selectedIds.size === 0}
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={() => {
+                      const issueIds = getAllIssueRowIds();
+                      setSelectedIds(new Set(issueIds));
+                      showMessage('info', `Selected ${issueIds.length} row${issueIds.length !== 1 ? 's' : ''} with issues`);
+                    }}
+                    className="px-3 py-1.5 text-xs font-medium rounded-lg bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition-all"
+                    title="Select all rows with validation issues"
+                  >
+                    <AlertTriangle className="w-3 h-3 inline mr-1" />
+                    Select Issues
+                  </button>
+                  
+                  <button
+                    onClick={() => {
+                      const readyRows = getAllReadyRows();
+                      const readyIds = readyRows.map(r => r.position.id);
+                      setSelectedIds(new Set(readyIds));
+                      showMessage('info', `Selected ${readyIds.length} ready row${readyIds.length !== 1 ? 's' : ''}`);
+                    }}
+                    className="px-3 py-1.5 text-xs font-medium rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition-all"
+                    title="Select all ready-to-submit rows"
+                  >
+                    <CheckCircle className="w-3 h-3 inline mr-1" />
+                    Select Ready
+                  </button>
+                  
+                  <div className="h-5 w-px bg-gray-300"></div>
+                  
+                  <button
+                    onClick={deleteSelected}
+                    disabled={selectedIds.size === 0}
                   className={`px-3 py-1.5 text-sm font-medium rounded-lg border transition-all ${
                     selectedIds.size === 0
                       ? "bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed"
@@ -3709,23 +3775,59 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                 <div className="flex items-center space-x-2">
                   <span className="text-xs font-semibold text-gray-700 mr-2">Filter by Status:</span>
                   {[
-                    {k:'any',label:'All Statuses'},
-                    {k:'ready',label:'Ready'},
-                    {k:'draft',label:'Draft'},
-                    {k:'submitting',label:'Submitting'},
-                    {k:'added',label:'Added'},
-                    {k:'error',label:'Error'},
-                  ].map(opt => (
-                    <button
-                      key={opt.k}
-                      onClick={() => setStatusFilter(opt.k)}
-                      className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all duration-200
-                        ${statusFilter === opt.k
-                          ? 'bg-blue-600 text-white shadow-sm ring-2 ring-blue-300' 
-                          : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'}`}
-                    >
-                      {opt.label}
-                    </button>
+                    {k:'any', label:'All Statuses', color:'gray'},
+                    {k:'ready', label:'Ready', color:'emerald', icon: CheckCircle},
+                    {k:'draft', label:'Draft', color:'amber', icon: Clock},
+                    {k:'submitting', label:'Submitting', color:'blue', icon: Loader2},
+                    {k:'added', label:'Added', color:'indigo', icon: CheckCheck},
+                    {k:'error', label:'Error', color:'red', icon: XCircle},
+                    {k:'issues', label:'Needs Attention', color:'orange', icon: AlertTriangle}
+                  ].map(opt => {
+                    const count = Object.values(positions).reduce((sum, arr) =>
+                      sum + arr.filter(p => {
+                        if (opt.k === 'any') return true;
+                        if (opt.k === 'issues') {
+                          const s = getRowStatus(p);
+                          return s === 'draft' || s === 'error';
+                        }
+                        return getRowStatus(p) === opt.k;
+                      }).length, 0
+                    );
+                    
+                    const Icon = opt.icon;
+                    
+                    return (
+                      <button
+                        key={opt.k}
+                        onClick={() => setStatusFilter(opt.k)}
+                        className={`
+                          relative px-3 py-1.5 text-xs font-medium rounded-lg transition-all duration-200
+                          flex items-center space-x-2
+                          ${statusFilter === opt.k
+                            ? `bg-${opt.color}-600 text-white shadow-md ring-2 ring-${opt.color}-300 scale-105` 
+                            : `bg-white text-gray-700 hover:bg-${opt.color}-50 border border-gray-200 hover:border-${opt.color}-300`
+                          }
+                        `}
+                      >
+                        {Icon && <Icon className="w-3.5 h-3.5" />}
+                        <span>{opt.label}</span>
+                        {count > 0 && (
+                          <span className={`
+                            px-1.5 py-0.5 text-[10px] font-bold rounded-full
+                            ${statusFilter === opt.k 
+                              ? 'bg-white/20 text-white' 
+                              : `bg-${opt.color}-100 text-${opt.color}-700`
+                            }
+                          `}>
+                            {count}
+                          </span>
+                        )}
+                        {count > 0 && opt.k === 'issues' && statusFilter !== opt.k && (
+                          <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+                        )}
+                      </button>
+                    );
+                  })}
                   ))}
                 </div>
               </div>
@@ -4024,6 +4126,22 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
               animation-iteration-count: 1 !important;
               transition-duration: 0.01ms !important;
             }
+          }
+          
+          /* Price update animation */
+          @keyframes price-updated {
+            0% {
+              background-color: #dbeafe;
+              transform: scale(1.05);
+            }
+            100% {
+              background-color: transparent;
+              transform: scale(1);
+            }
+          }
+          
+          .price-updated {
+            animation: price-updated 0.6s ease-out;
           }
         `}</style>
       </FixedModal>
