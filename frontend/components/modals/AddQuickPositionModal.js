@@ -3796,7 +3796,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
           getRowStatus={getRowStatus}
         />
         
-        <style dangerouslySetInnerHTML={{__html: `
+        <style jsx>{`
         @keyframes shimmer {
           0% { transform: translateX(-100%); }
           100% { transform: translateX(100%); }
@@ -3858,66 +3858,60 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
           animation-fill-mode: both;
         }
         
-        /* Custom scrollbar */
-        .overflow-y-auto::-webkit-scrollbar {
+        :global(.overflow-y-auto::-webkit-scrollbar) {
           width: 8px;
         }
         
-        .overflow-y-auto::-webkit-scrollbar-track {
+        :global(.overflow-y-auto::-webkit-scrollbar-track) {
           background: #f3f4f6;
           border-radius: 4px;
         }
         
-        .overflow-y-auto::-webkit-scrollbar-thumb {
+        :global(.overflow-y-auto::-webkit-scrollbar-thumb) {
           background: #d1d5db;
           border-radius: 4px;
         }
         
-        .overflow-y-auto::-webkit-scrollbar-thumb:hover {
+        :global(.overflow-y-auto::-webkit-scrollbar-thumb:hover) {
           background: #9ca3af;
         }
         
-        /* Focus styles */
-        input:focus, select:focus {
+        :global(input:focus), :global(select:focus) {
           outline: none;
         }
         
-        /* Number input spinner removal */
-        input[type="number"]::-webkit-inner-spin-button,
-        input[type="number"]::-webkit-outer-spin-button {
+        :global(input[type="number"]::-webkit-inner-spin-button),
+        :global(input[type="number"]::-webkit-outer-spin-button) {
           -webkit-appearance: none;
           margin: 0;
         }
         
-        input[type="number"] {
+        :global(input[type="number"]) {
           -moz-appearance: textfield;
         }
         
-        /* Smooth hover transitions */
-        button, input, select {
+        :global(button), :global(input), :global(select) {
           transition: all 0.2s ease;
         }
         
-        /* High contrast mode support */
         @media (prefers-contrast: high) {
-          .border-gray-200 {
+          :global(.border-gray-200) {
             border-color: #374151;
           }
           
-          .text-gray-600 {
+          :global(.text-gray-600) {
             color: #1f2937;
           }
         }
         
-        /* Reduced motion support */
         @media (prefers-reduced-motion: reduce) {
-          * {
+          :global(*) {
             animation-duration: 0.01ms !important;
             animation-iteration-count: 1 !important;
             transition-duration: 0.01ms !important;
           }
         }
-        `}} />
+        `}</style>
       </div>
     </FixedModal>
   );
