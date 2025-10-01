@@ -3448,339 +3448,399 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
     >
       <div className="h-[90vh] flex flex-col bg-gradient-to-br from-gray-50 via-slate-50 to-gray-100">
         {/* Enhanced Header with Action Bar */}
-          <div className="flex-shrink-0 bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/40 border-b-2 border-gray-200 px-6 py-3 shadow-sm">
-            {/* Single Line Header */}
-            <div className="flex items-center justify-between gap-4 mb-3">
-              {/* Left: Core Actions */}
-              <div className="flex items-center space-x-3">
-                {/* File Actions Group */}
-                <div className="flex items-center space-x-2 px-3 py-2 bg-white rounded-lg border border-gray-200 shadow-sm">
-                  <button
-                    onClick={clearAll}
-                    className="px-3 py-1.5 text-xs bg-white border border-gray-300 text-gray-700 font-medium rounded-md hover:bg-gray-50 hover:border-gray-400 transition-all flex items-center space-x-1.5 group"
-                  >
-                    <Trash2 className="w-3.5 h-3.5 group-hover:text-red-600 transition-colors" />
-                    <span>Clear All</span>
-                  </button>
-                  
-                  <div className="w-px h-5 bg-gray-300" />
-                  
-                  <button
-                    onClick={onClose}
-                    className="px-3 py-1.5 text-xs bg-white border border-gray-300 text-gray-700 font-medium rounded-md hover:bg-gray-50 hover:border-gray-400 transition-all"
-                  >
-                    Cancel
-                  </button>
-                </div>
-                
-                {/* Selection Actions Group */}
-                {selectedIds.size > 0 && (
-                  <div className="flex items-center space-x-2 px-3 py-2 bg-red-50 rounded-lg border border-red-200 shadow-sm animate-in slide-in-from-left duration-200">
-                    <span className="text-xs font-semibold text-red-700">{selectedIds.size} selected</span>
+          <div className="flex-shrink-0 relative overflow-hidden">
+            {/* Animated gradient background */}
+            <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-900 opacity-95" />
+            <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4wMyI+PHBhdGggZD0iTTM2IDM0djItaDJ2LTJoLTJ6bTAgNHYyaC0ydjJoMnYtMmgydi0yaC0yem0tMiAwdi0yaC0ydjJoMnptLTQgMHYyaC0ydjJoMnYtMmgydi0yaC0yem0tMiAwdi0yaC0ydjJoMnptLTQgMHYyaC0ydjJoMnYtMmgydi0yaC0yem0tMiAwdi0yaC0ydjJoMnoiLz48L2c+PC9nPjwvc3ZnPg==')] opacity-20" />
+            
+            <div className="relative px-6 py-4 border-b border-white/10">
+              {/* Top Tier: Primary Actions & Stats */}
+              <div className="flex items-center justify-between mb-3">
+                {/* Left: Action Groups */}
+                <div className="flex items-center space-x-3">
+                  {/* File Operations */}
+                  <div className="flex items-center backdrop-blur-xl bg-white/10 rounded-xl border border-white/20 shadow-2xl overflow-hidden">
                     <button
-                      onClick={deleteSelected}
-                      className="px-3 py-1.5 text-xs bg-red-100 text-red-700 font-medium rounded-md hover:bg-red-200 border border-red-300 transition-all flex items-center space-x-1.5"
+                      onClick={clearAll}
+                      className="px-4 py-2.5 text-xs font-medium text-white hover:bg-white/10 transition-all flex items-center space-x-2 group border-r border-white/10"
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
-                      <span>Delete</span>
+                      <Trash2 className="w-3.5 h-3.5 group-hover:scale-110 transition-transform" />
+                      <span>Clear</span>
+                    </button>
+                    <button
+                      onClick={onClose}
+                      className="px-4 py-2.5 text-xs font-medium text-white hover:bg-white/10 transition-all"
+                    >
+                      <X className="w-3.5 h-3.5" />
                     </button>
                   </div>
-                )}
-                
-                {/* View Mode Toggle */}
-                <div className="flex items-center space-x-2 px-3 py-2 bg-white rounded-lg border border-gray-200 shadow-sm">
-                  <span className="text-xs text-gray-600 font-medium">View:</span>
-                  <ToggleSwitch
-                    value={viewMode}
-                    onChange={setViewMode}
-                    leftLabel="Asset Type"
-                    rightLabel="Account"
-                    leftIcon={Layers}
-                    rightIcon={Wallet}
-                  />
-                </div>
-              </div>
-              
-              {/* Center: Stats */}
-              <div className="flex items-center space-x-6 px-4 py-2 bg-white rounded-lg border border-gray-200 shadow-sm">
-                <div className="flex items-center space-x-2">
-                  <Hash className="w-4 h-4 text-gray-400" />
-                  <span className="text-xs text-gray-600">Positions:</span>
-                  <span className="text-sm font-bold text-gray-900">
-                    <AnimatedNumber value={stats.totalPositions} />
-                  </span>
-                </div>
-                
-                <div className="w-px h-5 bg-gray-300" />
-                
-                <div className="flex items-center space-x-2">
-                  <DollarSign className="w-4 h-4 text-gray-400" />
-                  <span className="text-xs text-gray-600">Value:</span>
-                  <span className="text-sm font-bold text-gray-900">
-                    {showValues ? (
-                      <AnimatedNumber value={stats.totalValue} prefix="$" decimals={0} />
-                    ) : (
-                      '••••••'
-                    )}
-                  </span>
-                </div>
-                
-                {stats.totalPerformance !== 0 && (
-                  <>
-                    <div className="w-px h-5 bg-gray-300" />
-                    <div className="flex items-center space-x-2">
-                      {stats.totalPerformance >= 0 ? (
-                        <TrendingUp className="w-4 h-4 text-green-600" />
-                      ) : (
-                        <TrendingDown className="w-4 h-4 text-red-600" />
-                      )}
-                      <span className={`text-sm font-bold ${
-                        stats.totalPerformance >= 0 ? 'text-green-600' : 'text-red-600'
-                      }`}>
-                        {showValues ? (
-                          <>
-                            {stats.totalPerformance >= 0 ? '+' : ''}
-                            <AnimatedNumber value={stats.totalPerformance} decimals={1} suffix="%" />
-                          </>
-                        ) : (
-                          '••••'
-                        )}
-                      </span>
-                    </div>
-                  </>
-                )}
-                
-                {/* Type breakdown badges */}
-                {Object.entries(assetTypes).map(([key, config]) => {
-                  const typeStats = stats.byType[key];
-                  if (!typeStats || typeStats.count === 0) return null;
-                  const Icon = config.icon;
-                  return (
-                    <React.Fragment key={key}>
-                      <div className="w-px h-5 bg-gray-300" />
-                      <div className={`flex items-center space-x-1 px-2 py-1 rounded-lg text-xs ${config.color.lightBg} ${config.color.text}`}>
-                        <Icon className="w-3 h-3" />
-                        <span className="font-medium">{typeStats.count}</span>
+
+                  {/* Selection Indicator - Animated entrance */}
+                  {selectedIds.size > 0 && (
+                    <div className="flex items-center backdrop-blur-xl bg-red-500/20 rounded-xl border border-red-400/30 shadow-2xl px-4 py-2.5 space-x-3 animate-in slide-in-from-left-2 duration-300">
+                      <div className="flex items-center space-x-2">
+                        <div className="w-2 h-2 bg-red-400 rounded-full animate-pulse" />
+                        <span className="text-xs font-bold text-red-100">{selectedIds.size} Selected</span>
                       </div>
-                    </React.Fragment>
-                  );
-                })}
-              </div>
-              
-              {/* Right: Submit Actions */}
-              <div className="flex items-center space-x-2">
-                {/* Settings */}
-                <div className="flex items-center space-x-1 px-2 py-2 bg-white rounded-lg border border-gray-200 shadow-sm">
-                  <button
-                    onClick={() => setShowValues(!showValues)}
-                    className={`p-1.5 rounded-md transition-all duration-200 ${
-                      showValues 
-                        ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' 
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                    }`}
-                    title={showValues ? 'Hide values' : 'Show values'}
-                  >
-                    {showValues ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
-                  </button>
-                  
-                  <button
-                    onClick={() => setShowKeyboardShortcuts(!showKeyboardShortcuts)}
-                    className={`p-1.5 rounded-md transition-all duration-200 ${
-                      showKeyboardShortcuts 
-                        ? 'bg-purple-100 text-purple-700 hover:bg-purple-200' 
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                    }`}
-                    title="Keyboard shortcuts (Ctrl+K)"
-                  >
-                    <Keyboard className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-                
-                {/* Queue Button */}
-                <button
-                  onClick={() => setShowQueue(true)}
-                  className="px-3 py-2 text-xs bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all flex items-center space-x-2 shadow-sm"
-                >
-                  <ClipboardList className="w-3.5 h-3.5" />
-                  <span>Queue</span>
-                  {stats.totalPositions > 0 && (
-                    <span className="px-1.5 py-0.5 bg-gray-900 text-white text-[10px] rounded-full font-bold">
-                      {stats.totalPositions}
-                    </span>
+                      <button
+                        onClick={deleteSelected}
+                        className="px-3 py-1 text-xs font-medium bg-red-500 text-white rounded-lg hover:bg-red-600 transition-all shadow-lg hover:shadow-red-500/50 flex items-center space-x-1.5"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                        <span>Delete</span>
+                      </button>
+                    </div>
                   )}
-                </button>
-                
-                {/* Submit Buttons Group */}
-                <div className="flex items-center space-x-2 px-3 py-2 bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg border border-green-200 shadow-sm">
+
+                  {/* View Mode Switcher - Glass morphism */}
+                  <div className="flex items-center backdrop-blur-xl bg-white/10 rounded-xl border border-white/20 shadow-2xl p-1.5">
+                    <button
+                      onClick={() => setViewMode(false)}
+                      className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-xs font-medium transition-all duration-300 ${
+                        !viewMode 
+                          ? 'bg-white text-slate-900 shadow-lg' 
+                          : 'text-white/70 hover:text-white hover:bg-white/5'
+                      }`}
+                    >
+                      <Layers className="w-3.5 h-3.5" />
+                      <span>Asset Type</span>
+                    </button>
+                    <button
+                      onClick={() => setViewMode(true)}
+                      className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-xs font-medium transition-all duration-300 ${
+                        viewMode 
+                          ? 'bg-white text-slate-900 shadow-lg' 
+                          : 'text-white/70 hover:text-white hover:bg-white/5'
+                      }`}
+                    >
+                      <Wallet className="w-3.5 h-3.5" />
+                      <span>Account</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Right: Utility Actions */}
+                <div className="flex items-center space-x-3">
+                  {/* Settings Group */}
+                  <div className="flex items-center backdrop-blur-xl bg-white/10 rounded-xl border border-white/20 shadow-2xl p-1.5 space-x-1">
+                    <button
+                      onClick={() => setShowValues(!showValues)}
+                      className={`p-2 rounded-lg transition-all duration-300 ${
+                        showValues 
+                          ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/50' 
+                          : 'text-white/70 hover:text-white hover:bg-white/10'
+                      }`}
+                      title={showValues ? 'Hide values' : 'Show values'}
+                    >
+                      {showValues ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+                    </button>
+                    <button
+                      onClick={() => setShowKeyboardShortcuts(!showKeyboardShortcuts)}
+                      className={`p-2 rounded-lg transition-all duration-300 ${
+                        showKeyboardShortcuts 
+                          ? 'bg-purple-500 text-white shadow-lg shadow-purple-500/50' 
+                          : 'text-white/70 hover:text-white hover:bg-white/10'
+                      }`}
+                    >
+                      <Keyboard className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
+                  {/* Queue Button - Floating badge */}
                   <button
-                    onClick={submitReadyOnly}
-                    disabled={isSubmitting || getAllReadyRows().length === 0}
-                    className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all flex items-center space-x-1.5 ${
-                      isSubmitting || getAllReadyRows().length === 0
-                        ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                        : 'bg-emerald-100 text-emerald-700 border border-emerald-300 hover:bg-emerald-200'
-                    }`}
+                    onClick={() => setShowQueue(true)}
+                    className="relative px-4 py-2.5 backdrop-blur-xl bg-white/10 rounded-xl border border-white/20 shadow-2xl text-white hover:bg-white/20 transition-all flex items-center space-x-2 text-xs font-medium group"
                   >
-                    <CheckCircle className="w-3.5 h-3.5" />
-                    <span>Ready ({getAllReadyRows().length})</span>
-                  </button>
-                  
-                  <button
-                    onClick={submitAll}
-                    disabled={stats.totalPositions === 0 || isSubmitting}
-                    className={`px-4 py-1.5 text-xs font-semibold rounded-md transition-all flex items-center space-x-2 shadow-sm ${
-                      stats.totalPositions === 0 || isSubmitting
-                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                        : 'bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:from-green-700 hover:to-emerald-700 hover:shadow-md'
-                    }`}
-                  >
-                    {isSubmitting ? (
-                      <>
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        <span>Saving...</span>
-                      </>
-                    ) : (
-                      <>
-                        <CheckCheck className="w-3.5 h-3.5" />
-                        <span>Submit All</span>
-                      </>
+                    <ClipboardList className="w-3.5 h-3.5 group-hover:scale-110 transition-transform" />
+                    <span>Queue</span>
+                    {stats.totalPositions > 0 && (
+                      <div className="absolute -top-2 -right-2 px-2 py-1 bg-gradient-to-r from-orange-500 to-red-500 text-white text-[10px] font-bold rounded-full shadow-lg animate-pulse">
+                        {stats.totalPositions}
+                      </div>
                     )}
                   </button>
-                </div>
-              </div>
-            </div>
 
-            {/* Second Row: Filters (conditional) */}
-            {viewMode && accounts.length > 0 && (
-              <div className="flex items-center space-x-3 py-2 px-4 bg-white rounded-lg border border-gray-200 shadow-sm">
-                <span className="text-xs text-gray-500 font-medium">Filters:</span>
-                <AccountFilter
-                  accounts={accounts}
-                  selectedAccounts={selectedAccountFilter}
-                  onChange={setSelectedAccountFilter}
-                  filterType="accounts"
-                />
-                <AccountFilter
-                  accounts={accounts}
-                  selectedAccounts={selectedInstitutionFilter}
-                  onChange={setSelectedInstitutionFilter}
-                  filterType="institutions"
-                />
-                <div className="ml-auto flex items-center space-x-2 text-xs text-gray-500">
-                  <Info className="w-3 h-3" />
-                  <span>Filters apply together</span>
-                </div>
-              </div>
-            )}
-
-            {!viewMode && (
-              <div className="space-y-2">
-                <div className="flex items-center space-x-2">
-                  <span className="text-xs text-gray-500 mr-2">Filter by Asset Type:</span>
-                  <button
-                    onClick={() => setActiveFilter('all')}
-                    className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all duration-200 ${
-                      activeFilter === 'all' 
-                        ? 'bg-gray-900 text-white shadow-sm' 
-                        : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
-                    }`}
-                  >
-                    All Types
-                  </button>
-
-                  {Object.entries(assetTypes).map(([key, config]) => (
-                    <AssetTypeBadge
-                      key={key}
-                      type={config.name}
-                      count={stats.byType[key]?.count || 0}
-                      icon={config.icon}
-                      color={config.color}
-                      active={activeFilter === key}
-                      onClick={() => setActiveFilter(activeFilter === key ? 'all' : key)}
-                    />
-                  ))}
-                </div>
-                
-                <div className="flex items-center space-x-2">
-                  <span className="text-xs text-gray-500 mr-2">Filter by Status:</span>
-                  {[
-                    {k:'any',label:'All'},
-                    {k:'ready',label:'Ready'},
-                    {k:'draft',label:'Draft'},
-                    {k:'submitting',label:'Submitting'},
-                    {k:'added',label:'Added'},
-                    {k:'error',label:'Error'},
-                  ].map(opt => {
-                    let count = 0;
-                    if (opt.k === 'any') {
-                      Object.values(positions).forEach(typePositions => {
-                        count += typePositions.length;
-                      });
-                    } else {
-                      Object.values(positions).forEach(typePositions => {
-                        typePositions.forEach(pos => {
-                          if (getRowStatus(pos) === opt.k) {
-                            count++;
-                          }
-                        });
-                      });
-                    }
+                  {/* Submit Actions - Primary CTAs */}
+                  <div className="flex items-center space-x-2">
+                    <button
+                      onClick={submitReadyOnly}
+                      disabled={isSubmitting || getAllReadyRows().length === 0}
+                      className={`px-4 py-2.5 rounded-xl text-xs font-semibold transition-all flex items-center space-x-2 backdrop-blur-xl border ${
+                        isSubmitting || getAllReadyRows().length === 0
+                          ? 'bg-white/5 text-white/30 border-white/10 cursor-not-allowed'
+                          : 'bg-emerald-500/20 text-emerald-100 border-emerald-400/30 hover:bg-emerald-500/30 shadow-lg shadow-emerald-500/20'
+                      }`}
+                    >
+                      <CheckCircle className="w-3.5 h-3.5" />
+                      <span>Ready</span>
+                      <span className="px-1.5 py-0.5 bg-emerald-400 text-emerald-900 rounded-full text-[10px] font-bold">
+                        {getAllReadyRows().length}
+                      </span>
+                    </button>
                     
-                    return (
-                      <button
-                        key={opt.k}
-                        onClick={() => setStatusFilter(opt.k)}
-                        className={`px-2.5 py-1.5 text-xs rounded-md border transition-all duration-200 flex items-center space-x-1.5 ${
-                          statusFilter === opt.k
-                            ? 'bg-gray-900 text-white border-gray-900'
-                            : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                        }`}
-                      >
-                        <span>{opt.label}</span>
-                        {count > 0 && (
-                          <span className={`px-1.5 py-0.5 text-[10px] rounded-full font-bold ${
-                            statusFilter === opt.k
-                              ? 'bg-white/20 text-white'
-                              : 'bg-gray-100 text-gray-600'
+                    <button
+                      onClick={submitAll}
+                      disabled={stats.totalPositions === 0 || isSubmitting}
+                      className={`px-6 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 relative overflow-hidden group ${
+                        stats.totalPositions === 0 || isSubmitting
+                          ? 'bg-white/5 text-white/30 cursor-not-allowed'
+                          : 'bg-gradient-to-r from-green-500 to-emerald-500 text-white shadow-2xl shadow-green-500/50 hover:shadow-green-500/80 hover:scale-105'
+                      }`}
+                    >
+                      <div className="absolute inset-0 bg-gradient-to-r from-green-400 to-emerald-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                      {isSubmitting ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin relative z-10" />
+                          <span className="relative z-10">Saving...</span>
+                        </>
+                      ) : (
+                        <>
+                          <CheckCheck className="w-4 h-4 relative z-10 group-hover:scale-110 transition-transform" />
+                          <span className="relative z-10">Submit All</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Stats Tier - Glassmorphism cards */}
+              <div className="flex items-center justify-between backdrop-blur-xl bg-white/5 rounded-xl border border-white/10 px-6 py-3 shadow-inner">
+                {/* Primary Stats */}
+                <div className="flex items-center space-x-8">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-500 flex items-center justify-center shadow-lg">
+                      <Hash className="w-5 h-5 text-white" />
+                    </div>
+                    <div>
+                      <div className="text-[10px] uppercase tracking-wider text-white/60 font-semibold">Positions</div>
+                      <div className="text-2xl font-bold text-white">
+                        <AnimatedNumber value={stats.totalPositions} />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="w-px h-12 bg-white/10" />
+
+                  <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-emerald-500 to-green-500 flex items-center justify-center shadow-lg">
+                      <DollarSign className="w-5 h-5 text-white" />
+                    </div>
+                    <div>
+                      <div className="text-[10px] uppercase tracking-wider text-white/60 font-semibold">Total Value</div>
+                      <div className="text-2xl font-bold text-white">
+                        {showValues ? (
+                          <AnimatedNumber value={stats.totalValue} prefix="$" decimals={0} />
+                        ) : (
+                          <span className="tracking-widest">••••••</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {stats.totalPerformance !== 0 && (
+                    <>
+                      <div className="w-px h-12 bg-white/10" />
+                      <div className="flex items-center space-x-3">
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center shadow-lg ${
+                          stats.totalPerformance >= 0 
+                            ? 'bg-gradient-to-br from-green-500 to-emerald-500' 
+                            : 'bg-gradient-to-br from-red-500 to-orange-500'
+                        }`}>
+                          {stats.totalPerformance >= 0 ? (
+                            <TrendingUp className="w-5 h-5 text-white" />
+                          ) : (
+                            <TrendingDown className="w-5 h-5 text-white" />
+                          )}
+                        </div>
+                        <div>
+                          <div className="text-[10px] uppercase tracking-wider text-white/60 font-semibold">Performance</div>
+                          <div className={`text-2xl font-bold ${
+                            stats.totalPerformance >= 0 ? 'text-green-400' : 'text-red-400'
                           }`}>
-                            {count}
+                            {showValues ? (
+                              <>
+                                {stats.totalPerformance >= 0 ? '+' : ''}
+                                <AnimatedNumber value={stats.totalPerformance} decimals={1} suffix="%" />
+                              </>
+                            ) : (
+                              <span className="tracking-widest">••••</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                {/* Asset Type Breakdown - Compact pills */}
+                <div className="flex items-center space-x-2">
+                  {Object.entries(assetTypes).map(([key, config]) => {
+                    const typeStats = stats.byType[key];
+                    if (!typeStats || typeStats.count === 0) return null;
+                    const Icon = config.icon;
+                    return (
+                      <div
+                        key={key}
+                        className="flex items-center space-x-2 px-3 py-2 rounded-lg backdrop-blur-sm bg-white/10 border border-white/20 text-white shadow-lg hover:scale-105 transition-transform cursor-default"
+                      >
+                        <Icon className="w-4 h-4" />
+                        <span className="font-bold text-sm">{typeStats.count}</span>
+                        {showValues && (
+                          <span className="text-[10px] text-white/70">
+                            {formatCurrency(typeStats.value)}
                           </span>
                         )}
-                      </button>
+                      </div>
                     );
                   })}
                 </div>
               </div>
-            )}
 
-            {/* Keyboard shortcuts hint */}
-            {showKeyboardShortcuts && (
-              <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg animate-in slide-in-from-top duration-300">
-                <div className="flex items-start space-x-2">
-                  <Keyboard className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
-                  <div className="flex-1">
-                    <p className="text-xs font-medium text-blue-900 mb-1">Keyboard Shortcuts</p>
-                    <div className="grid grid-cols-3 gap-x-4 gap-y-1 text-[10px] text-blue-700">
-                      <div><kbd className="px-1 py-0.5 bg-white rounded text-blue-900 font-mono">Tab</kbd> Next field</div>
-                      <div><kbd className="px-1 py-0.5 bg-white rounded text-blue-900 font-mono">Enter</kbd> Next field / New row</div>
-                      <div><kbd className="px-1 py-0.5 bg-white rounded text-blue-900 font-mono">Ctrl+Enter</kbd> Submit all</div>
-                      <div><kbd className="px-1 py-0.5 bg-white rounded text-blue-900 font-mono">↑↓</kbd> Navigate rows</div>
-                      <div><kbd className="px-1 py-0.5 bg-white rounded text-blue-900 font-mono">Ctrl+D</kbd> Duplicate row</div>
-                      <div><kbd className="px-1 py-0.5 bg-white rounded text-blue-900 font-mono">Ctrl+Del</kbd> Delete row</div>
-                      <div><kbd className="px-1 py-0.5 bg-white rounded text-blue-900 font-mono">Alt+↑↓</kbd> Move row</div>
-                      <div><kbd className="px-1 py-0.5 bg-white rounded text-blue-900 font-mono">Shift+Enter</kbd> Insert above</div>
-                      <div><kbd className="px-1 py-0.5 bg-white rounded text-blue-900 font-mono">Ctrl+K</kbd> Toggle shortcuts</div>
+              {/* Filter Tier - Conditional */}
+              {viewMode && accounts.length > 0 && (
+                <div className="flex items-center space-x-3 mt-3 backdrop-blur-xl bg-white/5 rounded-xl border border-white/10 px-4 py-3">
+                  <Filter className="w-4 h-4 text-white/60" />
+                  <span className="text-xs font-semibold text-white/80 uppercase tracking-wider">Filters:</span>
+                  <AccountFilter accounts={accounts} selectedAccounts={selectedAccountFilter} onChange={setSelectedAccountFilter} filterType="accounts" />
+                  <AccountFilter accounts={accounts} selectedAccounts={selectedInstitutionFilter} onChange={setSelectedInstitutionFilter} filterType="institutions" />
+                </div>
+              )}
+
+              {!viewMode && (
+                <div className="space-y-3 mt-3">
+                  {/* Asset Type Filter */}
+                  <div className="flex items-center flex-wrap gap-2 backdrop-blur-xl bg-white/5 rounded-xl border border-white/10 px-4 py-3">
+                    <span className="text-xs font-semibold text-white/80 uppercase tracking-wider mr-2">Asset Types:</span>
+                    <button
+                      onClick={() => setActiveFilter('all')}
+                      className={`px-4 py-1.5 text-xs font-medium rounded-lg transition-all ${
+                        activeFilter === 'all' 
+                          ? 'bg-white text-slate-900 shadow-lg' 
+                          : 'bg-white/10 text-white border border-white/20 hover:bg-white/20'
+                      }`}
+                    >
+                      All Types
+                    </button>
+                    {Object.entries(assetTypes).map(([key, config]) => {
+                      const Icon = config.icon;
+                      const count = stats.byType[key]?.count || 0;
+                      return (
+                        <button
+                          key={key}
+                          onClick={() => setActiveFilter(activeFilter === key ? 'all' : key)}
+                          className={`flex items-center space-x-2 px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
+                            activeFilter === key
+                              ? 'bg-white text-slate-900 shadow-lg'
+                              : 'bg-white/10 text-white border border-white/20 hover:bg-white/20'
+                          }`}
+                        >
+                          <Icon className="w-3.5 h-3.5" />
+                          <span>{config.name}</span>
+                          {count > 0 && (
+                            <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                              activeFilter === key ? 'bg-slate-900 text-white' : 'bg-white/20'
+                            }`}>
+                              {count}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Status Filter */}
+                  <div className="flex items-center flex-wrap gap-2 backdrop-blur-xl bg-white/5 rounded-xl border border-white/10 px-4 py-3">
+                    <span className="text-xs font-semibold text-white/80 uppercase tracking-wider mr-2">Status:</span>
+                    {[
+                      {k:'any',label:'All', icon: Grid3x3},
+                      {k:'ready',label:'Ready', icon: CheckCircle},
+                      {k:'draft',label:'Draft', icon: Clock},
+                      {k:'submitting',label:'Submitting', icon: Loader2},
+                      {k:'added',label:'Added', icon: CheckCheck},
+                      {k:'error',label:'Error', icon: AlertCircle},
+                    ].map(opt => {
+                      let count = 0;
+                      if (opt.k === 'any') {
+                        Object.values(positions).forEach(typePositions => { count += typePositions.length; });
+                      } else {
+                        Object.values(positions).forEach(typePositions => {
+                          typePositions.forEach(pos => { if (getRowStatus(pos) === opt.k) count++; });
+                        });
+                      }
+                      const Icon = opt.icon;
+                      return (
+                        <button
+                          key={opt.k}
+                          onClick={() => setStatusFilter(opt.k)}
+                          className={`flex items-center space-x-2 px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
+                            statusFilter === opt.k
+                              ? 'bg-white text-slate-900 shadow-lg'
+                              : 'bg-white/10 text-white border border-white/20 hover:bg-white/20'
+                          }`}
+                        >
+                          <Icon className="w-3.5 h-3.5" />
+                          <span>{opt.label}</span>
+                          {count > 0 && (
+                            <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                              statusFilter === opt.k ? 'bg-slate-900 text-white' : 'bg-white/20'
+                            }`}>
+                              {count}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Keyboard Shortcuts - Floating panel */}
+              {showKeyboardShortcuts && (
+                <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 z-50 animate-in slide-in-from-top-4 duration-300">
+                  <div className="backdrop-blur-2xl bg-slate-900/95 border border-white/20 rounded-2xl shadow-2xl p-6 w-[600px]">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-500 flex items-center justify-center">
+                          <Keyboard className="w-5 h-5 text-white" />
+                        </div>
+                        <div>
+                          <h3 className="text-sm font-bold text-white">Keyboard Shortcuts</h3>
+                          <p className="text-xs text-white/60">Master the interface</p>
+                        </div>
+                      </div>
+                      <button onClick={() => setShowKeyboardShortcuts(false)} className="p-2 hover:bg-white/10 rounded-lg transition-colors">
+                        <X className="w-4 h-4 text-white" />
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 text-xs">
+                      {[
+                        {keys: ['Tab'], desc: 'Next field'},
+                        {keys: ['Enter'], desc: 'Next field / New row'},
+                        {keys: ['Ctrl','Enter'], desc: 'Submit all'},
+                        {keys: ['↑','↓'], desc: 'Navigate rows'},
+                        {keys: ['Ctrl','D'], desc: 'Duplicate row'},
+                        {keys: ['Ctrl','Del'], desc: 'Delete row'},
+                        {keys: ['Alt','↑↓'], desc: 'Move row'},
+                        {keys: ['Shift','Enter'], desc: 'Insert above'},
+                        {keys: ['Ctrl','K'], desc: 'Toggle shortcuts'},
+                      ].map((item, idx) => (
+                        <div key={idx} className="flex items-center justify-between p-3 rounded-lg bg-white/5 border border-white/10">
+                          <div className="flex items-center space-x-1">
+                            {item.keys.map((key, i) => (
+                              <kbd key={i} className="px-2 py-1 bg-white text-slate-900 rounded font-mono text-xs font-bold shadow-sm">
+                                {key}
+                              </kbd>
+                            ))}
+                          </div>
+                          <span className="text-white/70">{item.desc}</span>
+                        </div>
+                      ))}
                     </div>
                   </div>
-                  <button
-                    onClick={() => setShowKeyboardShortcuts(false)}
-                    className="p-1 hover:bg-blue-100 rounded transition-colors"
-                  >
-                    <X className="w-3 h-3 text-blue-600" />
-                  </button>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
 
         {/* Scrollable Content Area */}
