@@ -2425,41 +2425,109 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
             <div 
               style={{
                 position: 'fixed',
-                top: `${inputRect.bottom + 2}px`,
+                top: `${inputRect.bottom + 4}px`,
                 left: `${inputRect.left}px`,
-                width: `${inputRect.width}px`,
+                width: `${Math.max(inputRect.width, 450)}px`,
                 zIndex: 9999999
               }}
-              className="bg-white border border-gray-300 rounded-lg shadow-xl"
+              className="bg-white border-2 border-blue-200 rounded-xl shadow-2xl overflow-hidden animate-in slide-in-from-top-2 duration-200"
             >
-              <div className="max-h-48 overflow-y-auto">
-                {searchResultsForField.map((result, idx) => (
-                  <button
-                    key={result.ticker}
-                    type="button"
-                    className={`
-                      w-full px-3 py-2 text-sm text-left hover:bg-gray-50 transition-colors
-                      flex items-center justify-between
-                      ${idx !== searchResultsForField.length - 1 ? 'border-b border-gray-100' : ''}
-                    `}
-                    onClick={() => {
-                      handleSelectSecurity(assetType, position.id, result);
-                      setSearchResults(prev => ({
-                        ...prev,
-                        [searchKey]: []
-                      }));
-                    }}
-                    onMouseDown={(e) => e.preventDefault()}
-                  >
-                    <div className="flex items-center space-x-2 flex-1 min-w-0">
-                      <span className="font-semibold text-gray-900">{result.ticker}</span>
-                      <span className="text-gray-500 text-xs truncate">{result.name}</span>
-                    </div>
-                    <span className="font-medium text-gray-700 ml-2 text-sm">
-                      ${parseFloat(result.price).toFixed(2)}
-                    </span>
-                  </button>
-                ))}
+              {/* Search header */}
+              <div className="px-3 py-2 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-100">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-semibold text-blue-900 flex items-center">
+                    <Search className="w-3 h-3 mr-1.5" />
+                    {searchResultsForField.length} Result{searchResultsForField.length !== 1 ? 's' : ''}
+                  </span>
+                  <span className="text-blue-600">Click to select</span>
+                </div>
+              </div>
+              
+              <div className="max-h-80 overflow-y-auto">
+                {searchResultsForField.map((result, idx) => {
+                  const price = parseFloat(result.price || result.current_price || 0);
+                  const exchange = result.exchange || result.market || '';
+                  const type = result.asset_type || '';
+                  const sector = result.sector || result.industry || '';
+                  
+                  return (
+                    <button
+                      key={`${result.ticker}-${idx}`}
+                      type="button"
+                      className={`
+                        w-full px-4 py-3 text-left hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50
+                        transition-all duration-150 group
+                        ${idx !== searchResultsForField.length - 1 ? 'border-b border-gray-100' : ''}
+                      `}
+                      onClick={() => {
+                        handleSelectSecurity(assetType, position.id, result);
+                        setSearchResults(prev => ({
+                          ...prev,
+                          [searchKey]: []
+                        }));
+                      }}
+                      onMouseDown={(e) => e.preventDefault()}
+                    >
+                      {/* Main row */}
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center space-x-3 flex-1 min-w-0">
+                          {/* Ticker badge */}
+                          <div className="flex-shrink-0">
+                            <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold text-sm shadow-sm group-hover:shadow-md transition-shadow">
+                              {result.ticker}
+                            </span>
+                          </div>
+                          
+                          {/* Company name */}
+                          <div className="flex-1 min-w-0">
+                            <div className="font-semibold text-gray-900 truncate text-sm group-hover:text-blue-900 transition-colors">
+                              {result.name}
+                            </div>
+                          </div>
+                        </div>
+                        
+                        {/* Price */}
+                        <div className="flex-shrink-0 ml-3">
+                          <div className="text-right">
+                            <div className="font-bold text-gray-900 text-base group-hover:text-blue-900 transition-colors">
+                              ${price.toFixed(2)}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* Metadata row */}
+                      <div className="flex items-center space-x-3 text-xs text-gray-500">
+                        {exchange && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 font-medium">
+                            {exchange}
+                          </span>
+                        )}
+                        {type && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-purple-50 text-purple-700 font-medium">
+                            {type}
+                          </span>
+                        )}
+                        {sector && (
+                          <span className="truncate text-gray-600">
+                            {sector}
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+              
+              {/* Footer hint */}
+              <div className="px-3 py-2 bg-gray-50 border-t border-gray-100">
+                <div className="flex items-center justify-between text-xs text-gray-500">
+                  <span className="flex items-center">
+                    <Keyboard className="w-3 h-3 mr-1" />
+                    Use ↑↓ to navigate
+                  </span>
+                  <span className="text-gray-400">Press Enter to select</span>
+                </div>
               </div>
             </div>,
             document.body
@@ -2745,7 +2813,16 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                       <thead>
                         <tr className="bg-gray-50 border-b border-gray-200">
                           <th className="w-12 px-3 py-3 text-left">
-                            <span className="text-xs font-semibold text-gray-600">#</span>
+                            <input
+                              type="checkbox"
+                              onChange={(e) => toggleAllSelectedForType(assetType, e.target.checked)}
+                              checked={
+                                typePositions.length > 0 && 
+                                typePositions.every(p => selectedIds.has(p.id))
+                              }
+                              className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                              title="Select all"
+                            />
                           </th>
                           {config.fields.map(field => (
                             <th key={field.key} className={`${field.width} px-2 py-3 text-left`}>
@@ -2790,6 +2867,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                                     type="checkbox"
                                     checked={selectedIds.has(position.id)}
                                     onChange={(e) => toggleRowSelected(position.id, e.target.checked)}
+                                    className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
                                     aria-label={`Select row ${index + 1}`}
                                   />
                                   <span className="text-sm font-medium text-gray-500">{index + 1}</span>
