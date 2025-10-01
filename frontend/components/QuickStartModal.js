@@ -397,6 +397,10 @@ const QuickStartModal = ({ isOpen, onClose }) => {
     const [uploadProgress, setUploadProgress] = useState(0);
     const [validationStatus, setValidationStatus] = useState(null);
     const [importMethod, setImportMethod] = useState(null);
+        // Memoized to prevent dependency issues
+    const fetchExistingAccounts = useCallback(() => {
+        refreshAccounts();
+    }, [refreshAccounts]);
     const [accounts, setAccounts] = useState([]);
     const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -419,11 +423,11 @@ const QuickStartModal = ({ isOpen, onClose }) => {
     } = useAccounts();
 
     // Ensure accounts exist if user opens this quickly after login
-    useEffect(() => {
-    if (!isLoadingAccounts && (!Array.isArray(existingAccounts) || existingAccounts.length === 0)) {
-        refreshAccounts();
-    }
-    }, [isLoadingAccounts, existingAccounts, refreshAccounts]);
+ //   useEffect(() => {
+   // if (!isLoadingAccounts && (!Array.isArray(existingAccounts) || existingAccounts.length === 0)) {
+    //    refreshAccounts();
+    //}
+    // }, [isLoadingAccounts, existingAccounts, refreshAccounts]);
 
 
 

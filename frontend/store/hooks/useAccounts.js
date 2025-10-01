@@ -7,13 +7,14 @@ export const useAccounts = () => {
 
   // Auto-fetch once on first mount if we truly have nothing (StrictMode safe)
   useEffect(() => {
-    if (!accounts?.data && !accounts?.lastFetched && !accounts?.loading) {
+    if (!accounts?.lastFetched && !accounts?.loading) {
       console.log('[useAccounts] Auto-fetching accounts data (first mount)');
       actions.fetchAccountsData();
     }
-    // deps are fine; condition prevents loops
+    // Simplified: only check lastFetched to ensure one-time fetch
+    // Omit actions from deps to prevent re-render loops
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [accounts?.data, accounts?.lastFetched, accounts?.loading]);
+  }, [accounts?.lastFetched, accounts?.loading]);
 
   // Process accounts data
   const processedAccounts = useMemo(() => {
