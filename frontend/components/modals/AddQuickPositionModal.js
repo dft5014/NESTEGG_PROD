@@ -2689,14 +2689,14 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
 
 
     return (
-      <div 
-        key={assetType} 
-        className={`
-          bg-white rounded-xl shadow-sm border overflow-hidden transition-all duration-300
-          ${isExpanded ? 'border-gray-200 shadow-md' : 'border-gray-100'}
-          ${typePositions.length > 0 ? 'ring-1 ring-gray-100' : ''}
-        `}
-      >
+        <div 
+          key={assetType} 
+          className={`
+            bg-white rounded-xl shadow-sm border overflow-hidden transition-all duration-300
+            ${isExpanded ? 'border-blue-200 shadow-lg ring-2 ring-blue-100' : 'border-gray-200 hover:border-gray-300 hover:shadow-md'}
+            ${typePositions.length > 0 ? 'ring-1 ring-gray-100' : ''}
+          `}
+        >
         {/* Section Header - Entire row is clickable */}
         <div 
           onClick={() => toggleSection(assetType)}
@@ -3343,12 +3343,12 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
       title="Quick Position Entry"
       size="max-w-[1600px]"
     >
-      <div className="h-[90vh] flex flex-col bg-gray-50">
+      <div className="h-[90vh] flex flex-col bg-gradient-to-br from-gray-50 via-slate-50 to-gray-100">
         {/* Enhanced Header with Action Bar */}
-        <div className="flex-shrink-0 bg-white border-b border-gray-200 px-6 py-4">
+        <div className="flex-shrink-0 bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/40 border-b-2 border-gray-200 px-6 py-4 shadow-sm">
           {/* Top Action Bar */}
           <div className="flex items-center justify-between mb-4">
-            <div className="flex-1 rounded-lg px-3 py-2 bg-[#0B213F] text-white shadow-sm">
+            <div className="flex-1 rounded-xl px-4 py-3 bg-white border-2 border-gray-200 shadow-sm">
             <div className="flex items-center space-x-4">
               <button
                 onClick={clearAll}
