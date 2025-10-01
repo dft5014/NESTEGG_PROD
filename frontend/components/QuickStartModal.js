@@ -415,15 +415,25 @@ const QuickStartModal = ({ isOpen, onClose }) => {
         accounts: existingAccounts, 
         loading: isLoadingAccounts,
         error: accountsError,
+        lastFetched,
         refresh: refreshAccounts 
     } = useAccounts();
 
-    // Ensure accounts exist if user opens this quickly after login
+    // Bootstrap fetch exactly once if we've never fetched accounts yet
+    const bootstrapRef = useRef(false);
     useEffect(() => {
-    if (!isLoadingAccounts && (!Array.isArray(existingAccounts) || existingAccounts.length === 0)) {
+    if (!isOpen) return; // don't run when modal is closed
+    if (bootstrapRef.current) return;
+    // Only trigger if we have NEVER fetched accounts in this session
+    if (!isLoadingAccounts && lastFetched == null) {
+        bootstrapRef.current = true;
+        // soft fetch is fine; your hook's auto-fetch would also handle this,
+        // but we keep it explicit for users who open the modal immediately after login.
         refreshAccounts();
     }
-    }, [isLoadingAccounts, existingAccounts, refreshAccounts]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isOpen, isLoadingAccounts, lastFetched, refreshAccounts]);
+
 
 
 
