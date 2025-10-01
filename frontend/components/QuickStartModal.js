@@ -2674,29 +2674,27 @@ const QuickStartModal = ({ isOpen, onClose }) => {
 
   if (!isOpen) return null;
 
-  return (
-      <div className="fixed inset-0 z-[100000] overflow-y-auto quickstart-modal-overlay">
-          <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center">
-              <div 
-                  className="fixed inset-0 transition-opacity duration-300 ease-out z-[99999]"
-                  onClick={onClose}
-              >
-                  <div className="absolute inset-0 bg-gray-900 opacity-75"></div>
-              </div>
-
-              <div className="relative inline-block w-full max-w-5xl bg-white rounded-2xl shadow-2xl transform transition-all duration-300 ease-out z-[100001]">
-                  <div className="absolute top-4 right-4 z-10">
-                      <button
-                          onClick={onClose}
-                          className="p-2 rounded-lg hover:bg-gray-100 transition-colors group"
-                      >
+    return (
+        <div className="fixed inset-0 z-[9999] overflow-y-auto">
+            <div 
+                className="fixed inset-0 bg-gray-900/75 transition-opacity duration-300"
+                onClick={onClose}
+            />
+            
+            <div className="flex min-h-full items-center justify-center p-4">
+                <div className="relative w-full max-w-5xl bg-white rounded-2xl shadow-2xl transform transition-all duration-300 my-8">
+                    <div className="absolute top-4 right-4">
+                        <button
+                            onClick={onClose}
+                            className="p-2 rounded-lg hover:bg-gray-100 transition-colors group"
+                        >
                           <X className="w-5 h-5 text-gray-500 group-hover:text-gray-700" />
                       </button>
                   </div>
 
-                  {activeTab !== 'overview' && activeTab !== 'success' && (
-                      <div className="absolute top-4 left-4 z-10">
-                          <button
+                    {activeTab !== 'overview' && activeTab !== 'success' && (
+                        <div className="absolute top-4 left-4">
+                            <button
                            onClick={() => {
                                if (activeTab === 'positions' && importMethod === 'ui') {
                                    setImportMethod(null);
