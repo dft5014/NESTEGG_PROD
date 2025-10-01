@@ -12,7 +12,8 @@ export const useAccounts = () => {
       actions.fetchAccountsData();
     }
     // deps are fine; condition prevents loops
-  }, [accounts?.data, accounts?.lastFetched, accounts?.loading, actions]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accounts?.data, accounts?.lastFetched, accounts?.loading]);
 
   // Process accounts data
   const processedAccounts = useMemo(() => {
