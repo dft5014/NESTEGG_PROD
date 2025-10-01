@@ -2675,14 +2675,15 @@ const QuickStartModal = ({ isOpen, onClose }) => {
   if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-[9999] overflow-y-auto">
+        <>
             <div 
-                className="fixed inset-0 bg-gray-900/75 transition-opacity duration-300"
+                className="fixed inset-0 bg-gray-900/75 z-[9999] transition-opacity duration-300"
                 onClick={onClose}
             />
             
-            <div className="flex min-h-full items-center justify-center p-4">
-                <div className="relative w-full max-w-5xl bg-white rounded-2xl shadow-2xl transform transition-all duration-300 my-8">
+            <div className="fixed inset-0 z-[9999] overflow-y-auto pointer-events-none">
+                <div className="flex min-h-full items-center justify-center p-4">
+                    <div className="relative w-full max-w-5xl bg-white rounded-2xl shadow-2xl transform transition-all duration-300 my-8 pointer-events-auto">
                     <div className="absolute top-4 right-4">
                         <button
                             onClick={onClose}
@@ -2730,9 +2731,10 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                       {activeTab === 'upload' && renderUploadSection()}
                       {activeTab === 'success' && renderSuccessScreen()}
                   </div>
-              </div>
-          </div>
-      </div>
+                </div>
+            </div>
+        </div>
+    </>
   );
 };
 
