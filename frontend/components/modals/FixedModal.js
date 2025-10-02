@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import ReactDOM from 'react-dom';
 import { X } from 'lucide-react';
 
@@ -8,14 +8,14 @@ const FixedModal = ({
     title,
     children,
     size = 'max-w-md',
-    zIndex = 'z-50'
+    zIndex = 'z-50',
+    disableBackdropClose = false // optional: keep false to preserve behavior
 }) => {
     const [mounted, setMounted] = useState(false);
+    const portalRootRef = useRef(null);
 
     useEffect(() => {
         setMounted(true);
-        
-        // Ensure modal root exists
         if (typeof document !== 'undefined') {
             let portalRoot = document.getElementById('modal-root');
             if (!portalRoot) {
@@ -23,6 +23,7 @@ const FixedModal = ({
                 portalRoot.setAttribute('id', 'modal-root');
                 document.body.appendChild(portalRoot);
             }
+            portalRootRef.current = portalRoot; // stable reference
         }
     }, []);
 
@@ -37,21 +38,21 @@ const FixedModal = ({
         }
     }, [isOpen, mounted]);
 
-    if (!mounted || !isOpen) {
-        return null;
-    }
-
-    const portalRoot = document.getElementById('modal-root');
-    if (!portalRoot) {
-        return null;
-    }
+        if (!mounted || !portalRootRef.current) {
+            return null;
+        }
 
     return ReactDOM.createPortal(
         <div
             className={`fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center ${zIndex} p-4`}
-            onClick={onClose}
-            style={{ backdropFilter: 'blur(4px)' }}
-            aria-labelledby={`modal-title-${title.replace(/\s+/g, '-').toLowerCase()}`}
+            style={{
+                backdropFilter: 'blur(4px)',
+                display: isOpen ? 'flex' : 'none' // <-- keep mounted; hide when closed
+            }}
+            onClick={(e) => {
+                if (!disableBackdropClose) onClose?.(e);
+            }}
+            aria-labelledby="fixed-modal-title"
             role="dialog"
             aria-modal="true"
         >
@@ -62,7 +63,7 @@ const FixedModal = ({
                 <div className="flex justify-between items-center p-4 border-b border-gray-200">
                     <h2 
                         className="text-xl font-semibold text-gray-800" 
-                        id={`modal-title-${title.replace(/\s+/g, '-').toLowerCase()}`}
+                        id="fixed-modal-title"
                     >
                         {title}
                     </h2>
@@ -79,8 +80,9 @@ const FixedModal = ({
                 </div>
             </div>
         </div>,
-        portalRoot
+        portalRootRef.current
     );
+
 };
 
 export default FixedModal;
