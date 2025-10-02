@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useId } from 'react';
 import ReactDOM from 'react-dom';
 import { X } from 'lucide-react';
 
@@ -13,6 +13,7 @@ const FixedModal = ({
 }) => {
     const [mounted, setMounted] = useState(false);
     const portalRootRef = useRef(null);
+    const titleId = useId();
 
     useEffect(() => {
         setMounted(true);
@@ -52,7 +53,7 @@ const FixedModal = ({
             onClick={(e) => {
                 if (!disableBackdropClose) onClose?.(e);
             }}
-            aria-labelledby="fixed-modal-title"
+            aria-labelledby={titleId}
             role="dialog"
             aria-modal="true"
         >
@@ -63,7 +64,7 @@ const FixedModal = ({
                 <div className="flex justify-between items-center p-4 border-b border-gray-200">
                     <h2 
                         className="text-xl font-semibold text-gray-800" 
-                        id="fixed-modal-title"
+                        id={titleId}
                     >
                         {title}
                     </h2>
@@ -82,6 +83,7 @@ const FixedModal = ({
         </div>,
         portalRootRef.current
     );
+
 
 };
 

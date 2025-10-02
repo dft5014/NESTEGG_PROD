@@ -3483,12 +3483,37 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
     return `$${value.toFixed(2)}`;
   };
 
+  // Count any rows that are not yet finalized
+  const pendingCount = useMemo(() => {
+    return Object.values(positions || {}).flat().filter(p => {
+      const s = getRowStatus(p);
+      return s === 'ready' || s === 'draft' || s === 'submitting';
+    }).length;
+  }, [positions, getRowStatus]);
+
+  // Only allow closing if nothing is in-flight or pending
+  const handleClose = useCallback((e) => {
+    if (isSubmitting || pendingCount > 0) {
+      setMessage({
+        type: 'warning',
+        text: isSubmitting
+          ? 'Import in progress… Please wait for it to finish.'
+          : `${pendingCount} item${pendingCount !== 1 ? 's' : ''} still pending. Submit or remove them before closing.`,
+        details: []
+      });
+      return; // block close
+    }
+    onClose?.(e);
+  }, [isSubmitting, pendingCount, onClose, setMessage]);
+
   return (
     <FixedModal
       isOpen={isOpen}
-      onClose={onClose}
+      onClose={handleClose}                          // guard closing
       title="Quick Position Entry"
       size="max-w-[1600px]"
+      zIndex="z-[9999]"
+      disableBackdropClose={isSubmitting || pendingCount > 0} // block backdrop while unsafe to close
     >
       <div className="h-[90vh] flex flex-col bg-gradient-to-br from-gray-50 via-slate-50 to-gray-100">
         {/* Enhanced Header with Action Bar */}
@@ -3510,8 +3535,13 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                   <div className="w-px h-5 bg-gray-300" />
                   
                   <button
-                    onClick={onClose}
-                    className="px-3 py-1.5 text-xs bg-white border border-gray-300 text-gray-700 font-medium rounded-md hover:bg-gray-50 hover:border-gray-400 transition-all"
+                    onClick={handleClose}
+                    disabled={isSubmitting || pendingCount > 0}
+                    className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all
+                      ${isSubmitting || pendingCount > 0
+                        ? 'bg-gray-200 text-gray-400 border border-gray-200 cursor-not-allowed'
+                        : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 hover:border-gray-400'}`}
+                    title={isSubmitting || pendingCount > 0 ? 'Finish or clear pending items before closing' : 'Close modal'}
                   >
                     Cancel
                   </button>
