@@ -1734,16 +1734,10 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
     } = useGroupedLiabilities();
 
     // Core state management
-
-    // Core state management
     const [currentView, setCurrentView] = useState('selection');
     const [accounts, setAccounts] = useState([]);
     const [positions, setPositions] = useState([]);
     const [liabilities, setLiabilities] = useState([]);
-
-
-
-    
     const [filteredAccounts, setFilteredAccounts] = useState([]);
     const [filteredPositions, setFilteredPositions] = useState([]);
     const [filteredLiabilities, setFilteredLiabilities] = useState([]);

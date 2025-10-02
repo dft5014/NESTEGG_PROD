@@ -393,21 +393,28 @@ function ModalShell({ isOpen, onClose, title, children }) {
   if (!isOpen) return null;
   return (
     <div className="fixed inset-0 z-[9999]" aria-modal="true" role="dialog">
-      <div className="absolute inset-0 bg-black/60" onClick={onClose} />
+      {/* Backdrop (click to close) */}
+      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+
       <div className="relative z-[10000] mx-auto my-6 w-full max-w-7xl">
-        <div className="rounded-2xl bg-white dark:bg-zinc-950 shadow-2xl overflow-hidden border border-zinc-200 dark:border-zinc-800">
-          <div className="flex items-center justify-between px-4 sm:px-6 py-3 border-b border-zinc-200 dark:border-zinc-800 bg-white/95 dark:bg-zinc-900/95 sticky top-0">
-            <h1 className="text-lg sm:text-xl font-bold text-zinc-900 dark:text-zinc-100">{title}</h1>
-            <button onClick={onClose} className="p-2 rounded-lg bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700">
-              <X className="w-5 h-5 text-zinc-900 dark:text-zinc-100" />
-            </button>
+        <div className="rounded-2xl bg-white shadow-2xl overflow-hidden border border-zinc-200">
+          {/* Header: centered title, light theme only */}
+          <div className="sticky top-0 px-4 sm:px-6 py-3 border-b border-zinc-200 bg-white/95">
+            <h1 className="text-lg sm:text-xl font-bold text-zinc-900 text-center">
+              {title}
+            </h1>
           </div>
-          <div className="p-4 sm:p-6 max-h-[85vh] overflow-auto">{children}</div>
+
+          {/* Body */}
+          <div className="p-4 sm:p-6 max-h-[85vh] overflow-auto">
+            {children}
+          </div>
         </div>
       </div>
     </div>
   );
 }
+
 
 
 const QuickStartModal = ({ isOpen, onClose }) => {
