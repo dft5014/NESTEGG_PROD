@@ -388,6 +388,28 @@ const SearchableDropdown = ({ options, value, onChange, placeholder, showLogos =
     );
 };
 
+// ---------- modal ----------
+function ModalShell({ isOpen, onClose, title, children }) {
+  if (!isOpen) return null;
+  return (
+    <div className="fixed inset-0 z-[9999]" aria-modal="true" role="dialog">
+      <div className="absolute inset-0 bg-black/60" onClick={onClose} />
+      <div className="relative z-[10000] mx-auto my-6 w-full max-w-7xl">
+        <div className="rounded-2xl bg-white dark:bg-zinc-950 shadow-2xl overflow-hidden border border-zinc-200 dark:border-zinc-800">
+          <div className="flex items-center justify-between px-4 sm:px-6 py-3 border-b border-zinc-200 dark:border-zinc-800 bg-white/95 dark:bg-zinc-900/95 sticky top-0">
+            <h1 className="text-lg sm:text-xl font-bold text-zinc-900 dark:text-zinc-100">{title}</h1>
+            <button onClick={onClose} className="p-2 rounded-lg bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700">
+              <X className="w-5 h-5 text-zinc-900 dark:text-zinc-100" />
+            </button>
+          </div>
+          <div className="p-4 sm:p-6 max-h-[85vh] overflow-auto">{children}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
 const QuickStartModal = ({ isOpen, onClose }) => {
     const [activeTab, setActiveTab] = useState('overview');
     const [selectedTemplate, setSelectedTemplate] = useState(null);
@@ -1035,7 +1057,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
 
 
     // Detect which template (by sheet name or headers)
-// Detect which template (by sheet name or headers)
+    // Detect which template (by sheet name or headers)
     const detectTemplateType = async (file) => {
         const buf = await readFileAsArrayBuffer(file);
         const XLSX = await import('xlsx');
@@ -2682,18 +2704,10 @@ const QuickStartModal = ({ isOpen, onClose }) => {
         );
 
 
-  if (!isOpen) return null;
+    if (!isOpen) return null;
 
     return (
-        <>
-            <div 
-                className="fixed inset-0 bg-gray-900/75 z-[9999] transition-opacity duration-300"
-                onClick={onClose}
-            />
-            
-            <div className="fixed inset-0 z-[9999] overflow-y-auto pointer-events-none">
-                <div className="flex min-h-full items-center justify-center p-4">
-                    <div className="relative w-full max-w-5xl bg-white rounded-2xl shadow-2xl transform transition-all duration-300 my-8 pointer-events-auto">
+        <ModalShell isOpen={isOpen} onClose={onClose} title="Quick Start">
                     <div className="absolute top-4 right-4">
                         <button
                             onClick={onClose}
@@ -2741,12 +2755,10 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                       {activeTab === 'upload' && renderUploadSection()}
                       {activeTab === 'success' && renderSuccessScreen()}
                   </div>
-                </div>
-            </div>
-        </div>
-    </>
-  );
+        </ModalShell>
+        );
 };
+
 // Quick Start Button Component
 export const QuickStartButton = ({ className = '' }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
