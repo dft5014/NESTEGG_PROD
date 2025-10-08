@@ -708,20 +708,6 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
   const [expandedSections, setExpandedSections] = useState({});
   const [accountExpandedSections, setAccountExpandedSections] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  /** UI/Autosave guards */
-  const [autosavePaused, setAutosavePaused] = useState(false);
-  const saveTimerRef = useRef(null);
-
-  /** Debounced draft saver (no-ops during submissions) */
-  const saveDraft = useCallback((key, data) => {
-    if (autosavePaused) return;
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(() => {
-      try { localStorage.setItem(key, JSON.stringify(data)); } catch {}
-    }, 400); // debounce to avoid main-thread thrash
-  }, [autosavePaused]);
-
   const [showValues, setShowValues] = useState(true);
   const [selectedIds, setSelectedIds] = useState(new Set());
   const seedAppliedRef = useRef(false);
@@ -1279,12 +1265,12 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
     }, [isOpen, seedId]);
 
 
-    // Persist working copy (debounced) keyed by seedId; paused during submissions
-    useEffect(() => {
-      if (!isOpen) return;
-      const key = `quickpositions:work:${seedId}`;
-      saveDraft(key, positions);
-    }, [isOpen, seedId, positions, saveDraft]);
+      // persist working copy keyed by seedId
+      useEffect(() => {
+        if (!isOpen) return;
+        const key = `quickpositions:work:${seedId}`;
+        localStorage.setItem(key, JSON.stringify(positions));
+      }, [isOpen, seedId, positions]);
 
 
   // If seeds arrived before accounts, fill in account_id once both are ready
@@ -1294,7 +1280,9 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
     backfillSeedAccountIds();
     // persist after backfill so it sticks
     const key = `quickpositions:work:${seedId}`;
-    saveDraft(key, positions);
+    setTimeout(() => {
+      try { localStorage.setItem(key, JSON.stringify(positions)); } catch {}
+    }, 0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, accounts.length]);
 
@@ -2034,13 +2022,11 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
     }
 
     setIsSubmitting(true);
-    setAutosavePaused(true); // <- prevent localStorage thrash during submit
     let successCount = 0;
     let errorCount = 0;
     const errors = [];
     const updatedPositions = { ...positions };
     const successfulPositionData = [];
-    const storageKey = `quickpositions:work:${seedId}`;
 
     try {
       const batches = [];
@@ -2172,33 +2158,18 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
         }
       }
 
-      // Apply statuses
+      // Rest of the function remains the same...
+
       setPositions(updatedPositions);
 
-      // Persist once at the end (still paused—resume after we decide navigation)
-      try { localStorage.setItem(storageKey, JSON.stringify(updatedPositions)); } catch {}
-
-      /** Decide whether to hand off to results:
-       * Only if there are NO remaining rows that are ready/draft/submitting
-       * (i.e., nothing left we could/should still submit)
-       */
-      const remaining = Object.values(updatedPositions).flat()
-        .filter(p => {
-          const s = p.status || getRowStatus(p);
-          return s === 'ready' || s === 'draft' || s === 'submitting';
-        }).length;
-
       if (successCount > 0) {
-        showMessage('success', `Successfully added ${successCount} position${successCount !== 1 ? 's' : ''}!`,
+        showMessage('success', `Successfully added ${successCount} positions!`, 
           errorCount > 0 ? [`${errorCount} positions failed`] : []
         );
-
-        if (remaining === 0 && onPositionsSaved) {
-          // only now is the queue truly drained – safe to hand off
+        
+        // Call the callback with successful positions
+        if (onPositionsSaved) {
           onPositionsSaved(successCount, successfulPositionData);
-        } else {
-          // keep user here and make it obvious there’s still work to do
-          showMessage('info', `Imported ${successCount}. ${remaining} item${remaining !== 1 ? 's' : ''} still pending in the queue.`, [], 3500);
         }
       } else {
         showMessage('error', 'Failed to add any positions', errors.slice(0, 5));
@@ -2209,7 +2180,6 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
       showMessage('error', 'Failed to submit positions', [error.message]);
     } finally {
       setIsSubmitting(false);
-      setAutosavePaused(false);
     }
   };
 
@@ -2229,13 +2199,11 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
 
     // We re-use the core of submitAll with a filtered "batches" list
     setIsSubmitting(true);
-    setAutosavePaused(true);
     let successCount = 0;
     let errorCount = 0;
     const errors = [];
     const updatedPositions = { ...positions };
     const successfulPositionData = [];
-    const storageKey = `quickpositions:work:${seedId}`;
 
     try {
       showMessage('info', `Submitting ${readyEntries.length} ready positions...`, [], 0);
@@ -2342,37 +2310,26 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
         }
       }
 
-    const pruned = Object.fromEntries(
-      Object.entries(updatedPositions).map(([t, arr]) => [t, (arr || []).filter(p => p.status !== 'added')])
-    );
-    setPositions(pruned);
-    try { localStorage.setItem(storageKey, JSON.stringify(pruned)); } catch {}
-
-    const remaining = Object.values(pruned).flat()
-      .filter(p => {
-        const s = p.status || getRowStatus(p);
-        return s === 'ready' || s === 'draft' || s === 'submitting';
-      }).length;
-
-    if (successCount > 0) {
-      showMessage('success', `Successfully added ${successCount} ready position${successCount !== 1 ? 's' : ''}!`,
-        errorCount > 0 ? [`${errorCount} positions failed`] : []
+      // prune out added rows so the queue shrinks
+      const pruned = Object.fromEntries(
+        Object.entries(updatedPositions).map(([t, arr]) => [t, (arr || []).filter(p => p.status !== 'added')])
       );
-      if (remaining === 0 && onPositionsSaved) {
-        onPositionsSaved(successCount, successfulPositionData);
-      } else {
-        showMessage('info', `${remaining} item${remaining !== 1 ? 's' : ''} remain in the queue. Submit again when ready.`, [], 3500);
-      }
-    } else {
-      showMessage('error', 'No ready positions were added', errors.slice(0, 5));
-    }
+      setPositions(pruned);
+      localStorage.setItem(`quickpositions:work:${seedId}`, JSON.stringify(pruned));
 
+      if (successCount > 0) {
+        showMessage('success', `Successfully added ${successCount} ready position${successCount !== 1 ? 's' : ''}!`,
+          errorCount > 0 ? [`${errorCount} positions failed`] : []
+        );
+        if (onPositionsSaved) onPositionsSaved(successCount, successfulPositionData);
+      } else {
+        showMessage('error', 'No ready positions were added', errors.slice(0, 5));
+      }
     } catch (e) {
       console.error('Error submitting ready positions:', e);
       showMessage('error', 'Failed to submit ready positions', [e.message]);
     } finally {
       setIsSubmitting(false);
-      setAutosavePaused(false);
     }
   };
 
@@ -2405,8 +2362,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
       Object.entries(updatedPositions).map(([t, arr]) => [t, (arr || []).filter(p => p.status !== 'added')])
     );
     setPositions(pruned);
-    const key = `quickpositions:work:${seedId}`;
-    saveDraft(key, pruned);
+    localStorage.setItem(`quickpositions:work:${seedId}`, JSON.stringify(pruned));
     showMessage('success', 'Cleared all successfully added positions');
   };
 
@@ -3483,37 +3439,12 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
     return `$${value.toFixed(2)}`;
   };
 
-  // Count any rows that are not yet finalized
-  const pendingCount = useMemo(() => {
-    return Object.values(positions || {}).flat().filter(p => {
-      const s = getRowStatus(p);
-      return s === 'ready' || s === 'draft' || s === 'submitting';
-    }).length;
-  }, [positions, getRowStatus]);
-
-  // Only allow closing if nothing is in-flight or pending
-  const handleClose = useCallback((e) => {
-    if (isSubmitting || pendingCount > 0) {
-      setMessage({
-        type: 'warning',
-        text: isSubmitting
-          ? 'Import in progress… Please wait for it to finish.'
-          : `${pendingCount} item${pendingCount !== 1 ? 's' : ''} still pending. Submit or remove them before closing.`,
-        details: []
-      });
-      return; // block close
-    }
-    onClose?.(e);
-  }, [isSubmitting, pendingCount, onClose, setMessage]);
-
   return (
     <FixedModal
       isOpen={isOpen}
-      onClose={handleClose}                          // guard closing
+      onClose={onClose}
       title="Quick Position Entry"
       size="max-w-[1600px]"
-      zIndex="z-[9999]"
-      disableBackdropClose={isSubmitting || pendingCount > 0} // block backdrop while unsafe to close
     >
       <div className="h-[90vh] flex flex-col bg-gradient-to-br from-gray-50 via-slate-50 to-gray-100">
         {/* Enhanced Header with Action Bar */}
@@ -3535,13 +3466,8 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                   <div className="w-px h-5 bg-gray-300" />
                   
                   <button
-                    onClick={handleClose}
-                    disabled={isSubmitting || pendingCount > 0}
-                    className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all
-                      ${isSubmitting || pendingCount > 0
-                        ? 'bg-gray-200 text-gray-400 border border-gray-200 cursor-not-allowed'
-                        : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 hover:border-gray-400'}`}
-                    title={isSubmitting || pendingCount > 0 ? 'Finish or clear pending items before closing' : 'Close modal'}
+                    onClick={onClose}
+                    className="px-3 py-1.5 text-xs bg-white border border-gray-300 text-gray-700 font-medium rounded-md hover:bg-gray-50 hover:border-gray-400 transition-all"
                   >
                     Cancel
                   </button>
