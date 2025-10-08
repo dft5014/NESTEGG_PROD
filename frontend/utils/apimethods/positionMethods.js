@@ -136,7 +136,116 @@ export const addSecurityPosition = async (accountId, positionData) => {
     throw error;
   }
 };
+/**
+ * New: Bulk-capable drop-in replacement. Call it exactly like addSecurityPosition(accountId, positionData).
+ * - If you pass a single position object, it packages it into a 1-row bulk request.
+ * - Returns the SAME shape as addSecurityPosition for the single-row case:
+ *     { message, position_id, position_value }
+ * - If you pass an array of positions, returns:
+ *     { success, inserted, results, failures }
+ * - Includes graceful fallback to the legacy single-row endpoint if the bulk route isn't available yet (404/405).
+ */
+export const addSecurityPositionBulk = async (accountId, positionDataOrArray) => {
+  const toYyyyMmDd = (d) => {
+    if (!d) return undefined;
+    if (typeof d === 'string') return d; // backend validates YYYY-MM-DD
+    if (d instanceof Date && !isNaN(d)) {
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      return `${yyyy}-${mm}-${dd}`;
+    }
+    return undefined;
+  };
 
+  const coerceOne = (p) => {
+    const shares = p.shares ?? p.quantity ?? p.units;
+    const price = p.price ?? p.purchase_price ?? p.entry_price ?? null;
+    return {
+      account_id: accountId,
+      ticker: (p.ticker || p.symbol || '').toUpperCase(),
+      shares: shares !== undefined && shares !== null ? Number(shares) : undefined,
+      price: price !== undefined && price !== null ? Number(price) : undefined,
+      cost_basis: p.cost_basis !== undefined && p.cost_basis !== null ? Number(p.cost_basis) : undefined,
+      purchase_date: toYyyyMmDd(p.purchase_date),
+      notes: p.notes,
+    };
+  };
+
+  const isArray = Array.isArray(positionDataOrArray);
+  const items = isArray ? positionDataOrArray : [positionDataOrArray];
+  const positions = items.map(coerceOne);
+
+  // Compute single-row value for compatibility if needed
+  const computeValue = (pos) => {
+    const s = Number(pos.shares || 0);
+    const pr = Number(pos.price || 0);
+    return s * pr;
+  };
+
+  // Attempt bulk endpoint
+  try {
+    const bulkResponse = await fetchWithAuth(`/positions/bulk/securities`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ positions }),
+    });
+
+    // If bulk route not found or not allowed, fall back transparently
+    if (bulkResponse.status === 404 || bulkResponse.status === 405) {
+      if (!isArray) {
+        // Single-row fallback to legacy route
+        return await addSecurityPosition(accountId, positionDataOrArray);
+      }
+      // For true bulk arrays, fail with a clear message so you can decide how to proceed
+      const txt = await bulkResponse.text();
+      throw new Error(`Bulk endpoint unavailable: ${txt || bulkResponse.statusText}`);
+    }
+
+    if (!bulkResponse.ok) {
+      const err = await bulkResponse.json().catch(() => ({}));
+      throw new Error(err.detail || 'Failed bulk add for securities');
+    }
+
+    const data = await bulkResponse.json();
+
+    // If caller passed a single object, adapt response to legacy shape
+    if (!isArray) {
+      const successRow = (data.results && data.results[0]) || null;
+      const failureRow = (data.failures && data.failures[0]) || null;
+
+      if (successRow) {
+        return {
+          message: 'Position added successfully (bulk)',
+          position_id: successRow.id,
+          position_value: computeValue(positions[0]),
+        };
+      }
+      const err = failureRow?.error || 'Unknown bulk insert error';
+      throw new Error(err);
+    }
+
+    // True bulk array: return bulk summary
+    return {
+      success: Boolean(data.success),
+      inserted: Number(data.inserted || 0),
+      results: Array.isArray(data.results) ? data.results : [],
+      failures: Array.isArray(data.failures) ? data.failures : [],
+    };
+  } catch (error) {
+    // As a last resort, if single row and bulk failed early (e.g., network proxy),
+    // try the legacy path so existing flows keep working.
+    if (!isArray) {
+      try {
+        return await addSecurityPosition(accountId, positionDataOrArray);
+      } catch (_) {
+        // Swallow inner and throw original for clearer debugging
+      }
+    }
+    console.error('Error adding security position (bulk):', error);
+    throw error;
+  }
+};
 /**
  * Add a cryptocurrency position to an account
  * @param {number} accountId - ID of the account to add position to

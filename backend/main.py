@@ -373,6 +373,18 @@ class PositionReconciliationData(BaseModel):
     reconcile_quantity: bool = True
     reconcile_value: bool = True
 
+class SecurityPositionIn(BaseModel):
+    account_id: int
+    ticker: str
+    shares: float
+    price: Optional[float] = None
+    cost_basis: Optional[float] = None
+    purchase_date: Optional[str] = Field(None, description="YYYY-MM-DD")
+    notes: Optional[str] = None
+
+class BulkPositionsIn(BaseModel):
+    positions: List[SecurityPositionIn]
+
 class ReconciliationRequest(BaseModel):
     account_id: int
     reconciliation_date: datetime
@@ -3130,6 +3142,128 @@ async def add_position(
         }
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Server error: {str(e)}")
+
+@app.post("/positions/bulk/securities")
+async def add_positions_bulk_securities(
+    body: BulkPositionsIn,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Bulk insert securities positions via one JSONB set-based statement.
+    - Validates account ownership IN SQL.
+    - Parses numerics/dates IN SQL (faster, consistent).
+    - Returns per-row results and per-row failures.
+    """
+    try:
+        if not body.positions:
+            return {"success": True, "inserted": 0, "results": [], "failures": []}
+
+        # Prepare compact json array (strings are OK; Postgres casts)
+        rows_json = json.dumps([p.dict() for p in body.positions])
+
+        # One round-trip: validate, insert, return both successes + failures
+        # Strategy:
+        # 1) j -> v: parse jsonb
+        # 2) v_ok: only rows where account is owned by user AND minimal required fields present
+        # 3) insert from v_ok with proper casts; collect RETURNING
+        # 4) failures: rows that didn't meet v_ok conditions (account not owned, missing fields, bad casts)
+        sql = """
+        WITH j AS (
+          SELECT jsonb_array_elements(CAST(:rows AS jsonb)) AS x
+        ),
+        v AS (
+          SELECT
+            (x->>'account_id')::int                         AS account_id,
+            UPPER(COALESCE(x->>'ticker',''))                AS ticker,
+            NULLIF(x->>'shares','')::numeric                AS shares,
+            NULLIF(x->>'price','')::numeric                 AS price,
+            NULLIF(x->>'cost_basis','')::numeric            AS cost_basis,
+            CASE
+              WHEN (x->>'purchase_date') ~ '^\d{4}-\d{2}-\d{2}$'
+              THEN to_date(x->>'purchase_date','YYYY-MM-DD')
+              ELSE NULL
+            END                                             AS purchase_date,
+            x                                               AS raw
+          FROM j
+        ),
+        v_own AS (
+          SELECT v.*
+          FROM v
+          JOIN accounts a
+            ON a.id = v.account_id
+           AND a.user_id = :user_id
+        ),
+        v_ok AS (
+          SELECT *
+          FROM v_own
+          WHERE ticker <> '' AND shares IS NOT NULL
+        ),
+        ins AS (
+          INSERT INTO positions (
+              account_id, ticker, shares, price, cost_basis, purchase_date, date
+          )
+          SELECT
+              account_id, ticker, shares, price, cost_basis,
+              purchase_date,
+              (NOW() AT TIME ZONE 'UTC')::timestamp
+          FROM v_ok
+          RETURNING id, account_id, ticker
+        )
+        SELECT
+          'success' AS kind,
+          i.id, i.account_id, i.ticker,
+          NULL::text AS error,
+          NULL::jsonb AS raw
+        FROM ins i
+
+        UNION ALL
+
+        -- Failures: not owned OR missing fields
+        SELECT
+          'failure' AS kind,
+          NULL::bigint AS id,
+          v.account_id, v.ticker,
+          CASE
+            WHEN a.id IS NULL THEN 'ACCOUNT_NOT_OWNED'
+            WHEN COALESCE(v.ticker,'') = '' THEN 'MISSING_TICKER'
+            WHEN v.shares IS NULL THEN 'MISSING_SHARES'
+            ELSE 'UNKNOWN_VALIDATION_ERROR'
+          END AS error,
+          v.raw AS raw
+        FROM v
+        LEFT JOIN accounts a
+               ON a.id = v.account_id AND a.user_id = :user_id
+        WHERE a.id IS NULL
+           OR COALESCE(v.ticker,'') = ''
+           OR v.shares IS NULL
+        ;
+        """
+
+        rows = await database.fetch_all(sql, {"rows": rows_json, "user_id": current_user["id"]})
+
+        results, failures = [], []
+        for r in rows:
+            d = dict(r)
+            if d["kind"] == "success":
+                results.append({"id": d["id"], "account_id": d["account_id"], "ticker": d["ticker"]})
+            else:
+                failures.append({
+                    "account_id": d["account_id"],
+                    "ticker": d["ticker"],
+                    "error": d["error"],
+                    "raw": d["raw"],
+                })
+
+        return {
+            "success": True,
+            "inserted": len(results),
+            "results": results,
+            "failures": failures,
+        }
+
+    except Exception as e:
+        import traceback; logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"Bulk insert failed: {e}")
 
 @app.put("/positions/{position_id}")
 async def update_security_position(position_id: int, position: PositionUpdate, current_user: dict = Depends(get_current_user)):
