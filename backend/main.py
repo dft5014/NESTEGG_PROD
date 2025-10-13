@@ -8678,43 +8678,86 @@ async def get_security_details(ticker: str, current_user: dict = Depends(get_cur
 # Search methods for adding positions for drop down
 @app.get("/securities/search")
 async def search_securities(query: str, current_user: dict = Depends(get_current_user)):
-    """Search securities from the database."""
+    """Search securities from the database with exact/prefix ticker priority."""
     try:
-        logger.info(f"Securities search request received: query='{query}'")
-        
-        if not query or len(query.strip()) < 1:
+        raw = (query or "").strip()
+        logger.info(f"Securities search request received: query='{raw}'")
+        if not raw:
             return {"results": []}
 
-        search_pattern = f"%{query.strip().lower()}%"
+        q = raw.lower()
+        # Patterns
+        # NOTE: Using LOWER(...) + LIKE keeps it provider-agnostic; on Postgres you can switch LIKE -> ILIKE.
+        prefix_pattern = f"{q}%"
+        search_pattern = f"%{q}%"
+
+        # For super-short queries (1 char), avoid noisy sector/industry matches.
+        include_sector_industry = len(q) >= 3
+
         params = {
-            "search_pattern": search_pattern
+            "q": q,
+            "prefix_pattern": prefix_pattern,
+            "search_pattern": search_pattern,
+            "include_sector_industry": include_sector_industry,
         }
-        logger.info(f"Executing search with params: {params}")
+        logger.info(f"Executing prioritized search with params: {{ q: '{q}', include_sector_industry: {include_sector_industry} }}")
 
-        # Query matching the schema
+        # Rank results by relevance:
+        # 0: exact ticker
+        # 1: ticker prefix
+        # 2: exact company name
+        # 3: company name prefix
+        # 4: ticker contains
+        # 5: company contains
+        # 6: sector/industry contains (only if len(q) >= 3)
         search_query = """
-        SELECT 
-            ticker,
-            asset_type,
-            company_name AS name,
-            COALESCE(current_price, 0) AS price,
-            sector,
-            industry,
-            market_cap
-        FROM securities
-            WHERE 
-                TRIM(LOWER(ticker)) LIKE :search_pattern OR
-                TRIM(LOWER(company_name)) LIKE :search_pattern OR
-                TRIM(LOWER(COALESCE(sector, ''))) LIKE :search_pattern OR
-                TRIM(LOWER(COALESCE(industry, ''))) LIKE :search_pattern
-
-        ORDER BY ticker ASC
-        LIMIT 20
+        WITH base AS (
+            SELECT 
+                ticker,
+                asset_type,
+                company_name AS name,
+                COALESCE(current_price, 0) AS price,
+                sector,
+                industry,
+                market_cap,
+                CASE
+                    WHEN LOWER(TRIM(ticker)) = :q THEN 0
+                    WHEN LOWER(TRIM(ticker)) LIKE :prefix_pattern THEN 1
+                    WHEN LOWER(TRIM(company_name)) = :q THEN 2
+                    WHEN LOWER(TRIM(company_name)) LIKE :prefix_pattern THEN 3
+                    WHEN LOWER(TRIM(ticker)) LIKE :search_pattern THEN 4
+                    WHEN LOWER(TRIM(company_name)) LIKE :search_pattern THEN 5
+                    WHEN :include_sector_industry
+                         AND (LOWER(TRIM(COALESCE(sector,'')))   LIKE :search_pattern
+                          OR  LOWER(TRIM(COALESCE(industry,''))) LIKE :search_pattern) THEN 6
+                    ELSE 7
+                END AS rank_key
+            FROM securities
+            WHERE
+                -- Keep the WHERE broad so the rank_key decides the order,
+                -- but gate sector/industry by include flag to reduce noise on tiny queries.
+                LOWER(TRIM(ticker)) = :q
+             OR LOWER(TRIM(ticker)) LIKE :prefix_pattern
+             OR LOWER(TRIM(company_name)) = :q
+             OR LOWER(TRIM(company_name)) LIKE :prefix_pattern
+             OR LOWER(TRIM(ticker)) LIKE :search_pattern
+             OR LOWER(TRIM(company_name)) LIKE :search_pattern
+             OR (:include_sector_industry AND (
+                    LOWER(TRIM(COALESCE(sector,'')))   LIKE :search_pattern OR
+                    LOWER(TRIM(COALESCE(industry,''))) LIKE :search_pattern
+                ))
+        )
+        SELECT
+            ticker, asset_type, name, price, sector, industry, market_cap
+        FROM base
+        WHERE rank_key < 7
+        ORDER BY rank_key ASC, market_cap DESC NULLS LAST, ticker ASC
+        LIMIT 20;
         """
 
         results = await database.fetch_all(search_query, params)
         result_count = len(results) if results else 0
-        logger.info(f"Search for '{query}' found {result_count} results")
+        logger.info(f"Prioritized search for '{raw}' found {result_count} results")
 
         formatted_results = [dict(row) for row in results]
         return {"results": formatted_results}
@@ -8727,6 +8770,7 @@ async def search_securities(query: str, current_user: dict = Depends(get_current
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to search securities: {str(e)}"
         )
+
 
 # Edit FX / Securities tables to add or edit existing in-scope securities
 @app.post("/securities", status_code=status.HTTP_201_CREATED)
