@@ -1667,11 +1667,21 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                         setImportMethod(null);
                         // Optionally refresh data or show success
                     }}
-                    onPositionsSaved={(count, positions) => {
-
-                                  // DEBUG: Log what we're receiving
-                        console.log('Received count:', count);
-                        console.log('Received positions:', positions);
+                        onPositionsSaved={(count, positions) => {
+                        console.log(`✓ Successfully imported ${count} positions`);
+                        setImportedPositions(prev => prev + count);
+                        setImportedPositionsData(prev => [...prev, ...positions]);
+                        
+                        // Store completion info
+                        setMessage({
+                            type: 'success',
+                            text: `Successfully imported ${count} positions!`,
+                            details: []
+                        });
+                        
+                        // Refresh DataStore ONLY after modal closes to prevent remount during import
+                        // This is key - don't refresh during the import process
+                        }
 
                         setImportedPositions(count);
                         setImportedPositionsData(positions);

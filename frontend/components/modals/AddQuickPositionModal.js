@@ -1168,6 +1168,31 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
       loadAccounts();
 
       const key = `quickpositions:work:${seedId}`;
+      
+      // Check for in-progress import and restore progress message
+      const progressKey = `quickposition:progress:${seedId}`;
+      const savedProgress = localStorage.getItem(progressKey);
+      if (savedProgress) {
+        try {
+          const progress = JSON.parse(savedProgress);
+          const age = Date.now() - progress.timestamp;
+          
+          // If progress is less than 10 minutes old, show it
+          if (age < 600000) {
+            showMessage(
+              'info',
+              `Import in progress: ${Math.round((progress.processed / progress.total) * 100)}%`,
+              [`✓ ${progress.successCount} succeeded, ✗ ${progress.errorCount} failed, ${progress.total - progress.processed} remaining`],
+              0
+            );
+          } else {
+            // Old progress, clean it up
+            localStorage.removeItem(progressKey);
+          }
+        } catch (e) {
+          console.error('Error restoring progress:', e);
+        }
+      }
 
       // one-time init per seedId
       if (initialSeedRef.current.seedId === seedId && !seedAppliedRef.current) {
@@ -2045,118 +2070,157 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
 
       showMessage('info', `Submitting ${batches.length} positions...`, [], 0);
 
-      for (let i = 0; i < batches.length; i++) {
-        const { type, position } = batches[i];
-        
-        // mark this row as submitting
-        updatedPositions[type] = (updatedPositions[type] || []).map(pos =>
-          pos.id === position.id ? { ...pos, status: 'submitting' } : pos
-        );
-        setPositions({ ...updatedPositions });
-        
-        // Yield to browser to allow UI updates every 5 submissions
-        if (i % 5 === 0) {
-          await new Promise(resolve => setTimeout(resolve, 0));
-        }
+      // Store progress in localStorage for persistence across remounts
+      const progressKey = `quickposition:progress:${seedId}`;
+      const saveProgress = () => {
+        localStorage.setItem(progressKey, JSON.stringify({
+          successCount,
+          errorCount,
+          processed: successCount + errorCount,
+          total: batches.length,
+          timestamp: Date.now()
+        }));
+      };
 
-        try {
-          const cleanData = {};
-          Object.entries(position.data).forEach(([key, value]) => {
-            if (value !== '' && value !== null && value !== undefined) {
-              cleanData[key] = value;
-            }
-          });
-
-          switch (type) {
-            case 'security':
-              await addSecurityPosition(position.data.account_id, cleanData);
-              break;
-            case 'crypto':
-
-              const cryptoData = {
-                coin_symbol: cleanData.symbol,
-                coin_type: cleanData.name || cleanData.symbol, 
-                quantity: cleanData.quantity,
-                purchase_price: cleanData.purchase_price,
-                purchase_date: cleanData.purchase_date,
-                account_id: cleanData.account_id,
-                storage_type: cleanData.storage_type || 'Exchange',  // Default to 'Exchange'
-                notes: cleanData.notes || null,
-                tags: cleanData.tags || [],
-                is_favorite: cleanData.is_favorite || false
-            };
-              console.log('Sending crypto data:', cryptoData);
-              await addCryptoPosition(position.data.account_id, cryptoData);
-              break;
-            case 'metal':
-              const metalData = {
-                metal_type: cleanData.metal_type,  // Now this comes from dropdown (Gold, Silver, etc.)
-                coin_symbol: cleanData.symbol,
-                quantity: cleanData.quantity,
-                unit: cleanData.unit || 'oz',
-                purchase_price: cleanData.purchase_price,
-                cost_basis: (cleanData.quantity || 0) * (cleanData.purchase_price || 0),
-                purchase_date: cleanData.purchase_date,
-                storage_location: cleanData.storage_location,
-                description: `${cleanData.symbol} - ${cleanData.name}`  // Include symbol and market name
-              };
-              
-              console.log('Sending metal data:', metalData);
-              await addMetalPosition(position.data.account_id, metalData);
-              break;
-            case 'otherAssets':
-              await addOtherAsset(cleanData);
-              break;
-            case 'cash':
-                const cashData = {
-                ...cleanData,
-                name: cleanData.cash_type,
-                interest_rate: cleanData.interest_rate ? cleanData.interest_rate / 100 : null
-              };
-              await addCashPosition(position.data.account_id, cashData);
-              break;
-          }
-          
-          successCount++;
-          
-          // Collect successful position data
-          const account = type !== 'otherAssets' 
-            ? accounts.find(a => a.id === position.data.account_id) 
-            : null;
+      // Batch processing with concurrency control
+      const BATCH_SIZE = 15; // Process 15 positions at once
+      const processBatch = async (batchItems) => {
+        return Promise.allSettled(
+          batchItems.map(async ({ type, position }) => {
+            // Mark as submitting
+            updatedPositions[type] = (updatedPositions[type] || []).map(pos =>
+              pos.id === position.id ? { ...pos, status: 'submitting' } : pos
+            );
             
-          successfulPositionData.push({
-            type,
-            ticker: position.data.ticker,
-            symbol: position.data.symbol,
-            asset_name: position.data.asset_name, // Changed from property_name
-            metal_type: position.data.metal_type,
-            currency: position.data.currency,
-            shares: position.data.shares,
-            quantity: position.data.quantity,
-            amount: position.data.amount,
-            account_name: account?.account_name || (type === 'otherAssets' ? 'Other Assets' : 'Unknown Account'),
-            account_id: position.data.account_id
-          });
-          
-          // Update position status
-          updatedPositions[type] = updatedPositions[type].map(pos => 
-            pos.id === position.id ? { ...pos, status: 'added' } : pos
-          );
-          
-          const progress = Math.round(((i + 1) / batches.length) * 100);
-          showMessage('info', `Submitting positions... ${progress}%`, [`${successCount} of ${batches.length} completed`], 0);
-          
-        } catch (error) {
-          console.error(`Error adding ${type} position:`, error);
-          errorCount++;
-          errors.push(`${assetTypes[type].name}: ${error.message || 'Unknown error'}`);
-          
-          // Update position status with error
-          updatedPositions[type] = updatedPositions[type].map(pos => 
-            pos.id === position.id ? { ...pos, status: 'error', errorMessage: error.message } : pos
-          );
-        }
+            try {
+              const cleanData = { ...position.data };
+              
+              // Submit based on type (existing logic)
+              switch (type) {
+                case 'security': {
+                  const securityData = {
+                    ticker: cleanData.ticker,
+                    shares: parseFloat(cleanData.shares),
+                    purchase_price: cleanData.purchase_price ? parseFloat(cleanData.purchase_price) : null,
+                    purchase_date: cleanData.purchase_date || null,
+                    notes: cleanData.notes || null
+                  };
+                  await addSecurityPosition(position.data.account_id, securityData);
+                  break;
+                }
+                case 'crypto': {
+                  const cryptoData = {
+                    symbol: cleanData.symbol,
+                    quantity: parseFloat(cleanData.quantity),
+                    purchase_price: cleanData.purchase_price ? parseFloat(cleanData.purchase_price) : null,
+                    purchase_date: cleanData.purchase_date || null,
+                    notes: cleanData.notes || null
+                  };
+                  await addCryptoPosition(position.data.account_id, cryptoData);
+                  break;
+                }
+                case 'metal': {
+                  const metalData = {
+                    metal_type: cleanData.metal_type,
+                    quantity: parseFloat(cleanData.quantity),
+                    purchase_price: cleanData.purchase_price ? parseFloat(cleanData.purchase_price) : null,
+                    purchase_date: cleanData.purchase_date || null,
+                    notes: cleanData.notes || null
+                  };
+                  await addMetalPosition(position.data.account_id, metalData);
+                  break;
+                }
+                case 'otherAssets': {
+                  const otherAssetData = {
+                    asset_name: cleanData.asset_name,
+                    current_value: parseFloat(cleanData.current_value),
+                    purchase_date: cleanData.purchase_date || null,
+                    notes: cleanData.notes || null
+                  };
+                  await addOtherAsset(otherAssetData);
+                  break;
+                }
+                case 'cash': {
+                  const cashData = {
+                    cash_type: cleanData.cash_type,
+                    amount: parseFloat(cleanData.amount),
+                    currency: cleanData.currency || 'USD',
+                    interest_rate: cleanData.interest_rate ? cleanData.interest_rate / 100 : null
+                  };
+                  await addCashPosition(position.data.account_id, cashData);
+                  break;
+                }
+              }
+              
+              // Success - collect data
+              successCount++;
+              const account = type !== 'otherAssets' 
+                ? accounts.find(a => a.id === position.data.account_id) 
+                : null;
+                
+              successfulPositionData.push({
+                type,
+                ticker: position.data.ticker,
+                symbol: position.data.symbol,
+                asset_name: position.data.asset_name,
+                metal_type: position.data.metal_type,
+                currency: position.data.currency,
+                shares: position.data.shares,
+                quantity: position.data.quantity,
+                amount: position.data.amount,
+                account_name: account?.account_name || (type === 'otherAssets' ? 'Other Assets' : 'Unknown Account'),
+                account_id: position.data.account_id
+              });
+              
+              // Mark as added
+              updatedPositions[type] = (updatedPositions[type] || []).map(pos =>
+                pos.id === position.id ? { ...pos, status: 'added' } : pos
+              );
+              
+              return { success: true, type, position };
+            } catch (error) {
+              errorCount++;
+              errors.push(`${assetTypes[type].name}: ${error.message || 'Unknown error'}`);
+              
+              // Mark as error
+              updatedPositions[type] = (updatedPositions[type] || []).map(pos =>
+                pos.id === position.id ? { ...pos, status: 'error', errorMessage: error.message } : pos
+              );
+              
+              throw error;
+            }
+          })
+        );
+      };
+
+      // Process in batches
+      for (let i = 0; i < batches.length; i += BATCH_SIZE) {
+        const batchItems = batches.slice(i, Math.min(i + BATCH_SIZE, batches.length));
+        
+        showMessage(
+          'info', 
+          `Processing batch ${Math.floor(i / BATCH_SIZE) + 1} of ${Math.ceil(batches.length / BATCH_SIZE)}...`,
+          [`${successCount + errorCount} of ${batches.length} completed`],
+          0
+        );
+        
+        await processBatch(batchItems);
+        
+        // Update UI with batch results
+        setPositions({ ...updatedPositions });
+        saveProgress();
+        
+        const progress = Math.round(((successCount + errorCount) / batches.length) * 100);
+        showMessage(
+          'info',
+          `Progress: ${progress}%`,
+          [`✓ ${successCount} succeeded, ✗ ${errorCount} failed, ${batches.length - (successCount + errorCount)} remaining`],
+          0
+        );
       }
+
+      // Clean up progress from localStorage
+      localStorage.removeItem(progressKey);
 
       // Rest of the function remains the same...
 
@@ -3649,6 +3713,50 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                 </div>
               </div>
             </div>
+
+            {/* View Results Button - Shows after positions are successfully added */}
+            {stats.added > 0 && (
+              <button
+                onClick={() => {
+                  // Refresh DataStore and close modal
+                  if (onPositionsSaved) {
+                    // Get all successfully added positions
+                    const addedPositions = [];
+                    Object.entries(positions).forEach(([type, typePositions]) => {
+                      typePositions.forEach(pos => {
+                        if (pos.status === 'added') {
+                          const account = type !== 'otherAssets' 
+                            ? accounts.find(a => a.id === pos.data.account_id) 
+                            : null;
+                          addedPositions.push({
+                            type,
+                            ticker: pos.data.ticker,
+                            symbol: pos.data.symbol,
+                            asset_name: pos.data.asset_name,
+                            metal_type: pos.data.metal_type,
+                            currency: pos.data.currency,
+                            shares: pos.data.shares,
+                            quantity: pos.data.quantity,
+                            amount: pos.data.amount,
+                            account_name: account?.account_name || (type === 'otherAssets' ? 'Other Assets' : 'Unknown Account'),
+                            account_id: pos.data.account_id
+                          });
+                        }
+                      });
+                    });
+                    onPositionsSaved(stats.added, addedPositions);
+                  }
+                  // Close modal - parent will refresh
+                  onClose();
+                }}
+                className="px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white font-semibold rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all duration-200 flex items-center space-x-2 shadow-md hover:shadow-lg"
+              >
+                <CheckCircle className="w-4 h-4" />
+                <span>View {stats.added} Added Position{stats.added !== 1 ? 's' : ''}</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            )}
+
 
             {/* Second Row: Filters (conditional) */}
             {viewMode && accounts.length > 0 && (
