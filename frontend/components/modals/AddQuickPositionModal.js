@@ -3,6 +3,7 @@ import FixedModal from './FixedModal';
 import { fetchAllAccounts } from '@/utils/apimethods/accountMethods';
 import { 
   addSecurityPosition, 
+  addSecurityPositionBulk,
   addCryptoPosition, 
   addMetalPosition, 
   addCashPosition,
@@ -2082,188 +2083,245 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
     const successfulPositionData = [];
 
     try {
-      const batches = [];
+      // Separate securities from other types
+      const securityBatches = [];
+      const otherBatches = [];
+      
       Object.entries(positions).forEach(([type, typePositions]) => {
         typePositions.forEach(pos => {
-          // Special validation for otherAssets vs other types
           const isValidPosition = type === 'otherAssets' 
             ? (pos.data.asset_name && pos.data.current_value)
             : (pos.data.account_id && Object.keys(pos.data).length > 1);
             
           if (isValidPosition) {
-            batches.push({ type, position: pos });
+            if (type === 'security') {
+              securityBatches.push({ type, position: pos });
+            } else {
+              otherBatches.push({ type, position: pos });
+            }
           }
         });
       });
 
-      showMessage('info', `Submitting ${batches.length} positions...`, [], 0);
+      const totalItems = securityBatches.length + otherBatches.length;
+      showMessage('info', `Submitting ${totalItems} positions...`, [], 0);
 
-      // Store progress in localStorage for persistence across remounts
+      // Store progress in localStorage
       const progressKey = `quickposition:progress:${seedId}`;
       const saveProgress = () => {
         localStorage.setItem(progressKey, JSON.stringify({
           successCount,
           errorCount,
           processed: successCount + errorCount,
-          total: batches.length,
+          total: totalItems,
           timestamp: Date.now()
         }));
       };
 
-      // Batch processing with concurrency control
-      const BATCH_SIZE = 15; // Process 15 positions at once
-      const processBatch = async (batchItems) => {
-        return Promise.allSettled(
-          batchItems.map(async ({ type, position }) => {
-            // Mark as submitting
-            updatedPositions[type] = (updatedPositions[type] || []).map(pos =>
-              pos.id === position.id ? { ...pos, status: 'submitting' } : pos
-            );
-            
-            try {
-              const cleanData = { ...position.data };
-              
-              // Submit based on type (existing logic)
-              switch (type) {
-                case 'security': {
-                  const securityData = {
-                    ticker: cleanData.ticker,
-                    shares: parseFloat(cleanData.shares),
-                    purchase_price: cleanData.purchase_price ? parseFloat(cleanData.purchase_price) : null,
-                    purchase_date: cleanData.purchase_date || null,
-                    notes: cleanData.notes || null
-                  };
-                  await addSecurityPosition(position.data.account_id, securityData);
-                  break;
-                }
-                case 'crypto': {
-                  const cryptoData = {
-                    symbol: cleanData.symbol,
-                    quantity: parseFloat(cleanData.quantity),
-                    purchase_price: cleanData.purchase_price ? parseFloat(cleanData.purchase_price) : null,
-                    purchase_date: cleanData.purchase_date || null,
-                    notes: cleanData.notes || null
-                  };
-                  await addCryptoPosition(position.data.account_id, cryptoData);
-                  break;
-                }
-                case 'metal': {
-                  const metalData = {
-                    metal_type: cleanData.metal_type,
-                    quantity: parseFloat(cleanData.quantity),
-                    purchase_price: cleanData.purchase_price ? parseFloat(cleanData.purchase_price) : null,
-                    purchase_date: cleanData.purchase_date || null,
-                    notes: cleanData.notes || null
-                  };
-                  await addMetalPosition(position.data.account_id, metalData);
-                  break;
-                }
-                case 'otherAssets': {
-                  const otherAssetData = {
-                    asset_name: cleanData.asset_name,
-                    current_value: parseFloat(cleanData.current_value),
-                    purchase_date: cleanData.purchase_date || null,
-                    notes: cleanData.notes || null
-                  };
-                  await addOtherAsset(otherAssetData);
-                  break;
-                }
-                case 'cash': {
-                  const cashData = {
-                    cash_type: cleanData.cash_type,
-                    amount: parseFloat(cleanData.amount),
-                    currency: cleanData.currency || 'USD',
-                    interest_rate: cleanData.interest_rate ? cleanData.interest_rate / 100 : null
-                  };
-                  await addCashPosition(position.data.account_id, cashData);
-                  break;
-                }
-              }
-              
-              // Success - collect data
-              successCount++;
-              const account = type !== 'otherAssets' 
-                ? accounts.find(a => a.id === position.data.account_id) 
-                : null;
-                
-              successfulPositionData.push({
-                type,
-                ticker: position.data.ticker,
-                symbol: position.data.symbol,
-                asset_name: position.data.asset_name,
-                metal_type: position.data.metal_type,
-                currency: position.data.currency,
-                shares: position.data.shares,
-                quantity: position.data.quantity,
-                amount: position.data.amount,
-                account_name: account?.account_name || (type === 'otherAssets' ? 'Other Assets' : 'Unknown Account'),
-                account_id: position.data.account_id
-              });
-              
-              // Mark as added
-              updatedPositions[type] = (updatedPositions[type] || []).map(pos =>
-                pos.id === position.id ? { ...pos, status: 'added' } : pos
-              );
-              
-              return { success: true, type, position };
-            } catch (error) {
-              errorCount++;
-              errors.push(`${assetTypes[type].name}: ${error.message || 'Unknown error'}`);
-              
-              // Mark as error
-              updatedPositions[type] = (updatedPositions[type] || []).map(pos =>
-                pos.id === position.id ? { ...pos, status: 'error', errorMessage: error.message } : pos
-              );
-              
-              throw error;
-            }
-          })
-        );
-      };
+      // ============ PART 1: BULK INSERT SECURITIES ============
+      if (securityBatches.length > 0) {
+        // Group securities by account_id
+        const securitiesByAccount = {};
+        securityBatches.forEach(({ position }) => {
+          const accountId = position.data.account_id;
+          if (!securitiesByAccount[accountId]) {
+            securitiesByAccount[accountId] = [];
+          }
+          securitiesByAccount[accountId].push(position);
+        });
 
-      // Process in batches
-      for (let i = 0; i < batches.length; i += BATCH_SIZE) {
-        const batchItems = batches.slice(i, Math.min(i + BATCH_SIZE, batches.length));
-        
-        showMessage(
-          'info', 
-          `Processing batch ${Math.floor(i / BATCH_SIZE) + 1} of ${Math.ceil(batches.length / BATCH_SIZE)}...`,
-          [`${successCount + errorCount} of ${batches.length} completed`],
-          0
-        );
-        
-        await processBatch(batchItems);
-        
-        // Update UI with batch results
-        setPositions({ ...updatedPositions });
-        saveProgress();
-        
-        const progress = Math.round(((successCount + errorCount) / batches.length) * 100);
-        showMessage(
-          'info',
-          `Progress: ${progress}%`,
-          [`✓ ${successCount} succeeded, ✗ ${errorCount} failed, ${batches.length - (successCount + errorCount)} remaining`],
-          0
-        );
+        const accountIds = Object.keys(securitiesByAccount);
+        showMessage('info', `Bulk importing ${securityBatches.length} securities across ${accountIds.length} accounts...`, [], 0);
+
+        // Process each account's securities in bulk
+        for (const accountId of accountIds) {
+          const accountPositions = securitiesByAccount[accountId];
+          const account = accounts.find(a => a.id === parseInt(accountId));
+          
+          // Mark all as submitting
+          accountPositions.forEach(pos => {
+            updatedPositions.security = (updatedPositions.security || []).map(p =>
+              p.id === pos.id ? { ...p, status: 'submitting' } : p
+            );
+          });
+          setPositions({ ...updatedPositions });
+
+          try {
+            // Prepare bulk payload
+            const bulkPayload = accountPositions.map(pos => ({
+              ticker: pos.data.ticker,
+              shares: parseFloat(pos.data.shares),
+              price: parseFloat(pos.data.price || 0),
+              cost_basis: parseFloat(pos.data.cost_basis || (pos.data.shares * pos.data.price)),
+              purchase_date: pos.data.purchase_date || null,
+              notes: pos.data.notes || null
+            }));
+
+            // Bulk insert
+            const result = await addSecurityPositionBulk(parseInt(accountId), bulkPayload);
+            const insertedCount = result.inserted || 0;
+
+            // Mark all as added
+            accountPositions.forEach((pos, index) => {
+              successCount++;
+              successfulPositionData.push({
+                type: 'security',
+                ticker: pos.data.ticker,
+                shares: pos.data.shares,
+                account_name: account?.account_name || 'Unknown Account',
+                account_id: accountId
+              });
+
+              updatedPositions.security = (updatedPositions.security || []).map(p =>
+                p.id === pos.id ? { ...p, status: 'added' } : p
+              );
+            });
+
+            showMessage('success', `✓ Bulk added ${insertedCount} securities to ${account?.account_name || 'account'}`, [], 2000);
+            
+          } catch (error) {
+            // Mark all as error for this account
+            accountPositions.forEach(pos => {
+              errorCount++;
+              errors.push(`Security ${pos.data.ticker}: ${error.message || 'Bulk insert failed'}`);
+              
+              updatedPositions.security = (updatedPositions.security || []).map(p =>
+                p.id === pos.id ? { ...p, status: 'error', errorMessage: error.message } : p
+              );
+            });
+          }
+
+          setPositions({ ...updatedPositions });
+          saveProgress();
+        }
       }
 
-      // Clean up progress from localStorage
+      // ============ PART 2: PARALLEL BATCH PROCESSING FOR OTHER TYPES ============
+      if (otherBatches.length > 0) {
+        const BATCH_SIZE = 15;
+        
+        const processBatch = async (batchItems) => {
+          return Promise.allSettled(
+            batchItems.map(async ({ type, position }) => {
+              updatedPositions[type] = (updatedPositions[type] || []).map(pos =>
+                pos.id === position.id ? { ...pos, status: 'submitting' } : pos
+              );
+              
+              try {
+                const cleanData = { ...position.data };
+                
+                switch (type) {
+                  case 'crypto': {
+                    const cryptoData = {
+                      symbol: cleanData.symbol,
+                      quantity: parseFloat(cleanData.quantity),
+                      purchase_price: cleanData.purchase_price ? parseFloat(cleanData.purchase_price) : null,
+                      purchase_date: cleanData.purchase_date || null,
+                      notes: cleanData.notes || null
+                    };
+                    await addCryptoPosition(position.data.account_id, cryptoData);
+                    break;
+                  }
+                  case 'metal': {
+                    const metalData = {
+                      metal_type: cleanData.metal_type,
+                      quantity: parseFloat(cleanData.quantity),
+                      purchase_price: cleanData.purchase_price ? parseFloat(cleanData.purchase_price) : null,
+                      purchase_date: cleanData.purchase_date || null,
+                      notes: cleanData.notes || null
+                    };
+                    await addMetalPosition(position.data.account_id, metalData);
+                    break;
+                  }
+                  case 'otherAssets': {
+                    const otherAssetData = {
+                      asset_name: cleanData.asset_name,
+                      current_value: parseFloat(cleanData.current_value),
+                      purchase_date: cleanData.purchase_date || null,
+                      notes: cleanData.notes || null
+                    };
+                    await addOtherAsset(otherAssetData);
+                    break;
+                  }
+                  case 'cash': {
+                    const cashData = {
+                      cash_type: cleanData.cash_type,
+                      amount: parseFloat(cleanData.amount),
+                      currency: cleanData.currency || 'USD',
+                      interest_rate: cleanData.interest_rate ? cleanData.interest_rate / 100 : null
+                    };
+                    await addCashPosition(position.data.account_id, cashData);
+                    break;
+                  }
+                }
+                
+                successCount++;
+                const account = type !== 'otherAssets' 
+                  ? accounts.find(a => a.id === position.data.account_id) 
+                  : null;
+                  
+                successfulPositionData.push({
+                  type,
+                  ticker: position.data.ticker,
+                  symbol: position.data.symbol,
+                  asset_name: position.data.asset_name,
+                  metal_type: position.data.metal_type,
+                  currency: position.data.currency,
+                  shares: position.data.shares,
+                  quantity: position.data.quantity,
+                  amount: position.data.amount,
+                  account_name: account?.account_name || (type === 'otherAssets' ? 'Other Assets' : 'Unknown Account'),
+                  account_id: position.data.account_id
+                });
+                
+                updatedPositions[type] = (updatedPositions[type] || []).map(pos =>
+                  pos.id === position.id ? { ...pos, status: 'added' } : pos
+                );
+                
+                return { success: true, type, position };
+              } catch (error) {
+                errorCount++;
+                errors.push(`${assetTypes[type].name}: ${error.message || 'Unknown error'}`);
+                
+                updatedPositions[type] = (updatedPositions[type] || []).map(pos =>
+                  pos.id === position.id ? { ...pos, status: 'error', errorMessage: error.message } : pos
+                );
+                
+                throw error;
+              }
+            })
+          );
+        };
+
+        // Process other types in batches
+        for (let i = 0; i < otherBatches.length; i += BATCH_SIZE) {
+          const batchItems = otherBatches.slice(i, Math.min(i + BATCH_SIZE, otherBatches.length));
+          
+          showMessage(
+            'info', 
+            `Processing batch ${Math.floor(i / BATCH_SIZE) + 1} of ${Math.ceil(otherBatches.length / BATCH_SIZE)}...`,
+            [`${successCount + errorCount} of ${totalItems} completed`],
+            0
+          );
+          
+          await processBatch(batchItems);
+          setPositions({ ...updatedPositions });
+          saveProgress();
+        }
+      }
+
+      // Clean up progress
       localStorage.removeItem(progressKey);
+      setPositions(updatedPositions);
 
-      // Rest of the function remains the same...
-
-    setPositions(updatedPositions);
-
-    if (successCount > 0) {
-      showMessage('success', `Successfully added ${successCount} positions!`, 
-        errorCount > 0 ? [`${errorCount} positions failed`] : []
-      );
-      
-      // DON'T call onPositionsSaved here - it causes parent refresh and modal remount
-      // User will click "View Results" button when ready
-    } else {
-      showMessage('error', 'Failed to add any positions', errors.slice(0, 5));
-    }
+      if (successCount > 0) {
+        showMessage('success', `Successfully added ${successCount} positions!`, 
+          errorCount > 0 ? [`${errorCount} positions failed`] : []
+        );
+        // DON'T call onPositionsSaved here - user clicks "View Results" when ready
+      } else {
+        showMessage('error', 'Failed to add any positions', errors.slice(0, 5));
+      }
 
     } catch (error) {
       console.error('Error submitting positions:', error);
