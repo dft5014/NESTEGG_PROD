@@ -3701,7 +3701,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                 </button>
                 
 
-                {/* Submit Buttons Group */}
+               {/* Submit Buttons Group */}
                 <div className="flex items-center space-x-2 px-3 py-2 bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg border border-green-200 shadow-sm">
                   <button
                     onClick={submitReadyOnly}
@@ -3743,11 +3743,9 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                 {stats.added > 0 && !isSubmitting && (
                   <button
                     onClick={() => {
-                      // Call parent callback with all added positions
                       if (onPositionsSaved) {
                         onPositionsSaved(stats.added, getAllAddedPositions());
                       }
-                      // Close modal - parent will refresh and show results
                       onClose();
                     }}
                     className="px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white font-semibold rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all duration-200 flex items-center space-x-2 shadow-md hover:shadow-lg animate-in slide-in-from-right duration-300"
@@ -3757,8 +3755,8 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                     <ArrowRight className="w-4 h-4" />
                   </button>
                 )}
-
-
+              </div>
+            </div>
 
             {/* Second Row: Filters (conditional) */}
             {viewMode && accounts.length > 0 && (
