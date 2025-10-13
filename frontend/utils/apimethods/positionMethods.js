@@ -352,7 +352,7 @@ export const deletePosition = async (positionId, type = 'security') => {
  * @returns {Promise} - Promise resolving to an array of security objects
  */
 export const searchSecurities = async (query) => {
-  if (!query || query.length < 1) return [];
+  if (!query || query.length < 2) return [];
   
   try {
     const response = await fetchWithAuth(`/securities/search?query=${encodeURIComponent(query)}`);
