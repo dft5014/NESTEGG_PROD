@@ -2070,6 +2070,18 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
 
   // Submit all
   const submitAll = async () => {
+    console.log('🚀 SUBMIT ALL CALLED - Using bulk endpoints!');
+    console.log('🔍 Available bulk functions:', {
+        addSecurityPositionBulk: typeof addSecurityPositionBulk,
+        addCashPositionBulk: typeof addCashPositionBulk,
+        addCryptoPositionBulk: typeof addCryptoPositionBulk,
+        addMetalPositionBulk: typeof addMetalPositionBulk,
+        addOtherAssetBulk: typeof addOtherAssetBulk
+    });
+    
+    
+    
+    
     if (stats.totalPositions === 0) {
       showMessage('error', 'No positions to submit', ['Add at least one position before submitting']);
       return;
@@ -2318,10 +2330,15 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
       }
 
       // ============ BULK INSERT CASH ============
+
       const cashAccounts = Object.keys(positionsByTypeAndAccount.cash);
       if (cashAccounts.length > 0) {
+      console.log('🔍 CASH BULK: About to process', cashAccounts.length, 'accounts');
+      console.log('🔍 addCashPositionBulk function exists?', typeof addCashPositionBulk);
         for (const accountId of cashAccounts) {
           const accountPositions = positionsByTypeAndAccount.cash[accountId];
+          console.log('🔍 Processing account', accountId, 'with', accountPositions.length, 'cash positions');
+
           const account = accounts.find(a => a.id === parseInt(accountId));
           
           accountPositions.forEach(pos => {
