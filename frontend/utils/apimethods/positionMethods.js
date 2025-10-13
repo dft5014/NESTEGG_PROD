@@ -177,6 +177,77 @@ export const addSecurityPositionBulk = async (accountId, positionData) => {
   return data;
 };
 
+export const addCashPositionBulk = async (accountId, positionData) => {
+  const payload = Array.isArray(positionData) ? positionData : [positionData];
+
+  const res = await fetchWithAuth(`/cash/${accountId}/bulk`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.detail || 'Failed to add cash position (bulk)');
+  }
+
+  return await res.json();
+};
+
+export const addCryptoPositionBulk = async (accountId, positionData) => {
+  const payload = Array.isArray(positionData) ? positionData : [positionData];
+
+  const res = await fetchWithAuth(`/crypto/${accountId}/bulk`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.detail || 'Failed to add crypto position (bulk)');
+  }
+
+  return await res.json();
+};
+
+export const addMetalPositionBulk = async (accountId, positionData) => {
+  const payload = Array.isArray(positionData) ? positionData : [positionData];
+
+  const res = await fetchWithAuth(`/metals/${accountId}/bulk`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.detail || 'Failed to add metal position (bulk)');
+  }
+
+  return await res.json();
+};
+
+export const addOtherAssetBulk = async (assetData) => {
+  const payload = Array.isArray(assetData) ? assetData : [assetData];
+
+  const res = await fetchWithAuth(`/other-assets/bulk`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.detail || 'Failed to add other asset (bulk)');
+  }
+
+  return await res.json();
+};
+
+
+
+
 /**
  * Add a cryptocurrency position to an account
  * @param {number} accountId - ID of the account to add position to

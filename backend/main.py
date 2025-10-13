@@ -3858,7 +3858,266 @@ async def delete_metal_position(position_id: int, current_user: dict = Depends(g
     except Exception as e:
         logger.error(f"Error deleting metal position: {str(e)}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to delete metal position: {str(e)}")
+## BULK IMPORTS ###
+# === CASH BULK ===
+@app.post("/cash/{account_id}/bulk", status_code=status.HTTP_201_CREATED)
+async def add_cash_positions_bulk(
+    account_id: int,
+    positions: List[CashPositionCreate],
+    current_user: dict = Depends(get_current_user),
+):
+    try:
+        account = await database.fetch_one(
+            accounts.select().where(
+                (accounts.c.id == account_id) & (accounts.c.user_id == current_user["id"])
+            )
+        )
+        if not account:
+            raise HTTPException(status_code=404, detail="Account not found or access denied")
 
+        if not positions:
+            return {"success": True, "inserted": 0, "results": []}
+
+        rows_json = json.dumps([p.dict() for p in positions])
+
+        rows = await database.fetch_all(
+            """
+            WITH v AS (
+              SELECT *
+              FROM jsonb_to_recordset(CAST(:rows AS jsonb)) AS r(
+                 cash_type text,
+                 name text,
+                 amount numeric,
+                 interest_rate numeric,
+                 interest_period text,
+                 maturity_date text,
+                 notes text
+              )
+            ),
+            ins AS (
+              INSERT INTO cash_positions (
+                 account_id, cash_type, name, amount, interest_rate, interest_period,
+                 maturity_date, notes
+              )
+              SELECT
+                 :account_id,
+                 v.cash_type,
+                 v.name,
+                 v.amount,
+                 v.interest_rate,
+                 v.interest_period,
+                 to_date(v.maturity_date, 'YYYY-MM-DD'),
+                 v.notes
+              FROM v
+              RETURNING id
+            )
+            SELECT id FROM ins;
+            """,
+            {"rows": rows_json, "account_id": account_id},
+        )
+
+        ids = [r["id"] for r in rows]
+        return {"success": True, "inserted": len(ids), "results": [{"id": i} for i in ids]}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Bulk insert failed: {e}")
+
+
+# === CRYPTO BULK ===
+@app.post("/crypto/{account_id}/bulk", status_code=status.HTTP_201_CREATED)
+async def add_crypto_positions_bulk(
+    account_id: int,
+    positions: List[CryptoPositionCreate],
+    current_user: dict = Depends(get_current_user),
+):
+    try:
+        account = await database.fetch_one(
+            accounts.select().where(
+                (accounts.c.id == account_id) & (accounts.c.user_id == current_user["id"])
+            )
+        )
+        if not account:
+            raise HTTPException(status_code=404, detail="Account not found or access denied")
+
+        if not positions:
+            return {"success": True, "inserted": 0, "results": []}
+
+        rows_json = json.dumps([p.dict() for p in positions])
+
+        rows = await database.fetch_all(
+            """
+            WITH v AS (
+              SELECT *
+              FROM jsonb_to_recordset(CAST(:rows AS jsonb)) AS r(
+                 coin_type text,
+                 coin_symbol text,
+                 quantity numeric,
+                 purchase_price numeric,
+                 purchase_date text,
+                 storage_type text,
+                 notes text,
+                 tags jsonb,
+                 is_favorite boolean
+              )
+            ),
+            ins AS (
+              INSERT INTO crypto_positions (
+                 account_id, coin_type, coin_symbol, quantity, purchase_price,
+                 purchase_date, storage_type, notes, tags, is_favorite
+              )
+              SELECT
+                 :account_id,
+                 v.coin_type,
+                 v.coin_symbol,
+                 v.quantity,
+                 v.purchase_price,
+                 to_date(v.purchase_date, 'YYYY-MM-DD'),
+                 v.storage_type,
+                 v.notes,
+                 COALESCE(v.tags, '[]'::jsonb),
+                 COALESCE(v.is_favorite, false)
+              FROM v
+              RETURNING id
+            )
+            SELECT id FROM ins;
+            """,
+            {"rows": rows_json, "account_id": account_id},
+        )
+
+        ids = [r["id"] for r in rows]
+        return {"success": True, "inserted": len(ids), "results": [{"id": i} for i in ids]}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Bulk insert failed: {e}")
+
+
+# === METALS BULK ===
+@app.post("/metals/{account_id}/bulk", status_code=status.HTTP_201_CREATED)
+async def add_metal_positions_bulk(
+    account_id: int,
+    positions: List[MetalPositionCreate],
+    current_user: dict = Depends(get_current_user),
+):
+    try:
+        account = await database.fetch_one(
+            accounts.select().where(
+                (accounts.c.id == account_id) & (accounts.c.user_id == current_user["id"])
+            )
+        )
+        if not account:
+            raise HTTPException(status_code=404, detail="Account not found or access denied")
+
+        if not positions:
+            return {"success": True, "inserted": 0, "results": []}
+
+        rows_json = json.dumps([p.dict() for p in positions])
+
+        rows = await database.fetch_all(
+            """
+            WITH v AS (
+              SELECT *
+              FROM jsonb_to_recordset(CAST(:rows AS jsonb)) AS r(
+                 metal_type text,
+                 coin_symbol text,
+                 quantity numeric,
+                 unit text,
+                 purity numeric,
+                 purchase_price numeric,
+                 cost_basis numeric,
+                 purchase_date text,
+                 storage_location text,
+                 description text
+              )
+            ),
+            ins AS (
+              INSERT INTO metal_positions (
+                 account_id, metal_type, coin_symbol, quantity, unit, purity,
+                 purchase_price, cost_basis, purchase_date, storage_location, description
+              )
+              SELECT
+                 :account_id,
+                 v.metal_type,
+                 v.coin_symbol,
+                 v.quantity,
+                 v.unit,
+                 v.purity,
+                 v.purchase_price,
+                 COALESCE(v.cost_basis, v.purchase_price),
+                 to_date(v.purchase_date, 'YYYY-MM-DD'),
+                 v.storage_location,
+                 v.description
+              FROM v
+              RETURNING id
+            )
+            SELECT id FROM ins;
+            """,
+            {"rows": rows_json, "account_id": account_id},
+        )
+
+        ids = [r["id"] for r in rows]
+        return {"success": True, "inserted": len(ids), "results": [{"id": i} for i in ids]}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Bulk insert failed: {e}")
+
+
+# === OTHER ASSETS BULK ===
+@app.post("/other-assets/bulk", status_code=status.HTTP_201_CREATED)
+async def add_other_assets_bulk(
+    assets: List[OtherAssetCreate],
+    current_user: dict = Depends(get_current_user),
+):
+    try:
+        if not assets:
+            return {"success": True, "inserted": 0, "results": []}
+
+        # Validate all asset types
+        valid_types = ['real_estate', 'vehicle', 'collectible', 'jewelry', 'art', 'equipment', 'other']
+        for asset in assets:
+            if asset.asset_type not in valid_types:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST, 
+                    detail=f"Invalid asset type. Must be one of: {', '.join(valid_types)}"
+                )
+
+        rows_json = json.dumps([a.dict() for a in assets])
+
+        rows = await database.fetch_all(
+            """
+            WITH v AS (
+              SELECT *
+              FROM jsonb_to_recordset(CAST(:rows AS jsonb)) AS r(
+                 asset_name text,
+                 asset_type text,
+                 cost numeric,
+                 current_value numeric,
+                 purchase_date text,
+                 notes text
+              )
+            ),
+            ins AS (
+              INSERT INTO other_assets (
+                 user_id, asset_name, asset_type, cost, current_value,
+                 purchase_date, notes
+              )
+              SELECT
+                 :user_id,
+                 v.asset_name,
+                 v.asset_type,
+                 v.cost,
+                 v.current_value,
+                 to_date(v.purchase_date, 'YYYY-MM-DD'),
+                 v.notes
+              FROM v
+              RETURNING id
+            )
+            SELECT id FROM ins;
+            """,
+            {"rows": rows_json, "user_id": current_user["id"]},
+        )
+
+        ids = [r["id"] for r in rows]
+        return {"success": True, "inserted": len(ids), "results": [{"id": str(i)} for i in ids]}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Bulk insert failed: {e}")
+        
 # ---- Real Estate Endpoints ------ 
 @app.get("/realestate/{account_id}")
 async def get_real_estate_positions(account_id: int, current_user: dict = Depends(get_current_user)):
