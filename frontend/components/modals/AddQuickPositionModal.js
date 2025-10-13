@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import FixedModal from './FixedModal';
 import { fetchAllAccounts } from '@/utils/apimethods/accountMethods';
 import { 
-  addSecurityPosition, 
+  addSecurityPositionBulk as addSecurityPosition, 
   addCryptoPosition, 
   addMetalPosition, 
   addCashPosition,
