@@ -1975,6 +1975,34 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
     };
   }, [positions]);
   
+  // Helper to get all successfully added positions
+  const getAllAddedPositions = useCallback(() => {
+    const addedPositions = [];
+    Object.entries(positions).forEach(([type, typePositions]) => {
+      typePositions.forEach(pos => {
+        if (pos.status === 'added') {
+          const account = type !== 'otherAssets' 
+            ? accounts.find(a => a.id === pos.data.account_id) 
+            : null;
+          addedPositions.push({
+            type,
+            ticker: pos.data.ticker,
+            symbol: pos.data.symbol,
+            asset_name: pos.data.asset_name,
+            metal_type: pos.data.metal_type,
+            currency: pos.data.currency,
+            shares: pos.data.shares,
+            quantity: pos.data.quantity,
+            amount: pos.data.amount,
+            account_name: account?.account_name || (type === 'otherAssets' ? 'Other Assets' : 'Unknown Account'),
+            account_id: pos.data.account_id
+          });
+        }
+      });
+    });
+    return addedPositions;
+  }, [positions, accounts]);
+
   // Validate positions
   const validatePositions = () => {
     let isValid = true;
@@ -2224,20 +2252,18 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
 
       // Rest of the function remains the same...
 
-      setPositions(updatedPositions);
+    setPositions(updatedPositions);
 
-      if (successCount > 0) {
-        showMessage('success', `Successfully added ${successCount} positions!`, 
-          errorCount > 0 ? [`${errorCount} positions failed`] : []
-        );
-        
-        // Call the callback with successful positions
-        if (onPositionsSaved) {
-          onPositionsSaved(successCount, successfulPositionData);
-        }
-      } else {
-        showMessage('error', 'Failed to add any positions', errors.slice(0, 5));
-      }
+    if (successCount > 0) {
+      showMessage('success', `Successfully added ${successCount} positions!`, 
+        errorCount > 0 ? [`${errorCount} positions failed`] : []
+      );
+      
+      // DON'T call onPositionsSaved here - it causes parent refresh and modal remount
+      // User will click "View Results" button when ready
+    } else {
+      showMessage('error', 'Failed to add any positions', errors.slice(0, 5));
+    }
 
     } catch (error) {
       console.error('Error submitting positions:', error);
@@ -2385,7 +2411,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
         showMessage('success', `Successfully added ${successCount} ready position${successCount !== 1 ? 's' : ''}!`,
           errorCount > 0 ? [`${errorCount} positions failed`] : []
         );
-        if (onPositionsSaved) onPositionsSaved(successCount, successfulPositionData);
+        // DON'T call onPositionsSaved here - it causes parent refresh and modal remount
       } else {
         showMessage('error', 'No ready positions were added', errors.slice(0, 5));
       }
@@ -3674,6 +3700,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                   )}
                 </button>
                 
+
                 {/* Submit Buttons Group */}
                 <div className="flex items-center space-x-2 px-3 py-2 bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg border border-green-200 shadow-sm">
                   <button
@@ -3711,51 +3738,26 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                     )}
                   </button>
                 </div>
-              </div>
-            </div>
 
-            {/* View Results Button - Shows after positions are successfully added */}
-            {stats.added > 0 && (
-              <button
-                onClick={() => {
-                  // Refresh DataStore and close modal
-                  if (onPositionsSaved) {
-                    // Get all successfully added positions
-                    const addedPositions = [];
-                    Object.entries(positions).forEach(([type, typePositions]) => {
-                      typePositions.forEach(pos => {
-                        if (pos.status === 'added') {
-                          const account = type !== 'otherAssets' 
-                            ? accounts.find(a => a.id === pos.data.account_id) 
-                            : null;
-                          addedPositions.push({
-                            type,
-                            ticker: pos.data.ticker,
-                            symbol: pos.data.symbol,
-                            asset_name: pos.data.asset_name,
-                            metal_type: pos.data.metal_type,
-                            currency: pos.data.currency,
-                            shares: pos.data.shares,
-                            quantity: pos.data.quantity,
-                            amount: pos.data.amount,
-                            account_name: account?.account_name || (type === 'otherAssets' ? 'Other Assets' : 'Unknown Account'),
-                            account_id: pos.data.account_id
-                          });
-                        }
-                      });
-                    });
-                    onPositionsSaved(stats.added, addedPositions);
-                  }
-                  // Close modal - parent will refresh
-                  onClose();
-                }}
-                className="px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white font-semibold rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all duration-200 flex items-center space-x-2 shadow-md hover:shadow-lg"
-              >
-                <CheckCircle className="w-4 h-4" />
-                <span>View {stats.added} Added Position{stats.added !== 1 ? 's' : ''}</span>
-                <ArrowRight className="w-4 h-4" />
-              </button>
-            )}
+                {/* View Results Button - Shows after positions are successfully added */}
+                {stats.added > 0 && !isSubmitting && (
+                  <button
+                    onClick={() => {
+                      // Call parent callback with all added positions
+                      if (onPositionsSaved) {
+                        onPositionsSaved(stats.added, getAllAddedPositions());
+                      }
+                      // Close modal - parent will refresh and show results
+                      onClose();
+                    }}
+                    className="px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white font-semibold rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all duration-200 flex items-center space-x-2 shadow-md hover:shadow-lg animate-in slide-in-from-right duration-300"
+                  >
+                    <CheckCircle className="w-4 h-4" />
+                    <span>View {stats.added} Added Position{stats.added !== 1 ? 's' : ''}</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                )}
+
 
 
             {/* Second Row: Filters (conditional) */}
