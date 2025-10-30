@@ -91,6 +91,7 @@ export const useAccounts = () => {
   return {
     accounts: Array.isArray(processedAccounts) ? processedAccounts : [],
     summary: summaryMetrics || null,
+    history: accounts?.history || {}, // Account history indexed by account_id
     loading: Boolean(accounts?.loading),
     error: accounts?.error || null,
     lastFetched: accounts?.lastFetched || null,
