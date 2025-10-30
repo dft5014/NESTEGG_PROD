@@ -154,13 +154,12 @@ function LoginContent() {
 
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1 }} className="hidden lg:block mt-12">
               <p className="text-gray-400 mb-4">Ready to take control of your financial future?</p>
-              <button
-                onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-                className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-500 text-white font-semibold rounded-lg hover:from-blue-600 hover:to-purple-600 transition-all transform hover:scale-[1.02]"
-              >
-                Get Started Now
-                <ArrowRight className="ml-2 h-5 w-5" />
-              </button>
+              <Link href="/signup">
+                <button className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-500 text-white font-semibold rounded-lg hover:from-blue-600 hover:to-purple-600 transition-all transform hover:scale-[1.02]">
+                  Get Started Now
+                  <ArrowRight className="ml-2 h-5 w-5" />
+                </button>
+              </Link>
             </motion.div>
           </div>
         </div>
@@ -204,22 +203,22 @@ function LoginContent() {
               <SystemStatusBadge status={systemStatus} />
             </div>
 
-            <div className="mt-8 flex items-center justify-center space-x-6 text-gray-500">
+            <div className="mt-8 flex items-center justify-center text-gray-500">
               <div className="flex items-center space-x-2">
-                <Shield className="h-4 w-4" />
-                <span className="text-xs">Bank-level security</span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <ShieldCheck className="h-4 w-4" />
-                <span className="text-xs">SSL encrypted</span>
+                <ShieldCheck className="h-5 w-5" />
+                <span className="text-sm font-medium">No Credentials Shared Ever</span>
               </div>
             </div>
 
             <p className="mt-6 text-center text-xs text-gray-500">
               By signing in, you agree to our{' '}
-              <a href="#" className="text-blue-400 hover:underline">Terms of Service</a>{' '}
+              <Link href="/terms-of-service" className="text-blue-400 hover:underline">
+                Terms of Service
+              </Link>{' '}
               and{' '}
-              <a href="#" className="text-blue-400 hover:underline">Privacy Policy</a>
+              <Link href="/privacy-policy" className="text-blue-400 hover:underline">
+                Privacy Policy
+              </Link>
             </p>
           </motion.div>
         </div>

@@ -4,7 +4,7 @@ import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import {
-  Shield, Star, Sparkles, Timer, UserPlus, CreditCard, PieChart, Rocket, Trophy
+  Shield, Sparkles, Timer, UserPlus, CreditCard, PieChart, Rocket
 } from 'lucide-react';
 
 // Clerk
@@ -100,19 +100,6 @@ const SignupContent = () => {
     message: 'Checking system status...'
   });
 
-  const [stats, setStats] = useState({
-    avgSavings: 0,
-    timeToSetup: 0,
-    userSatisfaction: 0
-  });
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setStats({ avgSavings: 47, timeToSetup: 5, userSatisfaction: 98 });
-    }, 500);
-    return () => clearTimeout(timer);
-  }, []);
-
   useEffect(() => {
     const checkStatus = async () => {
       try {
@@ -131,7 +118,7 @@ const SignupContent = () => {
 
   const benefits = [
     { icon: <Rocket className="h-6 w-6" />, title: "Get Started in Minutes", description: "No bank connections needed—just add your positions" },
-    { icon: <Trophy className="h-6 w-6" />, title: "Join 10,000+ Investors", description: "Trusted by thousands to track over $2.8B in assets" },
+    { icon: <Shield className="h-6 w-6" />, title: "Complete Privacy Protection", description: "Understand investment performance across all brokerage accounts without ever sharing a passcode or credential" },
     { icon: <Sparkles className="h-6 w-6" />, title: "Free Forever Core Features", description: "Track unlimited accounts and positions at no cost" }
   ];
 
@@ -174,25 +161,7 @@ const SignupContent = () => {
               </p>
             </motion.div>
 
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="grid grid-cols-3 gap-6 mb-12">
-              <div className="text-center">
-                <div className="text-3xl lg:text-4xl font-bold text-white mb-1">{stats.avgSavings}%</div>
-                <p className="text-sm text-gray-400">Avg. portfolio growth</p>
-                <p className="text-xs text-gray-500">vs. untracked</p>
-              </div>
-              <div className="text-center">
-                <div className="text-3xl lg:text-4xl font-bold text-white mb-1">{stats.timeToSetup}</div>
-                <p className="text-sm text-gray-400">Minutes to setup</p>
-                <p className="text-xs text-gray-500">on average</p>
-              </div>
-              <div className="text-center">
-                <div className="text-3xl lg:text-4xl font-bold text-white mb-1">{stats.userSatisfaction}%</div>
-                <p className="text-sm text-gray-400">User satisfaction</p>
-                <p className="text-xs text-gray-500">5-star reviews</p>
-              </div>
-            </motion.div>
-
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }} className="mb-12">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }} className="mb-12">
               <h3 className="text-xl font-semibold text-white mb-6">Your journey to financial clarity in 3 simple steps</h3>
               <div className="space-y-4">
                 {setupSteps.map((step, index) => (
@@ -217,31 +186,6 @@ const SignupContent = () => {
                   <p className="text-gray-400 text-xs">{benefit.description}</p>
                 </div>
               ))}
-            </motion.div>
-
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.7 }} className="bg-white/5 backdrop-blur-sm rounded-lg p-6 border border-white/10">
-              <div className="flex items-center space-x-4 mb-4">
-                <div className="flex -space-x-2">
-                  {[...Array(4)].map((_, i) => (
-                    <div key={i} className="w-10 h-10 bg-gradient-to-br from-blue-400 to-purple-400 rounded-full border-2 border-gray-800" />
-                  ))}
-                </div>
-                <div>
-                  <p className="text-white font-semibold">Join 10,000+ investors</p>
-                  <p className="text-gray-400 text-sm">who trust NestEgg daily</p>
-                </div>
-              </div>
-              <div className="flex items-center space-x-1 mb-2">
-                {[...Array(5)].map((_, i) => (
-                  <Star key={i} className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                ))}
-                <span className="text-white font-semibold ml-2">4.9</span>
-                <span className="text-gray-400 text-sm">(2,847 reviews)</span>
-              </div>
-              <p className="text-gray-300 text-sm italic">
-                "The privacy-first approach sold me instantly. Finally, a tracker that doesn't need my bank passwords!"
-              </p>
-              <p className="text-gray-400 text-xs mt-2">- Alex K., verified user</p>
             </motion.div>
           </div>
         </div>
