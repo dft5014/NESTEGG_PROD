@@ -208,14 +208,14 @@ const SignupContent = () => {
             <div className="bg-gray-800/50 backdrop-blur-sm rounded-2xl p-8 shadow-2xl border border-gray-700">
               <div className="text-center mb-6">
                 <h2 className="text-2xl font-bold text-white mb-2">Create your free account</h2>
-                <p className="text-gray-400">No credit card required • Setup in 60 seconds</p>
+                <p className="text-gray-400">Setup in 60 seconds</p>
               </div>
 
               <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} className="bg-gradient-to-r from-blue-500/20 to-purple-500/20 border border-blue-500/50 rounded-lg p-3 mb-6">
                 <div className="flex items-center">
                   <Sparkles className="h-5 w-5 text-yellow-400 mr-2" />
                   <span className="text-white text-sm font-medium">
-                    Limited Time: Get premium features free for 3 months!
+                    Limited Time: Get premium features free during free trial!
                   </span>
                 </div>
               </motion.div>
@@ -245,7 +245,7 @@ const SignupContent = () => {
               </div>
               <div className="flex items-center space-x-2">
                 <Shield className="h-4 w-4" />
-                <span className="text-xs">Bank-level security</span>
+                <span className="text-xs">No Credential Sharing Required</span>
               </div>
             </div>
           </motion.div>
