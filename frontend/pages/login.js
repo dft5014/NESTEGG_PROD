@@ -2,9 +2,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
-  Shield, ShieldCheck, Star, Zap, Clock, Target, Activity, ArrowRight
+  Shield, ShieldCheck, Zap, Clock, Target, Activity, ArrowRight
 } from 'lucide-react';
 
 // Clerk components
@@ -46,28 +46,6 @@ function LoginContent() {
     message: 'Checking system status...'
   });
 
-  const [stats, setStats] = useState({
-    portfolioValue: 0,
-    users: 0,
-    assets: 0,
-    timeToUpdate: 0
-  });
-
-  const [activeTestimonial, setActiveTestimonial] = useState(0);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setStats({ portfolioValue: 2.8, users: 10000, assets: 250000, timeToUpdate: 20 });
-    }, 500);
-    const testimonialInterval = setInterval(() => {
-      setActiveTestimonial((prev) => (prev + 1) % testimonials.length);
-    }, 5000);
-    return () => {
-      clearTimeout(timer);
-      clearInterval(testimonialInterval);
-    };
-  }, []);
-
   useEffect(() => {
     const checkStatus = async () => {
       try {
@@ -80,27 +58,6 @@ function LoginContent() {
     };
     checkStatus();
   }, []);
-
-  const testimonials = [
-    {
-      name: "Sarah Johnson",
-      role: "Individual Investor",
-      content: "NestEgg transformed how I track my investments. The unified dashboard is a game-changer.",
-      rating: 5
-    },
-    {
-      name: "Michael Chen",
-      role: "Retirement Planner",
-      content: "Finally, a tool that shows me everything in one place. Worth every penny.",
-      rating: 5
-    },
-    {
-      name: "Emma Williams",
-      role: "Small Business Owner",
-      content: "The manual entry system means I never worry about sharing my bank credentials. Brilliant!",
-      rating: 5
-    }
-  ];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
@@ -132,14 +89,7 @@ function LoginContent() {
               The only investment tracker that respects your privacy while giving you complete control over your financial future.
             </motion.p>
 
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-12">
-              <StatCard label="Total Tracked" value={`$${stats.portfolioValue.toFixed(1)}B`} />
-              <StatCard label="Active Users" value={`${stats.users.toLocaleString()}+`} />
-              <StatCard label="Update Time" value={`${stats.timeToUpdate} min`} />
-              <StatCard label="Privacy Score" value="100%" />
-            </motion.div>
-
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }} className="mb-12">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }} className="mb-12">
               <h3 className="text-2xl font-bold text-white mb-8 flex items-center">
                 <ShieldCheck className="h-6 w-6 mr-2 text-green-400" />
                 Why Smart Investors Choose NestEgg
@@ -202,8 +152,6 @@ function LoginContent() {
               </div>
             </motion.div>
 
-            <TestimonialCarousel testimonials={testimonials} activeIndex={activeTestimonial} onSetActive={setActiveTestimonial} />
-
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1 }} className="hidden lg:block mt-12">
               <p className="text-gray-400 mb-4">Ready to take control of your financial future?</p>
               <button
@@ -239,9 +187,11 @@ function LoginContent() {
               {/* Clerk SignIn Component */}
               <SignIn
                 appearance={{ baseTheme: "dark" }}
+                routing="path"
+                path="/login"
                 signUpUrl="/signup"
-                // forceRedirectUrl remains as a fallback; we also run a proactive redirect below.
-                forceRedirectUrl="/portfolio"
+                afterSignInUrl="/portfolio"
+                fallbackRedirectUrl="/portfolio"
               />
 
               <p className="mt-6 text-center text-sm text-gray-400">
@@ -275,59 +225,6 @@ function LoginContent() {
         </div>
       </div>
     </div>
-  );
-}
-
-function StatCard({ label, value }) {
-  return (
-    <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4">
-      <p className="text-gray-400 text-sm mb-1">{label}</p>
-      <p className="text-xl lg:text-2xl font-bold text-white">{value}</p>
-    </div>
-  );
-}
-
-function TestimonialCarousel({ testimonials, activeIndex, onSetActive }) {
-  return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.8 }} className="bg-white/5 backdrop-blur-sm rounded-lg p-6 border border-white/10">
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={activeIndex}
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -10 }}
-          transition={{ duration: 0.3 }}
-        >
-          <div className="flex mb-2">
-            {[...Array(5)].map((_, i) => (
-              <Star key={i} className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-            ))}
-          </div>
-          <p className="text-gray-300 mb-3 italic">
-            "{testimonials[activeIndex].content}"
-          </p>
-          <div className="flex items-center">
-            <div className="w-10 h-10 bg-gradient-to-br from-blue-400 to-purple-400 rounded-full mr-3"></div>
-            <div>
-              <p className="text-white font-semibold text-sm">{testimonials[activeIndex].name}</p>
-              <p className="text-gray-400 text-xs">{testimonials[activeIndex].role}</p>
-            </div>
-          </div>
-        </motion.div>
-      </AnimatePresence>
-
-      <div className="flex space-x-2 mt-4">
-        {testimonials.map((_, index) => (
-          <button
-            key={index}
-            onClick={() => onSetActive(index)}
-            className={`h-1.5 rounded-full transition-all ${
-              index === activeIndex ? 'w-8 bg-blue-400' : 'w-1.5 bg-gray-600 hover:bg-gray-500'
-            }`}
-          />
-        ))}
-      </div>
-    </motion.div>
   );
 }
 
