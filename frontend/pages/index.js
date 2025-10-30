@@ -21,7 +21,7 @@ export default function HomePage() {
  const features = [
    {
      icon: <Shield className="h-6 w-6" />,
-     title: "Bank-Grade Security",
+     title: "No Credential Sharing Required",
      description: "Track your net worth without sharing bank passwords. Manual entry keeps you in control.",
      color: "text-emerald-500"
    },
@@ -32,9 +32,9 @@ export default function HomePage() {
      color: "text-blue-500"
    },
    {
-     icon: <Calculator className="h-6 w-6" />,
-     title: "Retirement Calculator",
-     description: "Plan your financial independence with powerful retirement projections and Monte Carlo analysis.",
+     icon: <ChartBar className="h-6 w-6" />,
+     title: "Total Portfolio View",
+     description: "See all positions across all accounts with advanced analytics and insights.",
      color: "text-purple-500"
    },
    {
@@ -54,30 +54,6 @@ export default function HomePage() {
      title: "Mobile Friendly",
      description: "Access your financial data anywhere with our responsive, mobile-optimized interface.",
      color: "text-indigo-500"
-   }
- ];
-
- const testimonials = [
-   {
-     name: "Sarah Chen",
-     role: "Software Engineer",
-     content: "Finally, a Mint alternative that respects my privacy! NestEgg gives me total control without the security risks.",
-     rating: 5,
-     image: "SC"
-   },
-   {
-     name: "Michael Rodriguez",
-     role: "Small Business Owner",
-     content: "The retirement planning tools rival expensive advisors. I save $2,000/year compared to my old financial planner.",
-     rating: 5,
-     image: "MR"
-   },
-   {
-     name: "Emily Thompson",
-     role: "Teacher",
-     content: "YNAB-style budgeting meets Tiller's flexibility. Perfect for DIY finance nerds who want complete control.",
-     rating: 5,
-     image: "ET"
    }
  ];
 
@@ -201,9 +177,13 @@ export default function HomePage() {
              <div className="hidden md:flex items-center space-x-8">
                <a href="#features" className="text-gray-300 hover:text-white transition-colors">Features</a>
                <a href="#how-it-works" className="text-gray-300 hover:text-white transition-colors">How It Works</a>
-               <a href="#testimonials" className="text-gray-300 hover:text-white transition-colors">Reviews</a>
-               <a href="#pricing" className="text-gray-300 hover:text-white transition-colors">Pricing</a>
                <a href="#faq" className="text-gray-300 hover:text-white transition-colors">FAQ</a>
+               <Link href="/terms-of-service" className="text-gray-300 hover:text-white transition-colors">
+                 Terms
+               </Link>
+               <Link href="/privacy-policy" className="text-gray-300 hover:text-white transition-colors">
+                 Privacy
+               </Link>
                <Link href="/login" className="text-gray-300 hover:text-white transition-colors">
                  Login
                </Link>
@@ -233,9 +213,13 @@ export default function HomePage() {
              <div className="px-4 py-4 space-y-3">
                <a href="#features" className="block text-gray-300 hover:text-white transition-colors">Features</a>
                <a href="#how-it-works" className="block text-gray-300 hover:text-white transition-colors">How It Works</a>
-               <a href="#testimonials" className="block text-gray-300 hover:text-white transition-colors">Reviews</a>
-               <a href="#pricing" className="block text-gray-300 hover:text-white transition-colors">Pricing</a>
                <a href="#faq" className="block text-gray-300 hover:text-white transition-colors">FAQ</a>
+               <Link href="/terms-of-service" className="block text-gray-300 hover:text-white transition-colors">
+                 Terms
+               </Link>
+               <Link href="/privacy-policy" className="block text-gray-300 hover:text-white transition-colors">
+                 Privacy
+               </Link>
                <Link href="/login" className="block text-gray-300 hover:text-white transition-colors">
                  Login
                </Link>
@@ -279,38 +263,10 @@ export default function HomePage() {
                </div>
                <div className="flex items-center">
                  <Check className="h-5 w-5 mr-2 text-green-400" />
-                 <span>256-bit Encryption</span>
-               </div>
-               <div className="flex items-center">
-                 <Check className="h-5 w-5 mr-2 text-green-400" />
                  <span>Cancel Anytime</span>
                </div>
              </div>
            </motion.div>
-         </div>
-       </section>
-
-       {/* Trust Badges */}
-       <section className="py-12 bg-gray-800/50 border-y border-gray-700">
-         <div className="container mx-auto px-4">
-           <div className="flex flex-wrap justify-center items-center gap-8 text-gray-400">
-             <div className="flex items-center gap-2">
-               <Users className="h-5 w-5" />
-               <span className="text-sm">Trusted by 50,000+ DIY Savers</span>
-             </div>
-             <div className="flex items-center gap-2">
-               <Lock className="h-5 w-5" />
-               <span className="text-sm">Bank-Grade Security</span>
-             </div>
-             <div className="flex items-center gap-2">
-               <Award className="h-5 w-5" />
-               <span className="text-sm">4.8/5 Average Rating</span>
-             </div>
-             <div className="flex items-center gap-2">
-               <HeartHandshake className="h-5 w-5" />
-               <span className="text-sm">30-Day Money Back</span>
-             </div>
-           </div>
          </div>
        </section>
 
@@ -411,7 +367,7 @@ export default function HomePage() {
                </div>
                <h3 className="text-xl font-semibold mb-2">Plan & Achieve</h3>
                <p className="text-gray-300">
-                 Set goals, plan retirement, and make informed decisions with AI-powered insights.
+                 Set goals, plan retirement, and make informed decisions with powerful analytics.
                </p>
              </motion.div>
            </div>
@@ -496,145 +452,6 @@ export default function HomePage() {
                  </div>
                </div>
              </motion.div>
-           </div>
-         </div>
-       </section>
-
-       {/* Testimonials Section */}
-       <section id="testimonials" className="py-20 px-4 bg-gray-800/30">
-         <div className="container mx-auto max-w-6xl">
-           <motion.div
-             initial={{ opacity: 0 }}
-             whileInView={{ opacity: 1 }}
-             transition={{ duration: 0.6 }}
-             className="text-center mb-12"
-           >
-             <h2 className="text-3xl md:text-4xl font-bold mb-4">
-               Loved by DIY Finance Enthusiasts
-             </h2>
-             <p className="text-xl text-gray-300">
-               Join thousands who've taken control of their financial future
-             </p>
-           </motion.div>
-           
-           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-             {testimonials.map((testimonial, index) => (
-               <motion.div
-                 key={index}
-                 initial={{ opacity: 0, y: 20 }}
-                 whileInView={{ opacity: 1, y: 0 }}
-                 transition={{ duration: 0.6, delay: index * 0.1 }}
-                 className="feature-card rounded-xl p-6"
-               >
-                 <div className="flex items-center mb-4">
-                   <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold mr-3">
-                     {testimonial.image}
-                   </div>
-                   <div>
-                     <h4 className="font-semibold">{testimonial.name}</h4>
-                     <p className="text-sm text-gray-400">{testimonial.role}</p>
-                   </div>
-                 </div>
-                 <div className="flex mb-3">
-                   {[...Array(testimonial.rating)].map((_, i) => (
-                     <Star key={i} className="h-4 w-4 text-yellow-400 fill-current" />
-                   ))}
-                 </div>
-                 <p className="text-gray-300 italic">"{testimonial.content}"</p>
-               </motion.div>
-             ))}
-           </div>
-         </div>
-       </section>
-
-       {/* Pricing Section */}
-       <section id="pricing" className="py-20 px-4">
-         <div className="container mx-auto max-w-4xl">
-           <motion.div
-             initial={{ opacity: 0 }}
-             whileInView={{ opacity: 1 }}
-             transition={{ duration: 0.6 }}
-             className="text-center mb-12"
-           >
-             <h2 className="text-3xl md:text-4xl font-bold mb-4">
-               Simple, Transparent Pricing
-             </h2>
-             <p className="text-xl text-gray-300">
-               One low price. All features. No hidden fees.
-             </p>
-           </motion.div>
-           
-           <motion.div
-             initial={{ opacity: 0, scale: 0.95 }}
-             whileInView={{ opacity: 1, scale: 1 }}
-             transition={{ duration: 0.6 }}
-             className="feature-card rounded-2xl p-8 max-w-md mx-auto"
-           >
-             <div className="text-center mb-6">
-               <h3 className="text-2xl font-bold mb-2">NestEgg Pro</h3>
-               <div className="flex items-baseline justify-center">
-                 <span className="text-5xl font-bold">$4.99</span>
-                 <span className="text-gray-400 ml-2">/month</span>
-               </div>
-               <p className="text-gray-400 mt-2">Billed monthly. Cancel anytime.</p>
-             </div>
-             
-             <ul className="space-y-3 mb-8">
-               <li className="flex items-center">
-                 <Check className="h-5 w-5 text-green-400 mr-3 flex-shrink-0" />
-                 <span>Unlimited accounts & transactions</span>
-               </li>
-               <li className="flex items-center">
-                 <Check className="h-5 w-5 text-green-400 mr-3 flex-shrink-0" />
-                 <span>Advanced retirement planning</span>
-               </li>
-               <li className="flex items-center">
-                 <Check className="h-5 w-5 text-green-400 mr-3 flex-shrink-0" />
-                 <span>Investment tracking & analysis</span>
-               </li>
-               <li className="flex items-center">
-                 <Check className="h-5 w-5 text-green-400 mr-3 flex-shrink-0" />
-                 <span>Tax optimization tools</span>
-               </li>
-               <li className="flex items-center">
-                 <Check className="h-5 w-5 text-green-400 mr-3 flex-shrink-0" />
-                 <span>Mobile app access</span>
-               </li>
-               <li className="flex items-center">
-                 <Check className="h-5 w-5 text-green-400 mr-3 flex-shrink-0" />
-                 <span>Priority support</span>
-               </li>
-             </ul>
-             
-             <Link href="/signup" className="block w-full px-8 py-4 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full font-semibold text-lg hover:shadow-lg hover:shadow-indigo-500/25 transition-all text-center">
-               Start Free Trial
-             </Link>
-             
-             <p className="text-center text-sm text-gray-400 mt-4">
-               No credit card required • 30-day money-back guarantee
-             </p>
-           </motion.div>
-           
-           <div className="mt-12 text-center">
-             <p className="text-gray-300 mb-4">Compare to competitors:</p>
-             <div className="inline-grid grid-cols-2 md:grid-cols-4 gap-6 text-sm">
-               <div>
-                 <p className="text-gray-500 line-through">Mint Premium</p>
-                 <p className="font-semibold">$16.99/mo</p>
-               </div>
-               <div>
-                 <p className="text-gray-500 line-through">YNAB</p>
-                 <p className="font-semibold">$14.99/mo</p>
-               </div>
-               <div>
-                 <p className="text-gray-500 line-through">Monarch</p>
-                 <p className="font-semibold">$14.99/mo</p>
-               </div>
-               <div>
-                 <p className="text-gray-500 line-through">Tiller</p>
-                 <p className="font-semibold">$9.99/mo</p>
-               </div>
-             </div>
            </div>
          </div>
        </section>
