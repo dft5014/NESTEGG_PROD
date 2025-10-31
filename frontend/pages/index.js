@@ -178,12 +178,6 @@ export default function HomePage() {
                <a href="#features" className="text-gray-300 hover:text-white transition-colors">Features</a>
                <a href="#how-it-works" className="text-gray-300 hover:text-white transition-colors">How It Works</a>
                <a href="#faq" className="text-gray-300 hover:text-white transition-colors">FAQ</a>
-               <Link href="/terms-of-service" className="text-gray-300 hover:text-white transition-colors">
-                 Terms
-               </Link>
-               <Link href="/privacy-policy" className="text-gray-300 hover:text-white transition-colors">
-                 Privacy
-               </Link>
                <Link href="/login" className="text-gray-300 hover:text-white transition-colors">
                  Login
                </Link>
@@ -214,12 +208,6 @@ export default function HomePage() {
                <a href="#features" className="block text-gray-300 hover:text-white transition-colors">Features</a>
                <a href="#how-it-works" className="block text-gray-300 hover:text-white transition-colors">How It Works</a>
                <a href="#faq" className="block text-gray-300 hover:text-white transition-colors">FAQ</a>
-               <Link href="/terms-of-service" className="block text-gray-300 hover:text-white transition-colors">
-                 Terms
-               </Link>
-               <Link href="/privacy-policy" className="block text-gray-300 hover:text-white transition-colors">
-                 Privacy
-               </Link>
                <Link href="/login" className="block text-gray-300 hover:text-white transition-colors">
                  Login
                </Link>
