@@ -65,7 +65,7 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
 };
 
 // Updated Account Detail Modal Component
-    const AccountDetailModal = ({ isOpen, onClose, account, portfolioTotalValue }) => {
+    const AccountDetailModal = ({ isOpen, onClose, account }) => {
         // State for sorting - must be before any conditional returns
         const [positionSort, setPositionSort] = useState({ field: 'value', direction: 'desc' });
         const [performanceRange, setPerformanceRange] = useState('1M'); // 1D, 1W, 1M, 3M, YTD, 1Y, ALL
@@ -78,9 +78,9 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
         // Filter positions for this account
         const accountPositions = useMemo(() => {
             if (!account || !groupedPositions) return [];
-
+            
             // Get positions that have this account in their account_details
-            return groupedPositions.filter(pos =>
+            return groupedPositions.filter(pos => 
                 pos.account_details?.some(detail => detail.account_id === account.id)
             ).map(pos => {
                 // Find the specific account detail for this account
@@ -90,15 +90,15 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                     name: pos.name,
                     asset_type: pos.asset_type,
                     sector: pos.sector,
-                    quantity: accountDetail?.quantity ?? null,
-                    currentPrice: pos.latest_price_per_unit ?? pos.current_price ?? null,
-                    currentValue: accountDetail?.value ?? null,
-                    costBasis: accountDetail?.cost ?? null,
-                    gainLoss: accountDetail?.gain_loss_amt ?? null,
-                    gainLossPercent: accountDetail?.gain_loss_pct ?? null,
-                    annualIncome: accountDetail?.annual_income ?? null,
-                    dividendYield: pos.dividend_yield ?? accountDetail?.dividend_yield ?? null,
-                    priceChange1d: pos.price_1d_change_pct ?? pos.value_1d_change_pct ?? null
+                    quantity: accountDetail?.quantity || 0,
+                    currentPrice: pos.current_price,
+                    currentValue: accountDetail?.value || 0,
+                    costBasis: accountDetail?.cost || 0,
+                    gainLoss: accountDetail?.gain_loss_amt || 0,
+                    gainLossPercent: accountDetail?.gain_loss_pct || 0,
+                    annualIncome: accountDetail?.annual_income || 0,
+                    dividendYield: pos.dividend_yield || 0,
+                    priceChange1d: pos.price_1d_change_pct
                 };
             });
         }, [account, groupedPositions]);
@@ -250,37 +250,10 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
             totalGainLoss: account.totalGainLoss || 0,
             totalGainLossPct: account.totalGainLossPercent || 0,
             totalIncome: account.dividendIncomeAnnual || account.positions?.reduce((sum, p) => sum + (p.annualIncome || 0), 0) || 0,
-            avgDividendYield: account.yieldPercent || (account.positions?.length > 0
+            avgDividendYield: account.yieldPercent || (account.positions?.length > 0 
                 ? (account.positions.reduce((sum, p) => sum + (p.dividendYield || 0), 0) / account.positions.length)
                 : 0)
         };
-
-        const portfolioAllocation = (portfolioTotalValue && portfolioTotalValue > 0 && account?.totalValue !== undefined && account?.totalValue !== null)
-            ? account.totalValue / portfolioTotalValue
-            : null;
-
-        const totalsRow = useMemo(() => {
-            if (!accountPositions || accountPositions.length === 0) {
-                return {
-                    totalValue: 0,
-                    totalCostBasis: 0,
-                    totalGainLoss: 0,
-                    gainLossPct: null
-                };
-            }
-
-            const totalValue = accountPositions.reduce((sum, p) => sum + (p.currentValue ?? 0), 0);
-            const totalCostBasis = accountPositions.reduce((sum, p) => sum + (p.costBasis ?? 0), 0);
-            const totalGainLoss = accountPositions.reduce((sum, p) => sum + (p.gainLoss ?? 0), 0);
-            const gainLossPct = totalCostBasis > 0 ? totalGainLoss / totalCostBasis : null;
-
-            return {
-                totalValue,
-                totalCostBasis,
-                totalGainLoss,
-                gainLossPct
-            };
-        }, [accountPositions]);
 
         // Performance metrics
         const performanceMetrics = [
@@ -402,9 +375,7 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                                     <div className="text-xs text-gray-400">Total Value</div>
                                     <div className="text-xl font-semibold">{formatCurrency(account.totalValue)}</div>
                                     <div className="text-xs text-gray-500 mt-1">
-                                        {portfolioAllocation !== null
-                                            ? `${formatPercentage(portfolioAllocation)} of portfolio`
-                                            : 'n.a.'}
+                                        {formatPercentage((account.totalValue / (account.portfolioValue || 1)) * 100)} of portfolio
                                     </div>
                                 </div>
                                 <div className="bg-gray-800/50 p-4 rounded">
@@ -641,32 +612,29 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                                                     <td className="px-3 py-2 text-xs text-right">-</td>
                                                     <td className="px-3 py-2 text-xs text-right">-</td>
                                                     <td className="px-3 py-2 text-xs text-right font-bold text-white">
-                                                        {formatCurrency(totalsRow.totalValue)}
+                                                        {formatCurrency(accountPositions.reduce((sum, p) => sum + p.currentValue, 0))}
                                                     </td>
                                                     <td className="px-3 py-2 text-xs text-right text-gray-400">
-                                                        {formatCurrency(totalsRow.totalCostBasis)}
+                                                        {formatCurrency(accountPositions.reduce((sum, p) => sum + p.costBasis, 0))}
                                                     </td>
                                                     <td className="px-3 py-2 text-xs text-right">
                                                         <span className={`font-bold ${
-                                                            totalsRow.totalGainLoss >= 0
+                                                            accountPositions.reduce((sum, p) => sum + p.gainLoss, 0) >= 0 
                                                                 ? 'text-green-400' : 'text-red-400'
                                                         }`}>
-                                                            {totalsRow.totalGainLoss >= 0 && '+'}
-                                                            {formatCurrency(totalsRow.totalGainLoss)}
+                                                            {accountPositions.reduce((sum, p) => sum + p.gainLoss, 0) >= 0 && '+'}
+                                                            {formatCurrency(accountPositions.reduce((sum, p) => sum + p.gainLoss, 0))}
                                                         </span>
                                                     </td>
                                                     <td className="px-3 py-2 text-xs text-right">
-                                                        {totalsRow.gainLossPct !== null ? (
-                                                            <span className={`font-bold ${
-                                                                totalsRow.gainLossPct >= 0
-                                                                    ? 'text-green-400' : 'text-red-400'
-                                                            }`}>
-                                                                {totalsRow.gainLossPct >= 0 && '+'}
-                                                                {formatPercentage(totalsRow.gainLossPct)}
-                                                            </span>
-                                                        ) : (
-                                                            <span className="text-gray-500 font-bold">n.a.</span>
-                                                        )}
+                                                        <span className={`font-bold ${
+                                                            ((accountPositions.reduce((sum, p) => sum + p.gainLoss, 0) / 
+                                                            accountPositions.reduce((sum, p) => sum + p.costBasis, 0)) * 100) >= 0 
+                                                                ? 'text-green-400' : 'text-red-400'
+                                                        }`}>
+                                                            {((accountPositions.reduce((sum, p) => sum + p.gainLoss, 0) / 
+                                                            accountPositions.reduce((sum, p) => sum + p.costBasis, 0)) * 100).toFixed(2)}%
+                                                        </span>
                                                     </td>
                                                     <td className="px-3 py-2 text-xs text-right">100.00%</td>
                                                 </tr>
@@ -717,60 +685,36 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                                                                     </div>
                                                                 </td>
                                                         <td className="px-3 py-2 text-xs text-right">
-                                                            {position.quantity !== null && position.quantity !== undefined
-                                                                ? formatNumber(position.quantity, { maximumFractionDigits: 4 })
-                                                                : <span className="text-gray-500">n.a.</span>}
+                                                            {formatNumber(position.quantity || 0, { maximumFractionDigits: 4 })}
                                                         </td>
-                                                        <td className="px-3 py-2 text-xs text-right">
-                                                            {position.currentPrice !== null && position.currentPrice !== undefined ? (
-                                                                <>
-                                                                    {formatCurrency(position.currentPrice, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                                                    {position.priceChange1d !== null && position.priceChange1d !== undefined && (
-                                                                        <div className={`text-xs ${position.priceChange1d >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                                                            {position.priceChange1d >= 0 ? '+' : ''}{position.priceChange1d.toFixed(2)}%
-                                                                        </div>
-                                                                    )}
-                                                                </>
-                                                            ) : (
-                                                                <span className="text-gray-500">n.a.</span>
-                                                            )}
-                                                        </td>
+                                                            <td className="px-3 py-2 text-xs text-right">
+                                                                {formatCurrency(position.currentPrice || 0)}
+                                                                {position.priceChange1d !== null && position.priceChange1d !== undefined && (
+                                                                    <div className={`text-xs ${position.priceChange1d >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                                                        {position.priceChange1d >= 0 ? '+' : ''}{position.priceChange1d.toFixed(2)}%
+                                                                    </div>
+                                                                )}
+                                                            </td>
                                                         <td className="px-3 py-2 text-xs text-right font-medium">
-                                                            {position.currentValue !== null && position.currentValue !== undefined
-                                                                ? formatCurrency(position.currentValue)
-                                                                : <span className="text-gray-500">n.a.</span>}
+                                                            {formatCurrency(position.currentValue || 0)}
                                                         </td>
                                                         <td className="px-3 py-2 text-xs text-right text-gray-400">
-                                                            {position.costBasis !== null && position.costBasis !== undefined && position.quantity
-                                                                ? formatCurrency(position.costBasis / position.quantity, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                                                                : <span className="text-gray-500">n.a.</span>}
+                                                            {formatCurrency((position.costBasis || 0) / (position.quantity || 1))}
                                                         </td>
                                                         <td className="px-3 py-2 text-xs text-right">
-                                                            {position.gainLoss !== null && position.gainLoss !== undefined ? (
-                                                                <span className={`font-medium ${position.gainLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                                                    {position.gainLoss >= 0 && '+'}{formatCurrency(position.gainLoss)}
-                                                                </span>
-                                                            ) : (
-                                                                <span className="text-gray-500">n.a.</span>
-                                                            )}
+                                                            <span className={`font-medium ${position.gainLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                                                {position.gainLoss >= 0 && '+'}{formatCurrency(position.gainLoss || 0)}
+                                                            </span>
                                                         </td>
-                                                        <td className="px-3 py-2 text-xs text-right">
-                                                            {position.gainLossPercent !== null && position.gainLossPercent !== undefined ? (
+                                                            <td className="px-3 py-2 text-xs text-right">
                                                                 <span className={`font-medium ${position.gainLossPercent >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                                                                     {position.gainLossPercent >= 0 && '+'}{position.gainLossPercent.toFixed(2)}%
                                                                 </span>
-                                                            ) : (
-                                                                <span className="text-gray-500">n.a.</span>
-                                                            )}
-                                                        </td>
+                                                            </td>
                                                         <td className="px-3 py-2 text-xs text-right">
-                                                            {account.totalValue > 0 && position.currentValue !== null && position.currentValue !== undefined ? (
-                                                                <div className="font-medium">
-                                                                    {formatPercentage(position.currentValue / account.totalValue)}
-                                                                </div>
-                                                            ) : (
-                                                                <span className="text-gray-500">n.a.</span>
-                                                            )}
+                                                            <div className="font-medium">
+                                                                {formatPercentage((position.currentValue / account.totalValue))}
+                                                            </div>
                                                         </td>
                                                     </tr>
 
@@ -1567,7 +1511,6 @@ const UnifiedAccountTable = ({
                     setSelectedAccount(null);
                 }}
                 account={selectedAccount}
-                portfolioTotalValue={summary?.totalPortfolioValue ?? totals.totalValue}
             />
         </>
     );
