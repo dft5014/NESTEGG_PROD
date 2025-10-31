@@ -5,7 +5,7 @@ import ReactDOM from 'react-dom';
 import { useAccounts } from '@/store/hooks/useAccounts';
 import { useGroupedPositions } from '@/store/hooks/useGroupedPositions';
 import { useDetailedPositions } from '@/store/hooks/useDetailedPositions';
-import { useAccountTrends } from '@/store/hooks/useAccountTrends';
+import { usePortfolioTrends } from '@/store/hooks/usePortfolioTrends';
 // Utils
 import { popularBrokerages } from '@/utils/constants';
 import { formatCurrency, formatDate, formatPercentage, formatNumber } from '@/utils/formatters';
@@ -74,9 +74,6 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
         // Get position data from DataStore hooks
         const { positions: groupedPositions } = useGroupedPositions();
         const { positions: detailedPositions } = useDetailedPositions();
-
-        // Get account trend data
-        const { trends: accountTrends, hasData: hasTrendData } = useAccountTrends(account?.id);
 
         // Filter positions for this account
         const accountPositions = useMemo(() => {
@@ -167,12 +164,14 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
             return sorted;
         }, [accountPositions, account?.totalValue, positionSort]);
 
-        // Chart data based on account-specific trends
+        // Get trend data
+        const { trends } = usePortfolioTrends();
+
         const chartData = useMemo(() => {
             if (!account) return [];
-
-            // Use real account trend data if available
-            if (hasTrendData && accountTrends && accountTrends.length > 0) {
+            
+            // Try to use real trend data if available
+            if (trends && trends.length > 0) {
                 const periods = {
                     '1D': 1,
                     '1W': 7,
@@ -182,22 +181,22 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                     '1Y': 365,
                     'ALL': 9999
                 };
-
+                
                 const daysToShow = periods[performanceRange] || 30;
                 const cutoffDate = new Date(Date.now() - (daysToShow * 24 * 60 * 60 * 1000));
-
+                
                 // Filter trends to date range
-                const filteredTrends = accountTrends
+                const filteredTrends = trends
                     .filter(t => new Date(t.date) >= cutoffDate)
                     .map(t => ({
                         date: t.date,
-                        value: t.value,
-                        percentChange: t.gainLossPercent
+                        value: account.totalValue || t.total_value,
+                        percentChange: ((account.totalValue - account.totalCostBasis) / account.totalCostBasis) * 100
                     }));
-
+                
                 if (filteredTrends.length > 0) return filteredTrends;
             }
-
+            
             // Fallback to mock data if no trends available
             const periods = {
                 '1D': 24,
@@ -208,35 +207,35 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                 '1Y': 365,
                 'ALL': 730
             };
-
+            
             const dataPoints = periods[performanceRange] || 30;
             const baseValue = account.totalValue || 100000;
             const volatility = 0.02; // 2% daily volatility
-
+            
             let data = [];
             let currentValue = baseValue;
-
+            
             for (let i = dataPoints; i >= 0; i--) {
                 const date = new Date();
                 date.setDate(date.getDate() - i);
-
+                
                 // Random walk with slight upward bias
                 const change = (Math.random() - 0.48) * volatility;
                 currentValue = currentValue * (1 + change);
-
+                
                 data.push({
                     date: date.toISOString().split('T')[0],
                     value: currentValue,
                     percentChange: ((currentValue - baseValue) / baseValue) * 100
                 });
             }
-
+            
             // Ensure last point matches current value
             data[data.length - 1].value = account.totalValue;
             data[data.length - 1].percentChange = account.totalGainLossPercent || 0;
-
+            
             return data;
-        }, [account, accountTrends, hasTrendData, performanceRange]);
+        }, [account, performanceRange]);
         
         // Early returns after ALL hooks
         if (!isOpen || !account) return null;
@@ -256,42 +255,42 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                 : 0)
         };
 
-        // Performance metrics - preserve null/undefined to show "n.a." when no data
+        // Performance metrics
         const performanceMetrics = [
-            {
-                label: '1D',
-                value: account.value1dChangePct ?? null,
-                change: account.value1dChange ?? null,
+            { 
+                label: '1D', 
+                value: account.value1dChangePct || 0, 
+                change: account.value1dChange || 0,
                 key: '1D'
             },
-            {
-                label: '1W',
-                value: account.value1wChangePct ?? null,
-                change: account.value1wChange ?? null,
+            { 
+                label: '1W', 
+                value: account.value1wChangePct || 0, 
+                change: account.value1wChange || 0,
                 key: '1W'
             },
-            {
-                label: '1M',
-                value: account.value1mChangePct ?? null,
-                change: account.value1mChange ?? null,
+            { 
+                label: '1M', 
+                value: account.value1mChangePct || 0, 
+                change: account.value1mChange || 0,
                 key: '1M'
             },
-            {
-                label: '3M',
-                value: account.value3mChangePct ?? null,
-                change: account.value3mChange ?? null,
+            { 
+                label: '3M', 
+                value: account.value3mChangePct || 0, 
+                change: account.value3mChange || 0,
                 key: '3M'
             },
-            {
-                label: 'YTD',
-                value: account.valueYtdChangePct ?? null,
-                change: account.valueYtdChange ?? null,
+            { 
+                label: 'YTD', 
+                value: account.valueYtdChangePct || 0, 
+                change: account.valueYtdChange || 0,
                 key: 'YTD'
             },
-            {
-                label: '1Y',
-                value: account.value1yChangePct ?? null,
-                change: account.value1yChange ?? null,
+            { 
+                label: '1Y', 
+                value: account.value1yChangePct || 0, 
+                change: account.value1yChange || 0,
                 key: '1Y'
             }
         ];
@@ -411,12 +410,7 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                             {/* Performance Chart Section */}
                             <div className="bg-gray-800/30 rounded p-4 mb-6">
                                 <div className="flex items-center justify-between mb-4">
-                                    <div className="flex items-center space-x-2">
-                                        <h4 className="text-sm font-semibold text-gray-300">Account Performance</h4>
-                                        {!hasTrendData && (
-                                            <span className="text-xs text-yellow-500 italic">(Simulated Data)</span>
-                                        )}
-                                    </div>
+                                    <h4 className="text-sm font-semibold text-gray-300">Account Performance</h4>
                                     <div className="flex items-center space-x-2">
                                         {performanceMetrics.map((metric) => (
                                             <button
@@ -476,35 +470,21 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
 
                             {/* Performance Metrics Grid */}
                             <div className="grid grid-cols-6 gap-2 mb-6">
-                                {performanceMetrics.map((metric) => {
-                                    const hasData = metric.value !== null && metric.value !== undefined;
-                                    const isPositive = hasData && metric.value >= 0;
-                                    const isZero = hasData && metric.value === 0;
-
-                                    return (
-                                        <div key={metric.key} className="bg-gray-800/50 p-3 rounded text-center">
-                                            <div className="text-xs text-gray-400 mb-1">{metric.label}</div>
-                                            <div className={`text-sm font-semibold ${
-                                                !hasData || isZero ? 'text-gray-400' : isPositive ? 'text-green-400' : 'text-red-400'
-                                            }`}>
-                                                {!hasData ? (
-                                                    'n.a.'
-                                                ) : (
-                                                    <>{isPositive && !isZero ? '+' : ''}{metric.value.toFixed(2)}%</>
-                                                )}
-                                            </div>
-                                            <div className={`text-xs mt-1 ${
-                                                !hasData || isZero ? 'text-gray-400' : isPositive ? 'text-green-400' : 'text-red-400'
-                                            }`}>
-                                                {!hasData ? (
-                                                    '-'
-                                                ) : (
-                                                    <>{isPositive && !isZero ? '+' : ''}{formatCurrency(metric.change, { compact: true })}</>
-                                                )}
-                                            </div>
+                                {performanceMetrics.map((metric) => (
+                                    <div key={metric.key} className="bg-gray-800/50 p-3 rounded text-center">
+                                        <div className="text-xs text-gray-400 mb-1">{metric.label}</div>
+                                        <div className={`text-sm font-semibold ${
+                                            metric.value >= 0 ? 'text-green-400' : 'text-red-400'
+                                        }`}>
+                                            {metric.value >= 0 ? '+' : ''}{metric.value.toFixed(2)}%
                                         </div>
-                                    );
-                                })}
+                                        <div className={`text-xs mt-1 ${
+                                            metric.change >= 0 ? 'text-green-400' : 'text-red-400'
+                                        }`}>
+                                            {metric.change >= 0 ? '+' : ''}{formatCurrency(metric.change, { compact: true })}
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
 
                             {/* Positions Table */}
@@ -762,8 +742,8 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                                                                                     <td className="px-3 py-1 text-gray-400">
                                                                                         <div className="flex items-center space-x-2">
                                                                                             <span className={`px-1.5 py-0.5 rounded text-xs ${
-                                                                                                isLongTerm
-                                                                                                    ? 'bg-green-900/30 text-green-400'
+                                                                                                isLongTerm 
+                                                                                                    ? 'bg-green-900/30 text-green-400' 
                                                                                                     : 'bg-yellow-900/30 text-yellow-400'
                                                                                             }`}>
                                                                                                 {isLongTerm ? 'LT' : 'ST'}
@@ -776,13 +756,13 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                                                                                         {formatNumber(lot.quantity, { maximumFractionDigits: 4 })}
                                                                                     </td>
                                                                                     <td className="px-3 py-1 text-right text-gray-400">
-                                                                                        {formatCurrency(position.currentPrice)}
+                                                                                        {formatCurrency(lot.costBasis / lot.quantity)}
                                                                                     </td>
                                                                                     <td className="px-3 py-1 text-right text-gray-300">
-                                                                                        {formatCurrency(lotValue)}
+                                                                                        {formatCurrency(lot.quantity * position.currentPrice)}
                                                                                     </td>
                                                                                     <td className="px-3 py-1 text-right text-gray-400">
-                                                                                        {formatCurrency(lot.costBasis / lot.quantity)}
+                                                                                        {formatCurrency(lot.costBasis)}
                                                                                     </td>
                                                                                     <td className="px-3 py-1 text-right">
                                                                                         <span className={lotGain >= 0 ? 'text-green-400' : 'text-red-400'}>
