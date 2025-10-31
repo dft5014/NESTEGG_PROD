@@ -256,42 +256,42 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                 : 0)
         };
 
-        // Performance metrics
+        // Performance metrics - preserve null/undefined to display "n.a." when missing
         const performanceMetrics = [
-            { 
-                label: '1D', 
-                value: account.value1dChangePct || 0, 
-                change: account.value1dChange || 0,
+            {
+                label: '1D',
+                value: account.value1dChangePct ?? null,
+                change: account.value1dChange ?? null,
                 key: '1D'
             },
-            { 
-                label: '1W', 
-                value: account.value1wChangePct || 0, 
-                change: account.value1wChange || 0,
+            {
+                label: '1W',
+                value: account.value1wChangePct ?? null,
+                change: account.value1wChange ?? null,
                 key: '1W'
             },
-            { 
-                label: '1M', 
-                value: account.value1mChangePct || 0, 
-                change: account.value1mChange || 0,
+            {
+                label: '1M',
+                value: account.value1mChangePct ?? null,
+                change: account.value1mChange ?? null,
                 key: '1M'
             },
-            { 
-                label: '3M', 
-                value: account.value3mChangePct || 0, 
-                change: account.value3mChange || 0,
+            {
+                label: '3M',
+                value: account.value3mChangePct ?? null,
+                change: account.value3mChange ?? null,
                 key: '3M'
             },
-            { 
-                label: 'YTD', 
-                value: account.valueYtdChangePct || 0, 
-                change: account.valueYtdChange || 0,
+            {
+                label: 'YTD',
+                value: account.valueYtdChangePct ?? null,
+                change: account.valueYtdChange ?? null,
                 key: 'YTD'
             },
-            { 
-                label: '1Y', 
-                value: account.value1yChangePct || 0, 
-                change: account.value1yChange || 0,
+            {
+                label: '1Y',
+                value: account.value1yChangePct ?? null,
+                change: account.value1yChange ?? null,
                 key: '1Y'
             }
         ];
@@ -476,21 +476,28 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
 
                             {/* Performance Metrics Grid */}
                             <div className="grid grid-cols-6 gap-2 mb-6">
-                                {performanceMetrics.map((metric) => (
-                                    <div key={metric.key} className="bg-gray-800/50 p-3 rounded text-center">
-                                        <div className="text-xs text-gray-400 mb-1">{metric.label}</div>
-                                        <div className={`text-sm font-semibold ${
-                                            metric.value >= 0 ? 'text-green-400' : 'text-red-400'
-                                        }`}>
-                                            {metric.value >= 0 ? '+' : ''}{metric.value.toFixed(2)}%
+                                {performanceMetrics.map((metric) => {
+                                    const hasValue = metric.value !== null && metric.value !== undefined;
+                                    return (
+                                        <div key={metric.key} className="bg-gray-800/50 p-3 rounded text-center">
+                                            <div className="text-xs text-gray-400 mb-1">{metric.label}</div>
+                                            <div className={`text-sm font-semibold ${
+                                                hasValue && metric.value !== 0 ? (metric.value >= 0 ? 'text-green-400' : 'text-red-400') : 'text-gray-400'
+                                            }`}>
+                                                {hasValue ? (
+                                                    <>{metric.value !== 0 && metric.value >= 0 ? '+' : ''}{metric.value.toFixed(2)}%</>
+                                                ) : 'n.a.'}
+                                            </div>
+                                            <div className={`text-xs mt-1 ${
+                                                hasValue && metric.change !== 0 ? (metric.change >= 0 ? 'text-green-400' : 'text-red-400') : 'text-gray-400'
+                                            }`}>
+                                                {hasValue ? (
+                                                    <>{metric.change !== 0 && metric.change >= 0 ? '+' : ''}{formatCurrency(metric.change, { compact: true })}</>
+                                                ) : '-'}
+                                            </div>
                                         </div>
-                                        <div className={`text-xs mt-1 ${
-                                            metric.change >= 0 ? 'text-green-400' : 'text-red-400'
-                                        }`}>
-                                            {metric.change >= 0 ? '+' : ''}{formatCurrency(metric.change, { compact: true })}
-                                        </div>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                             </div>
 
                             {/* Positions Table */}
