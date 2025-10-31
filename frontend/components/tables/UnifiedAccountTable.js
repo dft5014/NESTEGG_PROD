@@ -5,7 +5,7 @@ import ReactDOM from 'react-dom';
 import { useAccounts } from '@/store/hooks/useAccounts';
 import { useGroupedPositions } from '@/store/hooks/useGroupedPositions';
 import { useDetailedPositions } from '@/store/hooks/useDetailedPositions';
-import { usePortfolioTrends } from '@/store/hooks/usePortfolioTrends';
+import { useAccountTrends } from '@/store/hooks/useAccountTrends';
 // Utils
 import { popularBrokerages } from '@/utils/constants';
 import { formatCurrency, formatDate, formatPercentage, formatNumber } from '@/utils/formatters';
@@ -74,6 +74,9 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
         // Get position data from DataStore hooks
         const { positions: groupedPositions } = useGroupedPositions();
         const { positions: detailedPositions } = useDetailedPositions();
+
+        // Get account trend data
+        const { trends: accountTrends, hasData: hasTrendData } = useAccountTrends(account?.id);
 
         // Filter positions for this account
         const accountPositions = useMemo(() => {
@@ -164,14 +167,12 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
             return sorted;
         }, [accountPositions, account?.totalValue, positionSort]);
 
-        // Get trend data
-        const { trends } = usePortfolioTrends();
-
+        // Chart data based on account-specific trends
         const chartData = useMemo(() => {
             if (!account) return [];
-            
-            // Try to use real trend data if available
-            if (trends && trends.length > 0) {
+
+            // Use real account trend data if available
+            if (hasTrendData && accountTrends && accountTrends.length > 0) {
                 const periods = {
                     '1D': 1,
                     '1W': 7,
@@ -181,22 +182,22 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                     '1Y': 365,
                     'ALL': 9999
                 };
-                
+
                 const daysToShow = periods[performanceRange] || 30;
                 const cutoffDate = new Date(Date.now() - (daysToShow * 24 * 60 * 60 * 1000));
-                
+
                 // Filter trends to date range
-                const filteredTrends = trends
+                const filteredTrends = accountTrends
                     .filter(t => new Date(t.date) >= cutoffDate)
                     .map(t => ({
                         date: t.date,
-                        value: account.totalValue || t.total_value,
-                        percentChange: ((account.totalValue - account.totalCostBasis) / account.totalCostBasis) * 100
+                        value: t.value,
+                        percentChange: t.gainLossPercent
                     }));
-                
+
                 if (filteredTrends.length > 0) return filteredTrends;
             }
-            
+
             // Fallback to mock data if no trends available
             const periods = {
                 '1D': 24,
@@ -207,35 +208,35 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                 '1Y': 365,
                 'ALL': 730
             };
-            
+
             const dataPoints = periods[performanceRange] || 30;
             const baseValue = account.totalValue || 100000;
             const volatility = 0.02; // 2% daily volatility
-            
+
             let data = [];
             let currentValue = baseValue;
-            
+
             for (let i = dataPoints; i >= 0; i--) {
                 const date = new Date();
                 date.setDate(date.getDate() - i);
-                
+
                 // Random walk with slight upward bias
                 const change = (Math.random() - 0.48) * volatility;
                 currentValue = currentValue * (1 + change);
-                
+
                 data.push({
                     date: date.toISOString().split('T')[0],
                     value: currentValue,
                     percentChange: ((currentValue - baseValue) / baseValue) * 100
                 });
             }
-            
+
             // Ensure last point matches current value
             data[data.length - 1].value = account.totalValue;
             data[data.length - 1].percentChange = account.totalGainLossPercent || 0;
-            
+
             return data;
-        }, [account, performanceRange]);
+        }, [account, accountTrends, hasTrendData, performanceRange]);
         
         // Early returns after ALL hooks
         if (!isOpen || !account) return null;
@@ -410,7 +411,12 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                             {/* Performance Chart Section */}
                             <div className="bg-gray-800/30 rounded p-4 mb-6">
                                 <div className="flex items-center justify-between mb-4">
-                                    <h4 className="text-sm font-semibold text-gray-300">Account Performance</h4>
+                                    <div className="flex items-center space-x-2">
+                                        <h4 className="text-sm font-semibold text-gray-300">Account Performance</h4>
+                                        {!hasTrendData && (
+                                            <span className="text-xs text-yellow-500 italic">(Simulated Data)</span>
+                                        )}
+                                    </div>
                                     <div className="flex items-center space-x-2">
                                         {performanceMetrics.map((metric) => (
                                             <button
@@ -742,8 +748,8 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                                                                                     <td className="px-3 py-1 text-gray-400">
                                                                                         <div className="flex items-center space-x-2">
                                                                                             <span className={`px-1.5 py-0.5 rounded text-xs ${
-                                                                                                isLongTerm 
-                                                                                                    ? 'bg-green-900/30 text-green-400' 
+                                                                                                isLongTerm
+                                                                                                    ? 'bg-green-900/30 text-green-400'
                                                                                                     : 'bg-yellow-900/30 text-yellow-400'
                                                                                             }`}>
                                                                                                 {isLongTerm ? 'LT' : 'ST'}
@@ -756,13 +762,13 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                                                                                         {formatNumber(lot.quantity, { maximumFractionDigits: 4 })}
                                                                                     </td>
                                                                                     <td className="px-3 py-1 text-right text-gray-400">
-                                                                                        {formatCurrency(lot.costBasis / lot.quantity)}
+                                                                                        {formatCurrency(position.currentPrice)}
                                                                                     </td>
                                                                                     <td className="px-3 py-1 text-right text-gray-300">
-                                                                                        {formatCurrency(lot.quantity * position.currentPrice)}
+                                                                                        {formatCurrency(lotValue)}
                                                                                     </td>
                                                                                     <td className="px-3 py-1 text-right text-gray-400">
-                                                                                        {formatCurrency(lot.costBasis)}
+                                                                                        {formatCurrency(lot.costBasis / lot.quantity)}
                                                                                     </td>
                                                                                     <td className="px-3 py-1 text-right">
                                                                                         <span className={lotGain >= 0 ? 'text-green-400' : 'text-red-400'}>

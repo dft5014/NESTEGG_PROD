@@ -6311,15 +6311,66 @@ async def get_datastore_accounts_summary(
             else:
                 account['allocation_percent'] = 0
         
-        return {
+        response_data = {
             "accounts": accounts,
             "summary": {
                 "total_accounts": len(accounts),
                 "total_portfolio_value": total_portfolio_value,
                 "snapshot_date": accounts[0]['snapshot_date'] if accounts else None
-            }
+            },
+            "history": {}
         }
-        
+
+        # Optionally include historical data for trend charts
+        if include_history:
+            # Get list of all account IDs from current accounts
+            account_ids = [acc['account_id'] for acc in accounts if acc.get('account_id')]
+
+            if account_ids:
+                # Fetch 90-day history for all accounts
+                history_query = """
+                SELECT
+                    account_id,
+                    account_name,
+                    snapshot_date,
+                    total_value,
+                    total_cost_basis,
+                    total_gain_loss,
+                    total_gain_loss_percent,
+                    cash_balance,
+                    security_value,
+                    crypto_value
+                FROM rept_summary_accounts
+                WHERE user_id = :user_id
+                AND account_id = ANY(:account_ids)
+                AND snapshot_date >= CURRENT_DATE - INTERVAL '90 days'
+                ORDER BY account_id, snapshot_date ASC
+                """
+
+                history_results = await database.fetch_all(
+                    query=history_query,
+                    values={"user_id": user_id, "account_ids": account_ids}
+                )
+
+                # Group history by account_id
+                for row in history_results:
+                    account_id = row['account_id']
+                    if account_id not in response_data["history"]:
+                        response_data["history"][account_id] = []
+
+                    response_data["history"][account_id].append({
+                        "date": row['snapshot_date'].strftime('%Y-%m-%d'),
+                        "total_value": float(row['total_value']) if row['total_value'] else 0,
+                        "total_cost_basis": float(row['total_cost_basis']) if row['total_cost_basis'] else 0,
+                        "total_gain_loss": float(row['total_gain_loss']) if row['total_gain_loss'] else 0,
+                        "total_gain_loss_percent": float(row['total_gain_loss_percent']) if row['total_gain_loss_percent'] else 0,
+                        "cash_balance": float(row['cash_balance']) if row['cash_balance'] else 0,
+                        "security_value": float(row['security_value']) if row['security_value'] else 0,
+                        "crypto_value": float(row['crypto_value']) if row['crypto_value'] else 0
+                    })
+
+        return response_data
+
     except Exception as e:
         logger.error(f"Error fetching accounts summary: {str(e)}")
         import traceback

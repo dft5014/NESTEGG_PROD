@@ -39,6 +39,7 @@ const initialState = {
   accounts: {
     data: [],
     summary: null,
+    history: {}, // Account history indexed by account_id
     loading: false,
     error: null,
     lastFetched: null,
@@ -256,6 +257,7 @@ const dataStoreReducer = (state, action) => {
           ...state.accounts,
           data: action.payload.accounts || [],
           summary: action.payload.summary || null,
+          history: action.payload.history || {},
           loading: false,
           error: null,
           lastFetched: Date.now(),
@@ -527,7 +529,7 @@ export const DataStoreProvider = ({ children }) => {
 
     dispatch({ type: ActionTypes.FETCH_ACCOUNTS_START });
     try {
-      const response = await withAbort('/datastore/accounts/summary?snapshot_date=latest');
+      const response = await withAbort('/datastore/accounts/summary?snapshot_date=latest&include_history=true');
       if (!response.ok) throw new Error('Failed to fetch accounts data');
       const data = await response.json();
       dispatch({ type: ActionTypes.FETCH_ACCOUNTS_SUCCESS, payload: data });
