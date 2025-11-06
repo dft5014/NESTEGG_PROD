@@ -21,6 +21,8 @@ import { formatCurrency, formatPercentage, formatNumber } from '@/utils/formatte
 // Import DataStore hooks - NO API METHODS!
 import { useAccounts } from '@/store/hooks/useAccounts';
 import { usePortfolioSummary } from '@/store/hooks/usePortfolioSummary';
+import { useAccountsSummaryPositions } from '@/store/hooks/addAccountsPositions';
+import { useEffect } from 'react';
 
 export default function AccountsPage() {
   const [showValues, setShowValues] = useState(true);
@@ -29,7 +31,7 @@ export default function AccountsPage() {
   const router = useRouter();
 
   // Get data from DataStore hooks
-  const { 
+  const {
     accounts,
     summary: accountsSummary,
     loading: accountsLoading,
@@ -38,7 +40,7 @@ export default function AccountsPage() {
     isStale: accountsStale
   } = useAccounts();
 
-  const { 
+  const {
     summary: portfolioSummary,
     accountDiversification,
     institutionAllocation,
@@ -46,6 +48,33 @@ export default function AccountsPage() {
     error: summaryError,
     refresh: refreshSummary
   } = usePortfolioSummary();
+
+  // TEST: New Accounts Summary Positions Hook
+  const {
+    positions: accountsSummaryPositions,
+    summary: accountsSummaryPositionsSummary,
+    metrics: accountsSummaryPositionsMetrics,
+    loading: accountsSummaryPositionsLoading,
+    error: accountsSummaryPositionsError
+  } = useAccountsSummaryPositions();
+
+  // TEST LOGGER: Log accounts summary positions data when it loads
+  useEffect(() => {
+    if (accountsSummaryPositions && accountsSummaryPositions.length > 0) {
+      console.log('=== ACCOUNTS SUMMARY POSITIONS DATA ===');
+      console.log('Total Positions:', accountsSummaryPositions.length);
+      console.log('Summary:', accountsSummaryPositionsSummary);
+      console.log('First 3 Positions:', accountsSummaryPositions.slice(0, 3));
+      console.log('Metrics:', accountsSummaryPositionsMetrics);
+      console.log('Asset Type Breakdown:', accountsSummaryPositionsSummary?.assetTypeBreakdown);
+      console.log('Account Breakdown:', accountsSummaryPositionsSummary?.accountBreakdown);
+      console.log('======================================');
+    } else if (accountsSummaryPositionsLoading) {
+      console.log('[AccountsSummaryPositions] Loading data...');
+    } else if (accountsSummaryPositionsError) {
+      console.error('[AccountsSummaryPositions] Error:', accountsSummaryPositionsError);
+    }
+  }, [accountsSummaryPositions, accountsSummaryPositionsSummary, accountsSummaryPositionsMetrics, accountsSummaryPositionsLoading, accountsSummaryPositionsError]);
 
   // Combined loading and refresh states
   const isLoading = accountsLoading || summaryLoading;

@@ -6773,6 +6773,238 @@ async def get_datastore_account_positions(
         )
 
 
+@app.get("/datastore/accounts/summary-positions")
+async def get_datastore_accounts_summary_positions(
+    snapshot_date: Optional[str] = Query(None, description="Specific date (YYYY-MM-DD) or 'latest' for most recent"),
+    account_id: Optional[int] = Query(None, description="Filter by specific account ID"),
+    asset_type: Optional[str] = Query(None, description="Filter by asset type (security, crypto, cash, metal)"),
+    min_value: Optional[float] = Query(None, description="Minimum position value"),
+    sort_by: Optional[str] = Query("value", description="Sort field: value, gain_pct, allocation, income"),
+    sort_order: Optional[str] = Query("desc", description="Sort order: asc or desc"),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get account-level position summaries from rept_summary_accounts_positions view for DataStore
+    Provides detailed position data with historical trends across multiple timeframes
+    """
+    try:
+        user_id = current_user["id"]
+
+        # Build base query
+        base_query = """
+        SELECT * FROM rept_summary_accounts_positions
+        WHERE user_id = :user_id
+        """
+
+        params = {"user_id": user_id}
+
+        # Handle date filtering
+        if snapshot_date == "latest" or snapshot_date is None:
+            query = f"""
+            WITH latest_date AS (
+                SELECT MAX(snapshot_date) as max_date
+                FROM rept_summary_accounts_positions
+                WHERE user_id = :user_id
+            )
+            {base_query} AND snapshot_date = (SELECT max_date FROM latest_date)
+            """
+        else:
+            query = base_query + " AND snapshot_date = :snapshot_date::date"
+            params["snapshot_date"] = snapshot_date
+
+        # Add account filter
+        if account_id:
+            query += " AND inv_account_id = :account_id"
+            params["account_id"] = account_id
+
+        # Add asset type filter
+        if asset_type:
+            query += " AND asset_type = :asset_type"
+            params["asset_type"] = asset_type
+
+        # Add minimum value filter
+        if min_value is not None:
+            query += " AND total_current_value >= :min_value"
+            params["min_value"] = min_value
+
+        # Add sorting
+        sort_field_map = {
+            "value": "total_current_value",
+            "gain_pct": "total_gain_loss_pct",
+            "gain_amt": "total_gain_loss_amt",
+            "allocation": "portfolio_allocation_pct",
+            "income": "total_annual_income",
+            "quantity": "total_quantity",
+            "1d_change": "value_1d_change_pct",
+            "1w_change": "value_1w_change_pct",
+            "1m_change": "value_1m_change_pct",
+            "ytd_change": "value_ytd_change_pct",
+            "1y_change": "value_1y_change_pct"
+        }
+
+        sort_field = sort_field_map.get(sort_by, "total_current_value")
+        sort_direction = "DESC" if sort_order.lower() == "desc" else "ASC"
+
+        # Handle NULL values in sorting
+        query += f" ORDER BY {sort_field} {sort_direction} NULLS LAST, inv_account_name ASC, identifier ASC"
+
+        # Execute query
+        results = await database.fetch_all(query=query, values=params)
+
+        if not results:
+            return {
+                "data": [],
+                "summary": {
+                    "total_positions": 0,
+                    "total_accounts": 0,
+                    "total_value": 0,
+                    "total_cost_basis": 0,
+                    "total_gain_loss": 0,
+                    "total_gain_loss_pct": 0,
+                    "total_annual_income": 0,
+                    "snapshot_date": snapshot_date,
+                    "long_term_value": 0,
+                    "short_term_value": 0,
+                    "asset_type_breakdown": {},
+                    "account_breakdown": {}
+                }
+            }
+
+        # Process results
+        data = []
+        total_value = 0
+        total_cost_basis = 0
+
+        for row in results:
+            position = dict(row)
+
+            # Format dates
+            date_fields = ['snapshot_date', 'earliest_purchase_date', 'latest_purchase_date', 'earliest_snapshot_date']
+            for field in date_fields:
+                if position.get(field):
+                    position[field] = position[field].strftime('%Y-%m-%d')
+
+            # Format timestamps
+            timestamp_fields = ['last_updated', 'price_last_updated']
+            for field in timestamp_fields:
+                if position.get(field):
+                    position[field] = position[field].isoformat()
+
+            # Convert Decimal to float for JSON serialization, handling None values
+            for key, value in position.items():
+                if isinstance(value, Decimal):
+                    position[key] = float(value)
+                elif value is None and key.endswith(('_value', '_amt', '_pct', '_change', '_price', '_cost', '_quantity', '_rate', '_yield', '_income')):
+                    # Set numeric fields to 0 if they're None
+                    position[key] = 0.0
+
+            # Parse lot_details JSONB if present
+            if isinstance(position.get('lot_details'), str):
+                try:
+                    position['lot_details'] = json.loads(position['lot_details'])
+                except:
+                    position['lot_details'] = []
+            elif position.get('lot_details') is None:
+                position['lot_details'] = []
+
+            # Use 0.0 as default for None values in calculations
+            total_value += position.get('total_current_value') or 0.0
+            total_cost_basis += position.get('total_cost_basis') or 0.0
+            data.append(position)
+
+        # Calculate summary statistics with None handling
+        total_gain_loss = sum(p.get('total_gain_loss_amt') or 0.0 for p in data)
+        total_annual_income = sum(p.get('total_annual_income') or 0.0 for p in data)
+        long_term_value = sum(p.get('long_term_value') or 0.0 for p in data)
+        short_term_value = sum(p.get('short_term_value') or 0.0 for p in data)
+
+        # Get unique account count
+        unique_accounts = len(set(p.get('inv_account_id') for p in data if p.get('inv_account_id')))
+
+        summary = {
+            "total_positions": len(data),
+            "total_accounts": unique_accounts,
+            "total_value": total_value,
+            "total_cost_basis": total_cost_basis,
+            "total_gain_loss": total_gain_loss,
+            "total_gain_loss_pct": ((total_value - total_cost_basis) / total_cost_basis * 100) if total_cost_basis > 0 else 0,
+            "total_annual_income": total_annual_income,
+            "snapshot_date": data[0]['snapshot_date'] if data else None,
+            "long_term_value": long_term_value,
+            "short_term_value": short_term_value,
+            "asset_type_breakdown": {},
+            "account_breakdown": {}
+        }
+
+        # Calculate asset type breakdown with None handling
+        asset_types = {}
+        for position in data:
+            asset_type = position.get('asset_type', 'unknown')
+            if asset_type not in asset_types:
+                asset_types[asset_type] = {
+                    "count": 0,
+                    "value": 0,
+                    "cost_basis": 0,
+                    "gain_loss": 0,
+                    "annual_income": 0,
+                    "allocation_pct": 0
+                }
+            asset_types[asset_type]["count"] += 1
+            asset_types[asset_type]["value"] += position.get('total_current_value') or 0.0
+            asset_types[asset_type]["cost_basis"] += position.get('total_cost_basis') or 0.0
+            asset_types[asset_type]["gain_loss"] += position.get('total_gain_loss_amt') or 0.0
+            asset_types[asset_type]["annual_income"] += position.get('total_annual_income') or 0.0
+
+        # Calculate allocation percentages for asset types
+        for asset_type, data_item in asset_types.items():
+            data_item["allocation_pct"] = (data_item["value"] / total_value * 100) if total_value > 0 else 0
+
+        summary["asset_type_breakdown"] = asset_types
+
+        # Calculate account breakdown
+        accounts = {}
+        for position in data:
+            account_id = position.get('inv_account_id')
+            account_name = position.get('inv_account_name', 'Unknown')
+            if account_id and account_id not in accounts:
+                accounts[account_id] = {
+                    "account_name": account_name,
+                    "account_type": position.get('inv_account_type'),
+                    "institution": position.get('institution'),
+                    "position_count": 0,
+                    "value": 0,
+                    "cost_basis": 0,
+                    "gain_loss": 0,
+                    "annual_income": 0,
+                    "allocation_pct": 0
+                }
+            if account_id:
+                accounts[account_id]["position_count"] += 1
+                accounts[account_id]["value"] += position.get('total_current_value') or 0.0
+                accounts[account_id]["cost_basis"] += position.get('total_cost_basis') or 0.0
+                accounts[account_id]["gain_loss"] += position.get('total_gain_loss_amt') or 0.0
+                accounts[account_id]["annual_income"] += position.get('total_annual_income') or 0.0
+
+        # Calculate allocation percentages for accounts
+        for account_id, account_data in accounts.items():
+            account_data["allocation_pct"] = (account_data["value"] / total_value * 100) if total_value > 0 else 0
+
+        summary["account_breakdown"] = accounts
+
+        return {
+            "data": data,
+            "summary": summary
+        }
+
+    except Exception as e:
+        logger.error(f"Error fetching accounts summary positions: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch accounts summary positions: {str(e)}"
+        )
+
 
 @app.get("/datastore/liabilities/grouped")
 async def get_grouped_liabilities(

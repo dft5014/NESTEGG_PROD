@@ -82,6 +82,14 @@ const initialState = {
     lastFetched: null,
     isStale: false,
   },
+  accountsSummaryPositions: {
+    data: [],
+    summary: null,
+    loading: false,
+    error: null,
+    lastFetched: null,
+    isStale: false,
+  },
   snapshots: {
     data: null,
     byDate: {},
@@ -130,6 +138,11 @@ export const ActionTypes = {
   FETCH_GROUPED_LIABILITIES_SUCCESS: 'FETCH_GROUPED_LIABILITIES_SUCCESS',
   FETCH_GROUPED_LIABILITIES_ERROR: 'FETCH_GROUPED_LIABILITIES_ERROR',
   MARK_GROUPED_LIABILITIES_STALE: 'MARK_GROUPED_LIABILITIES_STALE',
+  // Accounts Summary Positions
+  FETCH_ACCOUNTS_SUMMARY_POSITIONS_START: 'FETCH_ACCOUNTS_SUMMARY_POSITIONS_START',
+  FETCH_ACCOUNTS_SUMMARY_POSITIONS_SUCCESS: 'FETCH_ACCOUNTS_SUMMARY_POSITIONS_SUCCESS',
+  FETCH_ACCOUNTS_SUMMARY_POSITIONS_ERROR: 'FETCH_ACCOUNTS_SUMMARY_POSITIONS_ERROR',
+  MARK_ACCOUNTS_SUMMARY_POSITIONS_STALE: 'MARK_ACCOUNTS_SUMMARY_POSITIONS_STALE',
   // Snapshots
   FETCH_SNAPSHOTS_START: 'FETCH_SNAPSHOTS_START',
   FETCH_SNAPSHOTS_SUCCESS: 'FETCH_SNAPSHOTS_SUCCESS',
@@ -414,6 +427,29 @@ const dataStoreReducer = (state, action) => {
 
     case ActionTypes.MARK_GROUPED_LIABILITIES_STALE:
       return { ...state, groupedLiabilities: { ...state.groupedLiabilities, isStale: true } };
+
+    // Accounts Summary Positions
+    case ActionTypes.FETCH_ACCOUNTS_SUMMARY_POSITIONS_START:
+      return { ...state, accountsSummaryPositions: { ...state.accountsSummaryPositions, loading: true, error: null } };
+
+    case ActionTypes.FETCH_ACCOUNTS_SUMMARY_POSITIONS_SUCCESS:
+      return {
+        ...state,
+        accountsSummaryPositions: {
+          data: action.payload.data || [],
+          summary: action.payload.summary || null,
+          loading: false,
+          error: null,
+          lastFetched: Date.now(),
+          isStale: false
+        }
+      };
+
+    case ActionTypes.FETCH_ACCOUNTS_SUMMARY_POSITIONS_ERROR:
+      return { ...state, accountsSummaryPositions: { ...state.accountsSummaryPositions, loading: false, error: action.payload } };
+
+    case ActionTypes.MARK_ACCOUNTS_SUMMARY_POSITIONS_STALE:
+      return { ...state, accountsSummaryPositions: { ...state.accountsSummaryPositions, isStale: true } };
 
     // Snapshots
     case ActionTypes.FETCH_SNAPSHOTS_START:
@@ -721,6 +757,29 @@ export const DataStoreProvider = ({ children }) => {
     }
   }, [state.groupedLiabilities.loading, state.groupedLiabilities.lastFetched, state.groupedLiabilities.isStale, withAbort, haveToken]);
 
+  const fetchAccountsSummaryPositionsData = useCallback(async (accountId = null, assetType = null, force = false) => {
+    if (!haveToken()) return;
+    if (state.accountsSummaryPositions.loading && !force) return;
+    const oneMinuteAgo = Date.now() - 60000;
+    if (!force && state.accountsSummaryPositions.lastFetched && state.accountsSummaryPositions.lastFetched > oneMinuteAgo && !state.accountsSummaryPositions.isStale) return;
+
+    dispatch({ type: ActionTypes.FETCH_ACCOUNTS_SUMMARY_POSITIONS_START });
+    try {
+      let url = '/datastore/accounts/summary-positions?snapshot_date=latest';
+      if (accountId) url += `&account_id=${accountId}`;
+      if (assetType) url += `&asset_type=${assetType}`;
+
+      const response = await withAbort(url);
+      if (!response.ok) throw new Error(`Failed to fetch accounts summary positions: ${response.status}`);
+      const data = await response.json();
+      dispatch({ type: ActionTypes.FETCH_ACCOUNTS_SUMMARY_POSITIONS_SUCCESS, payload: data });
+    } catch (error) {
+      if (error?.name === 'AbortError') return;
+      console.error('Error fetching accounts summary positions:', error);
+      dispatch({ type: ActionTypes.FETCH_ACCOUNTS_SUMMARY_POSITIONS_ERROR, payload: error.message });
+    }
+  }, [state.accountsSummaryPositions.loading, state.accountsSummaryPositions.lastFetched, state.accountsSummaryPositions.isStale, withAbort, haveToken]);
+
   const fetchSnapshotsData = useCallback(async (days = 90, force = false) => {
     if (!haveToken()) return;
     if (state.snapshots.loading && !force) return;
@@ -952,6 +1011,9 @@ export const DataStoreProvider = ({ children }) => {
       refreshAccountPositions: (accountId, assetType) => fetchAccountPositionsData(accountId, assetType, true),
       refreshGroupedPositions: () => fetchGroupedPositionsData(true),
       refreshGroupedLiabilities: () => fetchGroupedLiabilitiesData(true),
+      fetchAccountsSummaryPositionsData,
+      refreshAccountsSummaryPositions: (accountId, assetType) => fetchAccountsSummaryPositionsData(accountId, assetType, true),
+      markAccountsSummaryPositionsStale: () => dispatch({ type: ActionTypes.MARK_ACCOUNTS_SUMMARY_POSITIONS_STALE }),
     },
   };
 
