@@ -5,6 +5,7 @@ import ReactDOM from 'react-dom';
 import { useAccounts } from '@/store/hooks/useAccounts';
 import { useGroupedPositions } from '@/store/hooks/useGroupedPositions';
 import { useDetailedPositions } from '@/store/hooks/useDetailedPositions';
+import { useAccountPositions } from '@/store/hooks/useAccountPositions';
 import { usePortfolioTrends } from '@/store/hooks/usePortfolioTrends';
 // Utils
 import { popularBrokerages } from '@/utils/constants';
@@ -65,50 +66,79 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
 };
 
 // Updated Account Detail Modal Component
-    const AccountDetailModal = ({ isOpen, onClose, account }) => {
-        // State for sorting - must be before any conditional returns
-        const [positionSort, setPositionSort] = useState({ field: 'value', direction: 'desc' });
-        const [performanceRange, setPerformanceRange] = useState('1M'); // 1D, 1W, 1M, 3M, YTD, 1Y, ALL
-        const [expandedPositions, setExpandedPositions] = useState(new Set());
-        
-        // Get position data from DataStore hooks
-        const { positions: groupedPositions } = useGroupedPositions();
-        const { positions: detailedPositions } = useDetailedPositions();
+const AccountDetailModal = ({ isOpen, onClose, account }) => {
+    // ✅ Hooks must run on every render. Do NOT return early before them.
+    const [positionSort, setPositionSort] = useState({ field: 'value', direction: 'desc' });
+    const [performanceRange, setPerformanceRange] = useState('1M');
+    const [expandedPositions, setExpandedPositions] = useState(() => new Set());
 
-        // Filter positions for this account
+    // It’s okay if account is null here; we still call the hook consistently.
+    const { positions: accountPositionsData, loading: positionsLoading, error: positionsError } =
+        useAccountPositions(account?.id ?? null, null);
+
+    // …rest of the component (unchanged)
+
+    // Only now (after all hooks) short-circuit render:
+    if (!isOpen || !account) return null;
+                
+                // Debug logging
+                console.log('[AccountDetailModal] Debug Info:', {
+                    accountId: account?.id,
+                    accountObject: account,
+                    positionsLoading,
+                    accountPositionsData,
+                    positionsError
+                });
+                
+                // Get detailed positions for tax lot drill-down
+                const { positions: detailedPositions } = useDetailedPositions();
+
+        // Map account positions to modal display format
         const accountPositions = useMemo(() => {
-            if (!account || !groupedPositions) return [];
+            if (!account || !accountPositionsData) return [];
             
-            // Get positions that have this account in their account_details
-            return groupedPositions.filter(pos => 
-                pos.account_details?.some(detail => detail.account_id === account.id)
-            ).map(pos => {
-                // Find the specific account detail for this account
-                const accountDetail = pos.account_details.find(d => d.account_id === account.id);
-                return {
-                    symbol: pos.identifier,
-                    name: pos.name,
-                    asset_type: pos.asset_type,
-                    sector: pos.sector,
-                    quantity: accountDetail?.quantity || 0,
-                    currentPrice: pos.current_price,
-                    currentValue: accountDetail?.value || 0,
-                    costBasis: accountDetail?.cost || 0,
-                    gainLoss: accountDetail?.gain_loss_amt || 0,
-                    gainLossPercent: accountDetail?.gain_loss_pct || 0,
-                    annualIncome: accountDetail?.annual_income || 0,
-                    dividendYield: pos.dividend_yield || 0,
-                    priceChange1d: pos.price_1d_change_pct
-                };
-            });
-        }, [account, groupedPositions]);
+            return accountPositionsData.map(pos => ({
+                symbol: pos.identifier,
+                name: pos.name,
+                asset_type: pos.assetType,
+                sector: pos.sector,
+                industry: pos.industry,
+                quantity: pos.totalQuantity,
+                currentPrice: pos.latestPricePerUnit,
+                currentValue: pos.totalCurrentValue,
+                costBasis: pos.totalCostBasis,
+                gainLoss: pos.totalGainLossAmt,
+                gainLossPercent: pos.totalGainLossPct,
+                annualIncome: pos.totalAnnualIncome,
+                dividendYield: pos.dividendYield,
+                priceChange1d: pos.value1dChangePct,
+                // Additional fields for enhanced display
+                positionCount: pos.positionCount, // Number of tax lots
+                longTermValue: pos.longTermValue,
+                shortTermValue: pos.shortTermValue,
+                weightedAvgCost: pos.weightedAvgCost,
+                // Performance metrics
+                value1wChangePct: pos.value1wChangePct,
+                value1mChangePct: pos.value1mChangePct,
+                value3mChangePct: pos.value3mChangePct,
+                valueYtdChangePct: pos.valueYtdChangePct,
+                value1yChangePct: pos.value1yChangePct,
+            }));
+        }, [account, accountPositionsData]);
 
-        // Get tax lots for expanded positions
+        // Get tax lots for expanded positions (filtered by account and symbol)
         const getPositionTaxLots = (symbol) => {
-            if (!detailedPositions) return [];
+            if (!detailedPositions || !account) return [];
+            
             return detailedPositions.filter(p => 
-                p.identifier === symbol && p.accountId === account?.id
-            ).sort((a, b) => new Date(a.purchaseDate) - new Date(b.purchaseDate));
+                p.identifier === symbol && 
+                p.accountId === account.id
+            ).sort((a, b) => {
+                // Sort by purchase date (oldest first)
+                const dateA = new Date(a.purchaseDate || 0);
+                const dateB = new Date(b.purchaseDate || 0);
+                return dateA - dateB;
+            });
         };
 
         // Toggle tax lot expansion
@@ -123,6 +153,36 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                 return newSet;
             });
         };
+
+        // Show loading state while fetching positions
+        if (positionsLoading) {
+            return (
+                <FixedModal isOpen={isOpen} onClose={onClose} title="Loading..." size="max-w-6xl">
+                    <div className="flex items-center justify-center py-12">
+                        <Loader className="w-8 h-8 animate-spin text-blue-500" />
+                        <span className="ml-3 text-gray-400">Loading account positions...</span>
+                    </div>
+                </FixedModal>
+            );
+        }
+
+        // Show error state if positions failed to load
+        if (positionsError) {
+            return (
+                <FixedModal isOpen={isOpen} onClose={onClose} title="Error Loading Positions" size="max-w-6xl">
+                    <div className="flex flex-col items-center justify-center py-12">
+                        <div className="text-red-400 mb-4">Failed to load positions</div>
+                        <div className="text-gray-400 text-sm">{positionsError}</div>
+                        <button 
+                            onClick={onClose}
+                            className="mt-6 px-4 py-2 bg-blue-600 rounded hover:bg-blue-700"
+                        >
+                            Close
+                        </button>
+                    </div>
+                </FixedModal>
+            );
+        }
 
         const sortedPositions = useMemo(() => {
             if (!accountPositions || accountPositions.length === 0) return [];
@@ -504,7 +564,7 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                             </div>
 
                             {/* Positions Table */}
-                            {accountPositions.length > 0 && (
+                            {accountPositions && accountPositions.length > 0 ? (
                                 <div className="bg-gray-800/30 rounded">
                                     <div className="px-4 py-3 border-b border-gray-700">
                                         <h4 className="text-sm font-semibold text-gray-300">
@@ -702,9 +762,10 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                                                                         </div>
                                                                     </div>
                                                                 </td>
-                                                        <td className="px-3 py-2 text-xs text-right">
-                                                            {formatNumber(position.quantity || 0, { maximumFractionDigits: 4 })}
-                                                        </td>
+                                                                <td className="px-3 py-2 text-xs text-right">
+                                                                    {formatNumber(position.quantity || 0, { maximumFractionDigits: 4 })}
+                                                                </td>
+                                                        
                                                             <td className="px-3 py-2 text-xs text-right">
                                                                 {formatCurrency(position.currentPrice || 0)}
                                                                 {position.priceChange1d !== null && position.priceChange1d !== undefined && (
@@ -818,6 +879,18 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                                                     })}
                                             </tbody>
                                         </table>
+                                    </div>
+                            </div>
+                            ) : (
+                                <div className="bg-gray-800/30 rounded p-6">
+                                    <div className="text-center">
+                                        <div className="text-gray-400 mb-4">No positions found for this account</div>
+                                        <div className="text-xs text-gray-500 space-y-2">
+                                            <div>Account ID: {account?.id}</div>
+                                            <div>Account Name: {account?.name || account?.account_name}</div>
+                                            <div>Raw Positions Data Length: {accountPositionsData?.length || 0}</div>
+                                            <div>Processed Positions Length: {accountPositions?.length || 0}</div>
+                                        </div>
                                     </div>
                                 </div>
                             )}
@@ -1024,7 +1097,7 @@ const UnifiedAccountTable = ({
                 acc.totalCostBasis += account.totalCostBasis ?? 0;
                 acc.totalGainLoss += account.totalGainLoss ?? 0;
                 acc.positionsCount += account.totalPositions ?? 0;
-                acc.cashBalance += account.cashValue ?? 0;
+                acc.cashBalance += account.cashBalance ?? 0;
                 return acc;
             }, { ...emptyTotals });
             

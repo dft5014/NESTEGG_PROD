@@ -45,6 +45,14 @@ const initialState = {
     lastFetched: null,
     isStale: false
   },
+    accountPositions: {
+    data: null,
+    summary: null,
+    loading: false,
+    error: null,
+    lastFetched: null,
+    isStale: false,
+  },
   groupedPositions: {
     data: [],
     summary: null,
@@ -98,6 +106,11 @@ export const ActionTypes = {
   FETCH_ACCOUNTS_SUCCESS: 'FETCH_ACCOUNTS_SUCCESS',
   FETCH_ACCOUNTS_ERROR: 'FETCH_ACCOUNTS_ERROR',
   MARK_ACCOUNTS_STALE: 'MARK_ACCOUNTS_STALE',
+    // Account Positions
+  FETCH_ACCOUNT_POSITIONS_START: 'FETCH_ACCOUNT_POSITIONS_START',
+  FETCH_ACCOUNT_POSITIONS_SUCCESS: 'FETCH_ACCOUNT_POSITIONS_SUCCESS',
+  FETCH_ACCOUNT_POSITIONS_ERROR: 'FETCH_ACCOUNT_POSITIONS_ERROR',
+  MARK_ACCOUNT_POSITIONS_STALE: 'MARK_ACCOUNT_POSITIONS_STALE',
   // Grouped Positions
   FETCH_GROUPED_POSITIONS_START: 'FETCH_GROUPED_POSITIONS_START',
   FETCH_GROUPED_POSITIONS_SUCCESS: 'FETCH_GROUPED_POSITIONS_SUCCESS',
@@ -270,6 +283,31 @@ const dataStoreReducer = (state, action) => {
 
     case ActionTypes.MARK_ACCOUNTS_STALE:
       return { ...state, accounts: { ...state.accounts, isStale: true } };
+
+    // Account Positions
+    case ActionTypes.FETCH_ACCOUNT_POSITIONS_START:
+      return { ...state, accountPositions: { ...state.accountPositions, loading: true, error: null } };
+
+    case ActionTypes.FETCH_ACCOUNT_POSITIONS_SUCCESS:
+      return {
+        ...state,
+        accountPositions: {
+          data: action.payload.positions || [],
+          summary: action.payload.summary || null,
+          loading: false,
+          error: null,
+          lastFetched: Date.now(),
+          isStale: false,
+        }
+      };
+
+    case ActionTypes.FETCH_ACCOUNT_POSITIONS_ERROR:
+      return { ...state, accountPositions: { ...state.accountPositions, loading: false, error: action.payload } };
+
+    case ActionTypes.MARK_ACCOUNT_POSITIONS_STALE:
+      return { ...state, accountPositions: { ...state.accountPositions, isStale: true } };
+
+
 
     // Full reset
     case ActionTypes.RESET_STORE:
@@ -540,6 +578,74 @@ export const DataStoreProvider = ({ children }) => {
     }
   }, [state.accounts.loading, state.accounts.lastFetched, state.accounts.isStale, withAbort, haveToken]);
 
+  const fetchAccountPositionsData = useCallback(async (accountId = null, assetType = null, force = false) => {
+    console.log('═══════════════════════════════════════════════════════');
+    console.log('[DataStore] fetchAccountPositionsData START');
+    console.log('[DataStore] Params:', { accountId, assetType, force });
+    console.log('[DataStore] Current state:', {
+      loading: state.accountPositions?.loading,
+      lastFetched: state.accountPositions?.lastFetched,
+      dataLength: state.accountPositions?.data?.length || 0,
+      hasToken: haveToken()
+    });
+    console.log('═══════════════════════════════════════════════════════');
+    
+    if (!haveToken()) {
+      console.error('[DataStore] ❌ No token found - aborting fetch');
+      return;
+    }
+    
+    if (!force && state.accountPositions.loading) {
+      console.warn('[DataStore] ⚠️  Already loading - skipping duplicate fetch');
+      return;
+    }
+    
+    console.log('[DataStore] ✅ Validation passed - proceeding with fetch');
+    dispatch({ type: ActionTypes.FETCH_ACCOUNT_POSITIONS_START });
+    
+    try {
+      // Build query params
+      const params = new URLSearchParams({ snapshot_date: 'latest' });
+      if (accountId) params.append('account_id', accountId);
+      if (assetType) params.append('asset_type', assetType);
+      
+      const url = `/datastore/accounts/positions?${params.toString()}`;
+      console.log('[DataStore] 🌐 Fetching from URL:', url);
+      
+      const response = await withAbort(url);
+      if (!response.ok) throw new Error(`Failed to fetch account positions: ${response.status}`);
+      const data = await response.json();
+      
+      console.log('[DataStore] 📦 Response received:', {
+        positionsCount: data?.positions?.length || 0,
+        hasSummary: !!data?.summary,
+        fullData: data
+      });
+      
+      dispatch({ 
+        type: ActionTypes.FETCH_ACCOUNT_POSITIONS_SUCCESS, 
+        payload: {
+          positions: data?.positions || [],
+          summary: data?.summary || null
+        }
+      });
+      
+      console.log('[DataStore] ✅ SUCCESS - Data stored in state');
+      
+    } catch (err) {
+      if (err.name !== 'AbortError') {
+        console.error('[DataStore] ❌ ERROR:', {
+          error: err,
+          message: err.message,
+          stack: err.stack
+        });
+        dispatch({ type: ActionTypes.FETCH_ACCOUNT_POSITIONS_ERROR, payload: err.message });
+      } else {
+        console.warn('[DataStore] ⚠️  Fetch aborted');
+      }
+    }
+  }, [haveToken, state.accountPositions?.loading, withAbort, dispatch]);
+
   const fetchGroupedPositionsData = useCallback(async (force = false) => {
     if (!haveToken()) return;
     if (state.groupedPositions.loading && !force) return;
@@ -715,6 +821,12 @@ export const DataStoreProvider = ({ children }) => {
     }
   }, [state.accounts.isStale, state.accounts.loading, fetchAccountsData]);
 
+  useEffect(() => {
+    if (state.accountPositions.isStale && !state.accountPositions.loading) {
+      fetchAccountPositionsData();
+    }
+  }, [state.accountPositions.isStale, state.accountPositions.loading, fetchAccountPositionsData]);
+
   // ---------- Mark stale helpers ----------
   const markDataStale = useCallback(() => {
     dispatch({ type: ActionTypes.MARK_DATA_STALE });
@@ -827,6 +939,7 @@ export const DataStoreProvider = ({ children }) => {
       clearStore, // exposed for diagnostics/tests if needed
       fetchPortfolioData,
       fetchAccountsData,
+      fetchAccountPositionsData,  // ← ADD THIS LINE
       fetchGroupedPositionsData,
       fetchPositionHistory,
       markDataStale,
@@ -836,6 +949,7 @@ export const DataStoreProvider = ({ children }) => {
       fetchDetailedPositionsData,
       fetchSnapshotsData,
       refreshAccounts: () => fetchAccountsData(true),
+      refreshAccountPositions: (accountId, assetType) => fetchAccountPositionsData(accountId, assetType, true),
       refreshGroupedPositions: () => fetchGroupedPositionsData(true),
       refreshGroupedLiabilities: () => fetchGroupedLiabilitiesData(true),
     },
