@@ -73,13 +73,22 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
         const [expandedPositions, setExpandedPositions] = useState(new Set());
         
         // Get account-specific aggregated positions from rept_accounts_positions
-        const { positions: accountPositionsData, loading: positionsLoading } = useAccountPositions(
-            account?.id, 
-            null // No asset type filter - get all asset types for this account
-        );
-        
-        // Get detailed positions for tax lot drill-down
-        const { positions: detailedPositions } = useDetailedPositions();
+                const { positions: accountPositionsData, loading: positionsLoading, error: positionsError } = useAccountPositions(
+                    account?.id, 
+                    null // No asset type filter - get all asset types for this account
+                );
+                
+                // Debug logging
+                console.log('[AccountDetailModal] Debug Info:', {
+                    accountId: account?.id,
+                    accountObject: account,
+                    positionsLoading,
+                    accountPositionsData,
+                    positionsError
+                });
+                
+                // Get detailed positions for tax lot drill-down
+                const { positions: detailedPositions } = useDetailedPositions();
 
         // Map account positions to modal display format
         const accountPositions = useMemo(() => {
@@ -149,6 +158,24 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                     <div className="flex items-center justify-center py-12">
                         <Loader className="w-8 h-8 animate-spin text-blue-500" />
                         <span className="ml-3 text-gray-400">Loading account positions...</span>
+                    </div>
+                </FixedModal>
+            );
+        }
+
+        // Show error state if positions failed to load
+        if (positionsError) {
+            return (
+                <FixedModal isOpen={isOpen} onClose={onClose} title="Error Loading Positions" size="max-w-6xl">
+                    <div className="flex flex-col items-center justify-center py-12">
+                        <div className="text-red-400 mb-4">Failed to load positions</div>
+                        <div className="text-gray-400 text-sm">{positionsError}</div>
+                        <button 
+                            onClick={onClose}
+                            className="mt-6 px-4 py-2 bg-blue-600 rounded hover:bg-blue-700"
+                        >
+                            Close
+                        </button>
                     </div>
                 </FixedModal>
             );
@@ -534,7 +561,7 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                             </div>
 
                             {/* Positions Table */}
-                            {accountPositions.length > 0 && (
+                            {accountPositions && accountPositions.length > 0 ? (
                                 <div className="bg-gray-800/30 rounded">
                                     <div className="px-4 py-3 border-b border-gray-700">
                                         <h4 className="text-sm font-semibold text-gray-300">
@@ -850,6 +877,18 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                                             </tbody>
                                         </table>
                                     </div>
+                            </div>
+                            ) : (
+                                <div className="bg-gray-800/30 rounded p-6">
+                                    <div className="text-center">
+                                        <div className="text-gray-400 mb-4">No positions found for this account</div>
+                                        <div className="text-xs text-gray-500 space-y-2">
+                                            <div>Account ID: {account?.id}</div>
+                                            <div>Account Name: {account?.name || account?.account_name}</div>
+                                            <div>Raw Positions Data Length: {accountPositionsData?.length || 0}</div>
+                                            <div>Processed Positions Length: {accountPositions?.length || 0}</div>
+                                        </div>
+                                    </div>
                                 </div>
                             )}
                         </div>
@@ -1055,7 +1094,7 @@ const UnifiedAccountTable = ({
                 acc.totalCostBasis += account.totalCostBasis ?? 0;
                 acc.totalGainLoss += account.totalGainLoss ?? 0;
                 acc.positionsCount += account.totalPositions ?? 0;
-                acc.cashBalance += account.cashValue ?? 0;
+                acc.cashBalance += account.cashBalance ?? 0;
                 return acc;
             }, { ...emptyTotals });
             
