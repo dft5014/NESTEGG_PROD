@@ -67,16 +67,19 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
 
 // Updated Account Detail Modal Component
     const AccountDetailModal = ({ isOpen, onClose, account }) => {
+        // Early return BEFORE any hooks if modal not open or no account
+        if (!isOpen || !account) return null;
+        
         // State for sorting - must be before any conditional returns
         const [positionSort, setPositionSort] = useState({ field: 'value', direction: 'desc' });
-        const [performanceRange, setPerformanceRange] = useState('1M'); // 1D, 1W, 1M, 3M, YTD, 1Y, ALL
+        const [performanceRange, setPerformanceRange] = useState('1M');
         const [expandedPositions, setExpandedPositions] = useState(new Set());
         
         // Get account-specific aggregated positions from rept_accounts_positions
-                const { positions: accountPositionsData, loading: positionsLoading, error: positionsError } = useAccountPositions(
-                    account?.id, 
-                    null // No asset type filter - get all asset types for this account
-                );
+        const { positions: accountPositionsData, loading: positionsLoading, error: positionsError } = useAccountPositions(
+            account.id,  // ← Now guaranteed to exist
+            null
+        );
                 
                 // Debug logging
                 console.log('[AccountDetailModal] Debug Info:', {
