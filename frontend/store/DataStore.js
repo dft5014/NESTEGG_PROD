@@ -579,17 +579,47 @@ export const DataStoreProvider = ({ children }) => {
   }, [state.accounts.loading, state.accounts.lastFetched, state.accounts.isStale, withAbort, haveToken]);
 
   const fetchAccountPositionsData = useCallback(async (accountId = null, assetType = null, force = false) => {
-    if (!haveToken()) return;
-    if (!force && state.accountPositions.loading) return;
+    console.log('═══════════════════════════════════════════════════════');
+    console.log('[DataStore] fetchAccountPositionsData START');
+    console.log('[DataStore] Params:', { accountId, assetType, force });
+    console.log('[DataStore] Current state:', {
+      loading: state.accountPositions?.loading,
+      lastFetched: state.accountPositions?.lastFetched,
+      dataLength: state.accountPositions?.data?.length || 0,
+      hasToken: haveToken()
+    });
+    console.log('═══════════════════════════════════════════════════════');
     
+    if (!haveToken()) {
+      console.error('[DataStore] ❌ No token found - aborting fetch');
+      return;
+    }
+    
+    if (!force && state.accountPositions.loading) {
+      console.warn('[DataStore] ⚠️  Already loading - skipping duplicate fetch');
+      return;
+    }
+    
+    console.log('[DataStore] ✅ Validation passed - proceeding with fetch');
     dispatch({ type: ActionTypes.FETCH_ACCOUNT_POSITIONS_START });
+    
     try {
       // Build query params
       const params = new URLSearchParams({ snapshot_date: 'latest' });
       if (accountId) params.append('account_id', accountId);
       if (assetType) params.append('asset_type', assetType);
       
-      const data = await withAbort(`/datastore/accounts/positions?${params.toString()}`);
+      const url = `/datastore/accounts/positions?${params.toString()}`;
+      console.log('[DataStore] 🌐 Fetching from URL:', url);
+      
+      const data = await withAbort(url);
+      
+      console.log('[DataStore] 📦 Response received:', {
+        positionsCount: data?.positions?.length || 0,
+        hasSummary: !!data?.summary,
+        fullData: data
+      });
+      
       dispatch({ 
         type: ActionTypes.FETCH_ACCOUNT_POSITIONS_SUCCESS, 
         payload: {
@@ -597,13 +627,22 @@ export const DataStoreProvider = ({ children }) => {
           summary: data?.summary || null
         }
       });
+      
+      console.log('[DataStore] ✅ SUCCESS - Data stored in state');
+      
     } catch (err) {
       if (err.name !== 'AbortError') {
-        console.error('[DataStore] Error fetching account positions:', err);
+        console.error('[DataStore] ❌ ERROR:', {
+          error: err,
+          message: err.message,
+          stack: err.stack
+        });
         dispatch({ type: ActionTypes.FETCH_ACCOUNT_POSITIONS_ERROR, payload: err.message });
+      } else {
+        console.warn('[DataStore] ⚠️  Fetch aborted');
       }
     }
-  }, [haveToken, state.accountPositions.loading, withAbort]);
+  }, [haveToken, state.accountPositions?.loading, withAbort, dispatch]);
 
   const fetchGroupedPositionsData = useCallback(async (force = false) => {
     if (!haveToken()) return;

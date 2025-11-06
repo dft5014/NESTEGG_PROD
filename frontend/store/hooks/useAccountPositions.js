@@ -14,6 +14,14 @@ export const useAccountPositions = (accountId = null, assetType = null) => {
     }
   }, [accountPositions.isStale, accountPositions.loading, accountId, assetType, fetchAccountPositionsData]);
 
+  // Auto-fetch on mount when accountId is provided
+  useEffect(() => {
+    if (accountId && !accountPositions.loading && !accountPositions.lastFetched) {
+      console.log('[useAccountPositions] Initial fetch for account:', accountId);
+      fetchAccountPositionsData(accountId, assetType);
+    }
+  }, [accountId, assetType]); // Only run when accountId or assetType changes
+
   // Process positions data with proper field mapping
   const positions = useMemo(() => {
     if (!accountPositions.data) return [];
