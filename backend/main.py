@@ -6644,7 +6644,6 @@ async def get_position_history(
             detail=f"Failed to fetch position history: {str(e)}"
         )
 
-
 @app.get("/datastore/accounts/positions")
 async def get_datastore_account_positions(
     account_id: Optional[int] = Query(None, description="Filter by specific account ID"),
@@ -6733,26 +6732,9 @@ async def get_datastore_account_positions(
                 position['earliest_snapshot_date'] = position['earliest_snapshot_date'].strftime('%Y-%m-%d')
             
             # Convert Decimal fields to float
-            numeric_fields = [
-                'total_quantity', 'total_current_value', 'total_cost_basis', 'total_gain_loss_amt',
-                'total_gain_loss_pct', 'weighted_avg_price', 'weighted_avg_cost', 'latest_price_per_unit',
-                'dividend_rate', 'dividend_yield', 'total_annual_income', 'portfolio_allocation_pct',
-                'account_allocation_pct', 'long_term_value_pct'
-            ]
-            
-            # Add all trend fields (1d, 1w, 1m, 3m, ytd, 1y, 2y, 3y, 5y, max)
-            trend_periods = ['1d', '1w', '1m', '3m', 'ytd', '1y', '2y', '3y', '5y', 'max']
-            for period in trend_periods:
-                numeric_fields.extend([
-                    f'value_{period}_ago', f'value_{period}_change', f'value_{period}_change_pct',
-                    f'quantity_{period}_ago', f'quantity_{period}_change', f'quantity_{period}_change_pct',
-                    f'price_{period}_ago',
-                    f'gain_loss_{period}_change', f'gain_loss_{period}_change_pct'
-                ])
-            
-            for field in numeric_fields:
-                if field in position and position[field] is not None:
-                    position[field] = float(position[field])
+            for key, value in position.items():
+                if isinstance(value, Decimal):
+                    position[key] = float(value)
             
             positions.append(position)
         
