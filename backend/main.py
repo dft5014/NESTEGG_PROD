@@ -6644,6 +6644,154 @@ async def get_position_history(
             detail=f"Failed to fetch position history: {str(e)}"
         )
 
+
+@app.get("/datastore/accounts/positions")
+async def get_datastore_account_positions(
+    account_id: Optional[int] = Query(None, description="Filter by specific account ID"),
+    snapshot_date: Optional[str] = Query(None, description="Specific date (YYYY-MM-DD) or 'latest' for most recent"),
+    asset_type: Optional[str] = Query(None, description="Filter by asset type"),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get account-level position summaries from rept_accounts_positions view for DataStore
+    Provides detailed position breakdown by account with historical trends
+    """
+    try:
+        user_id = current_user["id"]
+        
+        # Build base query
+        base_query = """
+        SELECT * FROM rept_accounts_positions 
+        WHERE user_id = :user_id
+        """
+        
+        params = {"user_id": user_id}
+        filters = []
+        
+        # Add account filter
+        if account_id:
+            filters.append("inv_account_id = :account_id")
+            params["account_id"] = account_id
+        
+        # Add asset type filter
+        if asset_type:
+            filters.append("asset_type = :asset_type")
+            params["asset_type"] = asset_type
+        
+        # Handle date filtering
+        if snapshot_date == "latest" or snapshot_date is None:
+            date_filter = """
+            AND snapshot_date = (
+                SELECT MAX(snapshot_date) 
+                FROM rept_accounts_positions 
+                WHERE user_id = :user_id
+            )
+            """
+        else:
+            date_filter = " AND snapshot_date = :snapshot_date::date"
+            params["snapshot_date"] = snapshot_date
+        
+        # Combine filters
+        if filters:
+            base_query += " AND " + " AND ".join(filters)
+        base_query += date_filter
+        base_query += " ORDER BY inv_account_name, identifier"
+        
+        # Execute query
+        results = await database.fetch_all(query=base_query, values=params)
+        
+        if not results:
+            return {
+                "positions": [],
+                "summary": {
+                    "total_positions": 0,
+                    "total_value": 0,
+                    "total_cost_basis": 0,
+                    "total_gain_loss": 0,
+                    "accounts_count": 0
+                },
+                "message": "No position data found"
+            }
+        
+        # Process results
+        positions = []
+        for row in results:
+            position = dict(row)
+            
+            # Format timestamps
+            if position.get('snapshot_date'):
+                position['snapshot_date'] = position['snapshot_date'].strftime('%Y-%m-%d')
+            if position.get('last_updated'):
+                position['last_updated'] = position['last_updated'].isoformat()
+            if position.get('price_last_updated'):
+                position['price_last_updated'] = position['price_last_updated'].isoformat()
+            if position.get('earliest_purchase_date'):
+                position['earliest_purchase_date'] = position['earliest_purchase_date'].strftime('%Y-%m-%d')
+            if position.get('latest_purchase_date'):
+                position['latest_purchase_date'] = position['latest_purchase_date'].strftime('%Y-%m-%d')
+            if position.get('earliest_snapshot_date'):
+                position['earliest_snapshot_date'] = position['earliest_snapshot_date'].strftime('%Y-%m-%d')
+            
+            # Convert Decimal fields to float
+            numeric_fields = [
+                'total_quantity', 'total_current_value', 'total_cost_basis', 'total_gain_loss_amt',
+                'total_gain_loss_pct', 'weighted_avg_price', 'weighted_avg_cost', 'latest_price_per_unit',
+                'dividend_rate', 'dividend_yield', 'total_annual_income', 'portfolio_allocation_pct',
+                'account_allocation_pct', 'long_term_value_pct'
+            ]
+            
+            # Add all trend fields (1d, 1w, 1m, 3m, ytd, 1y, 2y, 3y, 5y, max)
+            trend_periods = ['1d', '1w', '1m', '3m', 'ytd', '1y', '2y', '3y', '5y', 'max']
+            for period in trend_periods:
+                numeric_fields.extend([
+                    f'value_{period}_ago', f'value_{period}_change', f'value_{period}_change_pct',
+                    f'quantity_{period}_ago', f'quantity_{period}_change', f'quantity_{period}_change_pct',
+                    f'price_{period}_ago',
+                    f'gain_loss_{period}_change', f'gain_loss_{period}_change_pct'
+                ])
+            
+            for field in numeric_fields:
+                if field in position and position[field] is not None:
+                    position[field] = float(position[field])
+            
+            positions.append(position)
+        
+        # Calculate summary statistics
+        summary = {
+            "total_positions": len(positions),
+            "total_value": sum(p.get('total_current_value', 0) or 0 for p in positions),
+            "total_cost_basis": sum(p.get('total_cost_basis', 0) or 0 for p in positions),
+            "total_gain_loss": sum(p.get('total_gain_loss_amt', 0) or 0 for p in positions),
+            "accounts_count": len(set(p.get('inv_account_id') for p in positions if p.get('inv_account_id'))),
+            "asset_types": list(set(p.get('asset_type') for p in positions if p.get('asset_type'))),
+            "total_annual_income": sum(p.get('total_annual_income', 0) or 0 for p in positions),
+            "long_term_value": sum(p.get('long_term_value', 0) or 0 for p in positions),
+            "short_term_value": sum(p.get('short_term_value', 0) or 0 for p in positions)
+        }
+        
+        # Add gain/loss percentage
+        if summary['total_cost_basis'] > 0:
+            summary['total_gain_loss_pct'] = (summary['total_gain_loss'] / summary['total_cost_basis']) * 100
+        else:
+            summary['total_gain_loss_pct'] = 0
+        
+        return {
+            "positions": positions,
+            "summary": summary,
+            "count": len(positions)
+        }
+        
+    except Exception as e:
+        logger.error(f"Error fetching account positions: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch account positions: {str(e)}"
+        )
+
+
+
 @app.get("/datastore/liabilities/grouped")
 async def get_grouped_liabilities(
     snapshot_date: str = Query("latest", description="Snapshot date (YYYY-MM-DD) or 'latest'"),
