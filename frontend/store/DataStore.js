@@ -612,7 +612,9 @@ export const DataStoreProvider = ({ children }) => {
       const url = `/datastore/accounts/positions?${params.toString()}`;
       console.log('[DataStore] 🌐 Fetching from URL:', url);
       
-      const data = await withAbort(url);
+      const response = await withAbort(url);
+      if (!response.ok) throw new Error(`Failed to fetch account positions: ${response.status}`);
+      const data = await response.json();
       
       console.log('[DataStore] 📦 Response received:', {
         positionsCount: data?.positions?.length || 0,
@@ -937,6 +939,7 @@ export const DataStoreProvider = ({ children }) => {
       clearStore, // exposed for diagnostics/tests if needed
       fetchPortfolioData,
       fetchAccountsData,
+      fetchAccountPositionsData,  // ← ADD THIS LINE
       fetchGroupedPositionsData,
       fetchPositionHistory,
       markDataStale,
