@@ -5,7 +5,6 @@ import ReactDOM from 'react-dom';
 import { useAccounts } from '@/store/hooks/useAccounts';
 import { useGroupedPositions } from '@/store/hooks/useGroupedPositions';
 import { useDetailedPositions } from '@/store/hooks/useDetailedPositions';
-import { useAccountPositions } from '@/store/hooks/useAccountPositions';
 import { usePortfolioTrends } from '@/store/hooks/usePortfolioTrends';
 // Utils
 import { popularBrokerages } from '@/utils/constants';
@@ -66,79 +65,50 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
 };
 
 // Updated Account Detail Modal Component
-const AccountDetailModal = ({ isOpen, onClose, account }) => {
-    // ✅ Hooks must run on every render. Do NOT return early before them.
-    const [positionSort, setPositionSort] = useState({ field: 'value', direction: 'desc' });
-    const [performanceRange, setPerformanceRange] = useState('1M');
-    const [expandedPositions, setExpandedPositions] = useState(() => new Set());
+    const AccountDetailModal = ({ isOpen, onClose, account }) => {
+        // State for sorting - must be before any conditional returns
+        const [positionSort, setPositionSort] = useState({ field: 'value', direction: 'desc' });
+        const [performanceRange, setPerformanceRange] = useState('1M'); // 1D, 1W, 1M, 3M, YTD, 1Y, ALL
+        const [expandedPositions, setExpandedPositions] = useState(new Set());
+        
+        // Get position data from DataStore hooks
+        const { positions: groupedPositions } = useGroupedPositions();
+        const { positions: detailedPositions } = useDetailedPositions();
 
-    // It’s okay if account is null here; we still call the hook consistently.
-    const { positions: accountPositionsData, loading: positionsLoading, error: positionsError } =
-        useAccountPositions(account?.id ?? null, null);
-
-    // …rest of the component (unchanged)
-
-    // Only now (after all hooks) short-circuit render:
-    if (!isOpen || !account) return null;
-                
-                // Debug logging
-                console.log('[AccountDetailModal] Debug Info:', {
-                    accountId: account?.id,
-                    accountObject: account,
-                    positionsLoading,
-                    accountPositionsData,
-                    positionsError
-                });
-                
-                // Get detailed positions for tax lot drill-down
-                const { positions: detailedPositions } = useDetailedPositions();
-
-        // Map account positions to modal display format
+        // Filter positions for this account
         const accountPositions = useMemo(() => {
-            if (!account || !accountPositionsData) return [];
+            if (!account || !groupedPositions) return [];
             
-            return accountPositionsData.map(pos => ({
-                symbol: pos.identifier,
-                name: pos.name,
-                asset_type: pos.assetType,
-                sector: pos.sector,
-                industry: pos.industry,
-                quantity: pos.totalQuantity,
-                currentPrice: pos.latestPricePerUnit,
-                currentValue: pos.totalCurrentValue,
-                costBasis: pos.totalCostBasis,
-                gainLoss: pos.totalGainLossAmt,
-                gainLossPercent: pos.totalGainLossPct,
-                annualIncome: pos.totalAnnualIncome,
-                dividendYield: pos.dividendYield,
-                priceChange1d: pos.value1dChangePct,
-                // Additional fields for enhanced display
-                positionCount: pos.positionCount, // Number of tax lots
-                longTermValue: pos.longTermValue,
-                shortTermValue: pos.shortTermValue,
-                weightedAvgCost: pos.weightedAvgCost,
-                // Performance metrics
-                value1wChangePct: pos.value1wChangePct,
-                value1mChangePct: pos.value1mChangePct,
-                value3mChangePct: pos.value3mChangePct,
-                valueYtdChangePct: pos.valueYtdChangePct,
-                value1yChangePct: pos.value1yChangePct,
-            }));
-        }, [account, accountPositionsData]);
-
-        // Get tax lots for expanded positions (filtered by account and symbol)
-        const getPositionTaxLots = (symbol) => {
-            if (!detailedPositions || !account) return [];
-            
-            return detailedPositions.filter(p => 
-                p.identifier === symbol && 
-                p.accountId === account.id
-            ).sort((a, b) => {
-                // Sort by purchase date (oldest first)
-                const dateA = new Date(a.purchaseDate || 0);
-                const dateB = new Date(b.purchaseDate || 0);
-                return dateA - dateB;
+            // Get positions that have this account in their account_details
+            return groupedPositions.filter(pos => 
+                pos.account_details?.some(detail => detail.account_id === account.id)
+            ).map(pos => {
+                // Find the specific account detail for this account
+                const accountDetail = pos.account_details.find(d => d.account_id === account.id);
+                return {
+                    symbol: pos.identifier,
+                    name: pos.name,
+                    asset_type: pos.asset_type,
+                    sector: pos.sector,
+                    quantity: accountDetail?.quantity || 0,
+                    currentPrice: pos.current_price,
+                    currentValue: accountDetail?.value || 0,
+                    costBasis: accountDetail?.cost || 0,
+                    gainLoss: accountDetail?.gain_loss_amt || 0,
+                    gainLossPercent: accountDetail?.gain_loss_pct || 0,
+                    annualIncome: accountDetail?.annual_income || 0,
+                    dividendYield: pos.dividend_yield || 0,
+                    priceChange1d: pos.price_1d_change_pct
+                };
             });
+        }, [account, groupedPositions]);
+
+        // Get tax lots for expanded positions
+        const getPositionTaxLots = (symbol) => {
+            if (!detailedPositions) return [];
+            return detailedPositions.filter(p => 
+                p.identifier === symbol && p.accountId === account?.id
+            ).sort((a, b) => new Date(a.purchaseDate) - new Date(b.purchaseDate));
         };
 
         // Toggle tax lot expansion
@@ -153,36 +123,6 @@ const AccountDetailModal = ({ isOpen, onClose, account }) => {
                 return newSet;
             });
         };
-
-        // Show loading state while fetching positions
-        if (positionsLoading) {
-            return (
-                <FixedModal isOpen={isOpen} onClose={onClose} title="Loading..." size="max-w-6xl">
-                    <div className="flex items-center justify-center py-12">
-                        <Loader className="w-8 h-8 animate-spin text-blue-500" />
-                        <span className="ml-3 text-gray-400">Loading account positions...</span>
-                    </div>
-                </FixedModal>
-            );
-        }
-
-        // Show error state if positions failed to load
-        if (positionsError) {
-            return (
-                <FixedModal isOpen={isOpen} onClose={onClose} title="Error Loading Positions" size="max-w-6xl">
-                    <div className="flex flex-col items-center justify-center py-12">
-                        <div className="text-red-400 mb-4">Failed to load positions</div>
-                        <div className="text-gray-400 text-sm">{positionsError}</div>
-                        <button 
-                            onClick={onClose}
-                            className="mt-6 px-4 py-2 bg-blue-600 rounded hover:bg-blue-700"
-                        >
-                            Close
-                        </button>
-                    </div>
-                </FixedModal>
-            );
-        }
 
         const sortedPositions = useMemo(() => {
             if (!accountPositions || accountPositions.length === 0) return [];
@@ -446,17 +386,9 @@ const AccountDetailModal = ({ isOpen, onClose, account }) => {
                                         {accountStats.totalGainLoss >= 0 ? '+' : ''}{formatCurrency(accountStats.totalGainLoss)}
                                     </div>
                                         <div className={`text-xs mt-1 ${
-                                        accountStats.totalGainLossPct === null || accountStats.totalGainLossPct === undefined || accountStats.totalGainLossPct === 0
-                                            ? 'text-gray-400'
-                                            : accountStats.totalGainLossPct > 0
-                                            ? 'text-green-400'
-                                            : 'text-red-400'
+                                            accountStats.totalGainLossPct >= 0 ? 'text-green-400' : 'text-red-400'
                                         }`}>
-                                        {
-                                            accountStats.totalGainLossPct === null || accountStats.totalGainLossPct === undefined || accountStats.totalGainLossPct === 0
-                                            ? 'n.a.'
-                                            : `${accountStats.totalGainLossPct > 0 ? '+' : ''}${accountStats.totalGainLossPct.toFixed(2)}%`
-                                        }
+                                            {accountStats.totalGainLossPct >= 0 ? '+' : ''}{accountStats.totalGainLossPct.toFixed(2)}%
                                         </div>
                                 </div>
                                 <div className="bg-gray-800/50 p-4 rounded">
@@ -541,19 +473,11 @@ const AccountDetailModal = ({ isOpen, onClose, account }) => {
                                 {performanceMetrics.map((metric) => (
                                     <div key={metric.key} className="bg-gray-800/50 p-3 rounded text-center">
                                         <div className="text-xs text-gray-400 mb-1">{metric.label}</div>
-                                            <div className={`text-sm font-semibold ${
-                                            metric.value === null || metric.value === undefined || metric.value === 0
-                                                ? 'text-gray-400'
-                                                : metric.value > 0
-                                                ? 'text-green-400'
-                                                : 'text-red-400'
-                                            }`}>
-                                            {
-                                                metric.value === null || metric.value === undefined || metric.value === 0
-                                                ? 'n.a.'
-                                                : `${metric.value > 0 ? '+' : ''}${metric.value.toFixed(2)}%`
-                                            }
-                                            </div>
+                                        <div className={`text-sm font-semibold ${
+                                            metric.value >= 0 ? 'text-green-400' : 'text-red-400'
+                                        }`}>
+                                            {metric.value >= 0 ? '+' : ''}{metric.value.toFixed(2)}%
+                                        </div>
                                         <div className={`text-xs mt-1 ${
                                             metric.change >= 0 ? 'text-green-400' : 'text-red-400'
                                         }`}>
@@ -564,7 +488,7 @@ const AccountDetailModal = ({ isOpen, onClose, account }) => {
                             </div>
 
                             {/* Positions Table */}
-                            {accountPositions && accountPositions.length > 0 ? (
+                            {accountPositions.length > 0 && (
                                 <div className="bg-gray-800/30 rounded">
                                     <div className="px-4 py-3 border-b border-gray-700">
                                         <h4 className="text-sm font-semibold text-gray-300">
@@ -702,18 +626,16 @@ const AccountDetailModal = ({ isOpen, onClose, account }) => {
                                                             {formatCurrency(accountPositions.reduce((sum, p) => sum + p.gainLoss, 0))}
                                                         </span>
                                                     </td>
-                                                        <td className="px-3 py-2 text-xs text-right">
-                                                        {(() => {
-                                                            const totalGain = accountPositions.reduce((s, p) => s + (p.gainLoss || 0), 0);
-                                                            const totalCost = accountPositions.reduce((s, p) => s + (p.costBasis || 0), 0);
-                                                            if (!totalCost || (totalGain / totalCost) === 0) {
-                                                            return <span className="font-bold text-gray-400">n.a.</span>;
-                                                            }
-                                                            const pct = (totalGain / totalCost) * 100;
-                                                            const cls = pct > 0 ? 'text-green-400' : 'text-red-400';
-                                                            return <span className={`font-bold ${cls}`}>{`${pct > 0 ? '+' : ''}${pct.toFixed(2)}%`}</span>;
-                                                        })()}
-                                                        </td>
+                                                    <td className="px-3 py-2 text-xs text-right">
+                                                        <span className={`font-bold ${
+                                                            ((accountPositions.reduce((sum, p) => sum + p.gainLoss, 0) / 
+                                                            accountPositions.reduce((sum, p) => sum + p.costBasis, 0)) * 100) >= 0 
+                                                                ? 'text-green-400' : 'text-red-400'
+                                                        }`}>
+                                                            {((accountPositions.reduce((sum, p) => sum + p.gainLoss, 0) / 
+                                                            accountPositions.reduce((sum, p) => sum + p.costBasis, 0)) * 100).toFixed(2)}%
+                                                        </span>
+                                                    </td>
                                                     <td className="px-3 py-2 text-xs text-right">100.00%</td>
                                                 </tr>
                                                 
@@ -762,10 +684,9 @@ const AccountDetailModal = ({ isOpen, onClose, account }) => {
                                                                         </div>
                                                                     </div>
                                                                 </td>
-                                                                <td className="px-3 py-2 text-xs text-right">
-                                                                    {formatNumber(position.quantity || 0, { maximumFractionDigits: 4 })}
-                                                                </td>
-                                                        
+                                                        <td className="px-3 py-2 text-xs text-right">
+                                                            {formatNumber(position.quantity || 0, { maximumFractionDigits: 4 })}
+                                                        </td>
                                                             <td className="px-3 py-2 text-xs text-right">
                                                                 {formatCurrency(position.currentPrice || 0)}
                                                                 {position.priceChange1d !== null && position.priceChange1d !== undefined && (
@@ -778,10 +699,7 @@ const AccountDetailModal = ({ isOpen, onClose, account }) => {
                                                             {formatCurrency(position.currentValue || 0)}
                                                         </td>
                                                         <td className="px-3 py-2 text-xs text-right text-gray-400">
-                                                            {!position.quantity || position.quantity === 0
-                                                                ? 'n.a.'
-                                                                : formatCurrency((position.costBasis || 0) / position.quantity)
-                                                                }
+                                                            {formatCurrency((position.costBasis || 0) / (position.quantity || 1))}
                                                         </td>
                                                         <td className="px-3 py-2 text-xs text-right">
                                                             <span className={`font-medium ${position.gainLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
@@ -789,26 +707,13 @@ const AccountDetailModal = ({ isOpen, onClose, account }) => {
                                                             </span>
                                                         </td>
                                                             <td className="px-3 py-2 text-xs text-right">
-                                                                <span className={`font-medium ${
-                                                                position.gainLossPercent === null || position.gainLossPercent === undefined || position.gainLossPercent === 0
-                                                                    ? 'text-gray-400'
-                                                                    : position.gainLossPercent > 0
-                                                                    ? 'text-green-400'
-                                                                    : 'text-red-400'
-                                                                }`}>
-                                                                {
-                                                                    position.gainLossPercent === null || position.gainLossPercent === undefined || position.gainLossPercent === 0
-                                                                    ? 'n.a.'
-                                                                    : `${position.gainLossPercent > 0 ? '+' : ''}${position.gainLossPercent.toFixed(2)}%`
-                                                                }
+                                                                <span className={`font-medium ${position.gainLossPercent >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                                                    {position.gainLossPercent >= 0 && '+'}{position.gainLossPercent.toFixed(2)}%
                                                                 </span>
                                                             </td>
                                                         <td className="px-3 py-2 text-xs text-right">
                                                             <div className="font-medium">
-                                                                {!account.totalValue || position.currentValue === 0
-                                                                    ? 'n.a.'
-                                                                    : formatPercentage(position.currentValue / account.totalValue)
-                                                                    }
+                                                                {formatPercentage((position.currentValue / account.totalValue))}
                                                             </div>
                                                         </td>
                                                     </tr>
@@ -851,7 +756,7 @@ const AccountDetailModal = ({ isOpen, onClose, account }) => {
                                                                                         {formatNumber(lot.quantity, { maximumFractionDigits: 4 })}
                                                                                     </td>
                                                                                     <td className="px-3 py-1 text-right text-gray-400">
-                                                                                        {!lot.quantity ? 'n.a.' : formatCurrency(lot.costBasis / lot.quantity)}
+                                                                                        {formatCurrency(lot.costBasis / lot.quantity)}
                                                                                     </td>
                                                                                     <td className="px-3 py-1 text-right text-gray-300">
                                                                                         {formatCurrency(lot.quantity * position.currentPrice)}
@@ -879,18 +784,6 @@ const AccountDetailModal = ({ isOpen, onClose, account }) => {
                                                     })}
                                             </tbody>
                                         </table>
-                                    </div>
-                            </div>
-                            ) : (
-                                <div className="bg-gray-800/30 rounded p-6">
-                                    <div className="text-center">
-                                        <div className="text-gray-400 mb-4">No positions found for this account</div>
-                                        <div className="text-xs text-gray-500 space-y-2">
-                                            <div>Account ID: {account?.id}</div>
-                                            <div>Account Name: {account?.name || account?.account_name}</div>
-                                            <div>Raw Positions Data Length: {accountPositionsData?.length || 0}</div>
-                                            <div>Processed Positions Length: {accountPositions?.length || 0}</div>
-                                        </div>
                                     </div>
                                 </div>
                             )}
@@ -1097,7 +990,7 @@ const UnifiedAccountTable = ({
                 acc.totalCostBasis += account.totalCostBasis ?? 0;
                 acc.totalGainLoss += account.totalGainLoss ?? 0;
                 acc.positionsCount += account.totalPositions ?? 0;
-                acc.cashBalance += account.cashBalance ?? 0;
+                acc.cashBalance += account.cashValue ?? 0;
                 return acc;
             }, { ...emptyTotals });
             
@@ -1222,24 +1115,14 @@ const UnifiedAccountTable = ({
                 {formatCurrency(data.totalCostBasis)}
             </td>
             <td className="px-3 py-2 whitespace-nowrap text-right">
-                    <div className="flex flex-col items-end">
+                <div className="flex flex-col items-end">
                     <div className={`text-sm font-bold ${data.totalGainLoss === 0 ? 'text-gray-400' : data.totalGainLoss >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                         {data.totalGainLoss >= 0 ? '+' : ''}{formatCurrency(data.totalGainLoss)}
                     </div>
-                    <div className={`text-xs ${
-                        !data.totalGainLossPercent || data.totalGainLossPercent === 0
-                        ? 'text-gray-400'
-                        : data.totalGainLossPercent > 0
-                            ? 'text-green-500'
-                            : 'text-red-500'
-                    }`}>
-                        {
-                        !data.totalGainLossPercent || data.totalGainLossPercent === 0
-                            ? 'n.a.'
-                            : `(${data.totalGainLossPercent > 0 ? '+' : ''}${data.totalGainLossPercent.toFixed(2)}%)`
-                        }
+                    <div className={`text-xs ${data.totalGainLoss === 0 ? 'text-gray-400' : data.totalGainLoss >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                                        ({data.totalGainLoss >= 0 ? '+' : ''}{data.totalGainLossPercent ? data.totalGainLossPercent.toFixed(2) : '0.00'}%)
                     </div>
-                    </div>
+                </div>
             </td>
             <td className="px-3 py-2 whitespace-nowrap text-center" colSpan="5">
                 {/* Performance columns empty for summary */}
@@ -1505,19 +1388,9 @@ const UnifiedAccountTable = ({
                                                     <div className={`text-sm font-medium ${account.totalGainLoss >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                                                         {account.totalGainLoss >= 0 ? '+' : ''}{formatCurrency(account.totalGainLoss || 0)}
                                                     </div>
-                                                        <div className={`text-xs ${
-                                                        account.totalGainLossPercent === null || account.totalGainLossPercent === undefined || account.totalGainLossPercent === 0
-                                                            ? 'text-gray-500'
-                                                            : account.totalGainLossPercent > 0
-                                                            ? 'text-green-500'
-                                                            : 'text-red-500'
-                                                        }`}>
-                                                        {
-                                                            account.totalGainLossPercent === null || account.totalGainLossPercent === undefined || account.totalGainLossPercent === 0
-                                                            ? 'n.a.'
-                                                            : `(${account.totalGainLossPercent > 0 ? '+' : ''}${account.totalGainLossPercent.toFixed(2)}%)`
-                                                        }
-                                                        </div>
+                                                    <div className={`text-xs ${account.totalGainLoss >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                                        ({account.totalGainLossPercent >= 0 ? '+' : ''}{account.totalGainLossPercent ? account.totalGainLossPercent.toFixed(2) : '0.00'}%)
+                                                    </div>
                                                 </div>
                                             </td>
                                             {/* Performance columns */}
@@ -1532,11 +1405,12 @@ const UnifiedAccountTable = ({
                                                                         ? 'text-green-500'           // positive = green
                                                                         : 'text-red-500'             // negative = red
                                                         } cursor-help`}>
-                                                            {account.value1dChangePct === null || account.value1dChangePct === undefined || account.value1dChangePct === 0 ? (
-                                                            <>n.a.</>
-                                                            ) : (
-                                                            <>{account.value1dChangePct > 0 ? '+' : ''}{account.value1dChangePct.toFixed(1)}%</>
-                                                            )}
+                                                        {account.value1dChangePct === null || account.value1dChangePct === undefined ? (
+                                                            <>n.a.</>    // Shows "n.a." instead of "-"
+                                                        ) : (
+                                                            <>{account.value1dChangePct >= 0 && account.value1dChangePct !== 0 ? '+' : ''}{account.value1dChangePct.toFixed(1)}%</>
+                                                            // Plus sign only shows for positive non-zero values
+                                                        )}
                                                     </div>
                                                     {account.value1dChange !== undefined && (
                                                         <div className="absolute bottom-full mb-1 hidden group-hover:block z-10 bg-gray-900 text-white text-xs rounded p-1 whitespace-nowrap">
@@ -1556,11 +1430,12 @@ const UnifiedAccountTable = ({
                                                                         ? 'text-green-500'           // positive = green
                                                                         : 'text-red-500'             // negative = red
                                                         } cursor-help`}>
-                                                        {account.value1wChangePct === null || account.value1wChangePct === undefined || account.value1wChangePct === 0 ? (
-                                                        <>n.a.</>
-                                                        ) : (
-                                                        <>{account.value1wChangePct > 0 ? '+' : ''}{account.value1wChangePct.toFixed(1)}%</>
-                                                        )}
+                                                            {account.value1wChangePct === null || account.value1wChangePct === undefined ? (
+                                                                <>n.a.</>    // Shows "n.a." instead of "-"
+                                                            ) : (
+                                                                <>{account.value1wChangePct >= 0 && account.value1wChangePct !== 0 ? '+' : ''}{account.value1wChangePct.toFixed(1)}%</>
+                                                                // Plus sign only shows for positive non-zero values
+                                                            )}
                                                     </div>
                                                     {account.value1wChange !== undefined && (
                                                         <div className="absolute bottom-full mb-1 hidden group-hover:block z-10 bg-gray-900 text-white text-xs rounded p-1 whitespace-nowrap">
@@ -1580,10 +1455,11 @@ const UnifiedAccountTable = ({
                                                                             ? 'text-green-500'           // positive = green
                                                                             : 'text-red-500'             // negative = red
                                                             } cursor-help`}>
-                                                        {account.value1mChangePct === null || account.value1mChangePct === undefined || account.value1mChangePct === 0 ? (
-                                                        <>n.a.</>
+                                                        {account.value1mChangePct === null || account.value1mChangePct === undefined ? (
+                                                            <>n.a.</>    // Shows "n.a." instead of "-"
                                                         ) : (
-                                                        <>{account.value1mChangePct > 0 ? '+' : ''}{account.value1mChangePct.toFixed(1)}%</>
+                                                            <>{account.value1mChangePct >= 0 && account.value1mChangePct !== 0 ? '+' : ''}{account.value1mChangePct.toFixed(1)}%</>
+                                                            // Plus sign only shows for positive non-zero values
                                                         )}
                                                     </div>
                                                     {account.value1mChange !== undefined && (
@@ -1604,10 +1480,11 @@ const UnifiedAccountTable = ({
                                                                         ? 'text-green-500'           // positive = green
                                                                         : 'text-red-500'             // negative = red
                                                         } cursor-help`}>
-                                                    {account.valueYtdChangePct === null || account.valueYtdChangePct === undefined || account.valueYtdChangePct === 0 ? (
-                                                    <>n.a.</>
+                                                    {account.valueYtdChangePct === null || account.valueYtdChangePct === undefined ? (
+                                                        <>n.a.</>    // Shows "n.a." instead of "-"
                                                     ) : (
-                                                    <>{account.valueYtdChangePct > 0 ? '+' : ''}{account.valueYtdChangePct.toFixed(1)}%</>
+                                                        <>{account.valueYtdChangePct >= 0 && account.valueYtdChangePct !== 0 ? '+' : ''}{account.valueYtdChangePct.toFixed(1)}%</>
+                                                        // Plus sign only shows for positive non-zero values
                                                     )}
                                                     </div>
                                                     {account.valueYtdChange !== undefined && (
