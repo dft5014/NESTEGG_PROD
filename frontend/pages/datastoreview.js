@@ -672,6 +672,136 @@ export default function DataStoreViewPage() {
     );
   };
 
+  // Generate debug summary for sharing
+  const generateDebugSummary = () => {
+    const timestamp = new Date().toISOString();
+
+    const summary = `
+=== NESTEGG DATASTORE DEBUG SUMMARY ===
+Generated: ${timestamp}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🎯 NEW HOOK: useAccountsSummaryPositions
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Status: ${accountsSummaryPositionsData.loading ? '🔄 Loading' : accountsSummaryPositionsData.error ? '❌ Error' : accountsSummaryPositionsData.positions?.length > 0 ? '✅ Loaded' : '⚠️ No Data'}
+Loading: ${accountsSummaryPositionsData.loading}
+Error: ${accountsSummaryPositionsData.error || 'None'}
+Data Count: ${accountsSummaryPositionsData.positions?.length || 0}
+Last Fetched: ${accountsSummaryPositionsData.lastFetched ? new Date(accountsSummaryPositionsData.lastFetched).toLocaleString() : 'Never'}
+Is Stale: ${accountsSummaryPositionsData.isStale}
+${accountsSummaryPositionsData.summary ? `
+Summary Stats:
+  - Total Positions: ${accountsSummaryPositionsData.summary.totalPositions}
+  - Total Accounts: ${accountsSummaryPositionsData.summary.totalAccounts}
+  - Total Value: $${accountsSummaryPositionsData.summary.totalValue?.toLocaleString()}
+  - Total Gain/Loss: $${accountsSummaryPositionsData.summary.totalGainLoss?.toLocaleString()} (${accountsSummaryPositionsData.summary.totalGainLossPct?.toFixed(2)}%)
+` : ''}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📊 ALL HOOKS STATUS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+useAccounts:
+  Status: ${accountsData.loading ? '🔄 Loading' : accountsData.error ? '❌ Error' : accountsData.accounts?.length > 0 ? '✅ Loaded' : '⚠️ No Data'}
+  Count: ${accountsData.accounts?.length || 0}
+  Error: ${accountsData.error || 'None'}
+  Last Fetched: ${accountsData.lastFetched ? new Date(accountsData.lastFetched).toLocaleString() : 'Never'}
+
+useAccountPositions:
+  Status: ${accountPositionsData.loading ? '🔄 Loading' : accountPositionsData.error ? '❌ Error' : accountPositionsData.positions?.length > 0 ? '✅ Loaded' : '⚠️ No Data'}
+  Count: ${accountPositionsData.positions?.length || 0}
+  Error: ${accountPositionsData.error || 'None'}
+  Last Fetched: ${accountPositionsData.lastFetched ? new Date(accountPositionsData.lastFetched).toLocaleString() : 'Never'}
+
+usePortfolioSummary:
+  Status: ${portfolioSummaryData.loading ? '🔄 Loading' : portfolioSummaryData.error ? '❌ Error' : portfolioSummaryData.summary ? '✅ Loaded' : '⚠️ No Data'}
+  Has Data: ${!!portfolioSummaryData.summary}
+  Error: ${portfolioSummaryData.error || 'None'}
+  Last Fetched: ${portfolioSummaryData.lastFetched ? new Date(portfolioSummaryData.lastFetched).toLocaleString() : 'Never'}
+
+usePortfolioTrends:
+  Status: ${portfolioTrendsData.loading ? '🔄 Loading' : portfolioTrendsData.error ? '❌ Error' : portfolioTrendsData.trends ? '✅ Loaded' : '⚠️ No Data'}
+  Trends Count: ${portfolioTrendsData.trends?.chartData?.length || 0}
+  Error: ${portfolioTrendsData.error || 'None'}
+
+useGroupedPositions:
+  Status: ${groupedPositionsData.loading ? '🔄 Loading' : groupedPositionsData.error ? '❌ Error' : groupedPositionsData.positions?.length > 0 ? '✅ Loaded' : '⚠️ No Data'}
+  Count: ${groupedPositionsData.positions?.length || 0}
+  Error: ${groupedPositionsData.error || 'None'}
+  Last Fetched: ${groupedPositionsData.lastFetched ? new Date(groupedPositionsData.lastFetched).toLocaleString() : 'Never'}
+
+useGroupedLiabilities:
+  Status: ${groupedLiabilitiesData.loading ? '🔄 Loading' : groupedLiabilitiesData.error ? '❌ Error' : groupedLiabilitiesData.liabilities?.length > 0 ? '✅ Loaded' : '⚠️ No Data'}
+  Count: ${groupedLiabilitiesData.liabilities?.length || 0}
+  Error: ${groupedLiabilitiesData.error || 'None'}
+  Last Fetched: ${groupedLiabilitiesData.lastFetched ? new Date(groupedLiabilitiesData.lastFetched).toLocaleString() : 'Never'}
+
+useDetailedPositions:
+  Status: ${detailedPositionsData.loading ? '🔄 Loading' : detailedPositionsData.error ? '❌ Error' : detailedPositionsData.positions?.length > 0 ? '✅ Loaded' : '⚠️ No Data'}
+  Count: ${detailedPositionsData.positions?.length || 0}
+  Error: ${detailedPositionsData.error || 'None'}
+  Last Fetched: ${detailedPositionsData.lastFetched ? new Date(detailedPositionsData.lastFetched).toLocaleString() : 'Never'}
+
+useSnapshots:
+  Status: ${snapshotsData.isLoading ? '🔄 Loading' : snapshotsData.error ? '❌ Error' : snapshotsData.snapshots ? '✅ Loaded' : '⚠️ No Data'}
+  Dates: ${snapshotsData.dates?.length || 0}
+  Error: ${snapshotsData.error || 'None'}
+  Last Fetched: ${snapshotsData.lastFetched ? new Date(snapshotsData.lastFetched).toLocaleString() : 'Never'}
+
+useAccountTrends (Parametrized):
+  Selected Account: ${selectedAccountId || 'None'}
+  ${selectedAccountId ? `Status: ${accountTrendsData.loading ? '🔄 Loading' : accountTrendsData.error ? '❌ Error' : accountTrendsData.accountTrends?.length > 0 ? '✅ Loaded' : '⚠️ No Data'}
+  Trends Count: ${accountTrendsData.accountTrends?.length || 0}
+  Error: ${accountTrendsData.error || 'None'}` : '  (Select an account to view data)'}
+
+usePositionHistory (Parametrized):
+  Selected Position: ${selectedPositionIdentifier || 'None'}
+  ${selectedPositionIdentifier ? `Status: ${positionHistoryData.loading ? '🔄 Loading' : positionHistoryData.error ? '❌ Error' : positionHistoryData.history?.length > 0 ? '✅ Loaded' : '⚠️ No Data'}
+  History Count: ${positionHistoryData.history?.length || 0}
+  Error: ${positionHistoryData.error || 'None'}
+  Last Fetched: ${positionHistoryData.lastFetched ? new Date(positionHistoryData.lastFetched).toLocaleString() : 'Never'}` : '  (Select a position to view data)'}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔴 ERRORS SUMMARY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${[
+  accountsData.error && `useAccounts: ${accountsData.error}`,
+  accountPositionsData.error && `useAccountPositions: ${accountPositionsData.error}`,
+  accountsSummaryPositionsData.error && `useAccountsSummaryPositions: ${accountsSummaryPositionsData.error}`,
+  portfolioSummaryData.error && `usePortfolioSummary: ${portfolioSummaryData.error}`,
+  portfolioTrendsData.error && `usePortfolioTrends: ${portfolioTrendsData.error}`,
+  groupedPositionsData.error && `useGroupedPositions: ${groupedPositionsData.error}`,
+  groupedLiabilitiesData.error && `useGroupedLiabilities: ${groupedLiabilitiesData.error}`,
+  detailedPositionsData.error && `useDetailedPositions: ${detailedPositionsData.error}`,
+  snapshotsData.error && `useSnapshots: ${snapshotsData.error}`,
+  selectedAccountId && accountTrendsData.error && `useAccountTrends: ${accountTrendsData.error}`,
+  selectedPositionIdentifier && positionHistoryData.error && `usePositionHistory: ${positionHistoryData.error}`
+].filter(Boolean).join('\n') || 'No errors detected ✅'}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📝 RECENT LOGS (Last 10)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${logs.slice(-10).map(log => `[${log.timestamp}] [${log.hookName}] ${log.message}`).join('\n')}
+
+=== END DEBUG SUMMARY ===
+    `.trim();
+
+    return summary;
+  };
+
+  const copyDebugSummary = async () => {
+    const summary = generateDebugSummary();
+    try {
+      await navigator.clipboard.writeText(summary);
+      alert('✅ Debug summary copied to clipboard!\n\nYou can now paste this summary to share with support or for debugging.');
+    } catch (err) {
+      console.error('Failed to copy summary:', err);
+      // Fallback: show in console
+      console.log(summary);
+      alert('❌ Could not copy to clipboard. Summary has been logged to console instead.');
+    }
+  };
+
   return (
     <>
       <Head>
@@ -681,11 +811,20 @@ export default function DataStoreViewPage() {
       <div className="min-h-screen bg-gray-50 py-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* Page Header */}
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">DataStore View</h1>
-            <p className="text-gray-600">
-              Real-time view of all DataStore hooks and their data
-            </p>
+          <div className="mb-8 flex items-start justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">DataStore View</h1>
+              <p className="text-gray-600">
+                Real-time view of all DataStore hooks and their data
+              </p>
+            </div>
+            <button
+              onClick={copyDebugSummary}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-md"
+            >
+              <Database className="w-4 h-4" />
+              Copy Debug Summary
+            </button>
           </div>
 
           {/* Real-Time Logs */}
