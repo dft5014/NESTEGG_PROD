@@ -10,9 +10,11 @@ import { useAccounts } from '@/store/hooks/useAccounts';
 import { useAccountPositions } from '@/store/hooks/useAccountPositions';
 import { useAccountsSummaryPositions } from '@/store/hooks/addAccountsPositions';
 import { usePortfolioSummary } from '@/store/hooks/usePortfolioSummary';
+import { usePortfolioTrends } from '@/store/hooks/usePortfolioTrends';
 import { useGroupedPositions } from '@/store/hooks/useGroupedPositions';
 import { useGroupedLiabilities } from '@/store/hooks/useGroupedLiabilities';
 import { useDetailedPositions } from '@/store/hooks/useDetailedPositions';
+import { useSnapshots } from '@/store/hooks/useSnapshots';
 
 export default function DataStoreViewPage() {
   const [expandedSections, setExpandedSections] = useState({
@@ -20,9 +22,11 @@ export default function DataStoreViewPage() {
     accountPositions: false,
     accountsSummaryPositions: true,
     portfolioSummary: false,
+    portfolioTrends: false,
     groupedPositions: false,
     groupedLiabilities: false,
     detailedPositions: false,
+    snapshots: false,
     logs: true
   });
   const [logs, setLogs] = useState([]);
@@ -50,9 +54,11 @@ export default function DataStoreViewPage() {
   const accountPositionsData = useAccountPositions();
   const accountsSummaryPositionsData = useAccountsSummaryPositions();
   const portfolioSummaryData = usePortfolioSummary();
+  const portfolioTrendsData = usePortfolioTrends();
   const groupedPositionsData = useGroupedPositions();
   const groupedLiabilitiesData = useGroupedLiabilities();
   const detailedPositionsData = useDetailedPositions();
+  const snapshotsData = useSnapshots();
 
   // Log initial mount
   useEffect(() => {
@@ -137,6 +143,27 @@ export default function DataStoreViewPage() {
       lastFetched: detailedPositionsData.lastFetched
     });
   }, [detailedPositionsData.loading, detailedPositionsData.error, detailedPositionsData.positions, detailedPositionsData.isStale, detailedPositionsData.lastFetched]);
+
+  // Monitor Portfolio Trends
+  useEffect(() => {
+    addLog('usePortfolioTrends', 'info', `State changed - Loading: ${portfolioTrendsData.loading}, Error: ${!!portfolioTrendsData.error}, Has Trends: ${!!portfolioTrendsData.trends}`, {
+      loading: portfolioTrendsData.loading,
+      error: portfolioTrendsData.error,
+      hasTrends: !!portfolioTrendsData.trends,
+      trendsLength: portfolioTrendsData.trends?.chartData?.length
+    });
+  }, [portfolioTrendsData.loading, portfolioTrendsData.error, portfolioTrendsData.trends]);
+
+  // Monitor Snapshots
+  useEffect(() => {
+    addLog('useSnapshots', 'info', `State changed - Loading: ${snapshotsData.isLoading}, Error: ${!!snapshotsData.error}, Has Data: ${!!snapshotsData.snapshots}, Dates: ${snapshotsData.dates?.length || 0}`, {
+      loading: snapshotsData.isLoading,
+      error: snapshotsData.error,
+      hasData: !!snapshotsData.snapshots,
+      datesCount: snapshotsData.dates?.length,
+      lastFetched: snapshotsData.lastFetched
+    });
+  }, [snapshotsData.isLoading, snapshotsData.error, snapshotsData.snapshots, snapshotsData.dates, snapshotsData.lastFetched]);
 
   // Auto-scroll logs
   useEffect(() => {
@@ -543,6 +570,52 @@ export default function DataStoreViewPage() {
             isStale={detailedPositionsData.isStale}
             refresh={detailedPositionsData.refresh}
           />
+
+          {/* Portfolio Trends */}
+          <DataStoreSection
+            title="usePortfolioTrends"
+            hookName="portfolioTrends"
+            data={portfolioTrendsData.trends}
+            loading={portfolioTrendsData.loading}
+            error={portfolioTrendsData.error}
+            lastFetched={null}
+            isStale={false}
+            refresh={null}
+          />
+
+          {/* Snapshots */}
+          <DataStoreSection
+            title="useSnapshots"
+            hookName="snapshots"
+            data={snapshotsData.snapshots}
+            loading={snapshotsData.isLoading}
+            error={snapshotsData.error}
+            lastFetched={snapshotsData.lastFetched}
+            isStale={false}
+            refresh={snapshotsData.refetch}
+          />
+          {snapshotsData.snapshotsByDate && Object.keys(snapshotsData.snapshotsByDate).length > 0 && (
+            <SummarySection
+              title="Snapshots By Date (first 3 dates)"
+              data={Object.entries(snapshotsData.snapshotsByDate).slice(0, 3).reduce((acc, [key, val]) => {
+                acc[key] = val;
+                return acc;
+              }, {})}
+            />
+          )}
+
+          {/* Notes on parametrized hooks */}
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
+            <h3 className="text-sm font-semibold text-yellow-800 mb-2">Note: Parametrized Hooks</h3>
+            <p className="text-sm text-yellow-700">
+              The following hooks require parameters and cannot be displayed without specific IDs:
+            </p>
+            <ul className="list-disc list-inside text-sm text-yellow-700 mt-2">
+              <li><strong>useAccountTrends(accountId)</strong> - Requires an account ID</li>
+              <li><strong>usePositionHistory(identifier)</strong> - Requires a position identifier</li>
+              <li><strong>useDataMutations()</strong> - Returns mutation functions, not display data</li>
+            </ul>
+          </div>
         </div>
       </div>
     </>
