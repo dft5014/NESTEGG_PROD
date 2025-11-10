@@ -9,12 +9,14 @@ import {
 import { useAccounts } from '@/store/hooks/useAccounts';
 import { useAccountPositions } from '@/store/hooks/useAccountPositions';
 import { useAccountsSummaryPositions } from '@/store/hooks/addAccountsPositions';
+import { useAccountTrends } from '@/store/hooks/useAccountTrends';
 import { usePortfolioSummary } from '@/store/hooks/usePortfolioSummary';
 import { usePortfolioTrends } from '@/store/hooks/usePortfolioTrends';
 import { useGroupedPositions } from '@/store/hooks/useGroupedPositions';
 import { useGroupedLiabilities } from '@/store/hooks/useGroupedLiabilities';
 import { useDetailedPositions } from '@/store/hooks/useDetailedPositions';
 import { useSnapshots } from '@/store/hooks/useSnapshots';
+import { usePositionHistory } from '@/store/hooks/usePositionHistory';
 
 export default function DataStoreViewPage() {
   const [expandedSections, setExpandedSections] = useState({
@@ -27,11 +29,17 @@ export default function DataStoreViewPage() {
     groupedLiabilities: false,
     detailedPositions: false,
     snapshots: false,
+    accountTrends: false,
+    positionHistory: false,
     logs: true
   });
   const [logs, setLogs] = useState([]);
   const logsEndRef = useRef(null);
   const logCountRef = useRef(0);
+
+  // State for parametrized hooks
+  const [selectedAccountId, setSelectedAccountId] = useState(null);
+  const [selectedPositionIdentifier, setSelectedPositionIdentifier] = useState(null);
 
   // Helper to add logs
   const addLog = (hookName, type, message, data = null) => {
@@ -59,6 +67,10 @@ export default function DataStoreViewPage() {
   const groupedLiabilitiesData = useGroupedLiabilities();
   const detailedPositionsData = useDetailedPositions();
   const snapshotsData = useSnapshots();
+
+  // Parametrized hooks - only call if parameter is selected
+  const accountTrendsData = useAccountTrends(selectedAccountId);
+  const positionHistoryData = usePositionHistory(selectedPositionIdentifier, { enabled: !!selectedPositionIdentifier });
 
   // Log initial mount
   useEffect(() => {
@@ -164,6 +176,32 @@ export default function DataStoreViewPage() {
       lastFetched: snapshotsData.lastFetched
     });
   }, [snapshotsData.isLoading, snapshotsData.error, snapshotsData.snapshots, snapshotsData.dates, snapshotsData.lastFetched]);
+
+  // Monitor Account Trends (parametrized)
+  useEffect(() => {
+    if (selectedAccountId) {
+      addLog('useAccountTrends', 'info', `State changed - Account: ${selectedAccountId}, Loading: ${accountTrendsData.loading}, Error: ${!!accountTrendsData.error}, Trends: ${accountTrendsData.accountTrends?.length || 0}`, {
+        accountId: selectedAccountId,
+        loading: accountTrendsData.loading,
+        error: accountTrendsData.error,
+        trendsCount: accountTrendsData.accountTrends?.length,
+        metrics: accountTrendsData.metrics
+      });
+    }
+  }, [selectedAccountId, accountTrendsData.loading, accountTrendsData.error, accountTrendsData.accountTrends, accountTrendsData.metrics]);
+
+  // Monitor Position History (parametrized)
+  useEffect(() => {
+    if (selectedPositionIdentifier) {
+      addLog('usePositionHistory', 'info', `State changed - Identifier: ${selectedPositionIdentifier}, Loading: ${positionHistoryData.loading}, Error: ${!!positionHistoryData.error}, History: ${positionHistoryData.history?.length || 0}`, {
+        identifier: selectedPositionIdentifier,
+        loading: positionHistoryData.loading,
+        error: positionHistoryData.error,
+        historyCount: positionHistoryData.history?.length,
+        lastFetched: positionHistoryData.lastFetched
+      });
+    }
+  }, [selectedPositionIdentifier, positionHistoryData.loading, positionHistoryData.error, positionHistoryData.history, positionHistoryData.lastFetched]);
 
   // Auto-scroll logs
   useEffect(() => {
@@ -351,6 +389,196 @@ export default function DataStoreViewPage() {
         <pre className="bg-gray-900 text-cyan-400 p-4 rounded text-xs overflow-x-auto max-h-48 overflow-y-auto">
           {JSON.stringify(data, null, 2)}
         </pre>
+      </div>
+    );
+  };
+
+  const ParametrizedHookSection = ({
+    title,
+    hookName,
+    options,
+    selectedValue,
+    onSelectChange,
+    data,
+    loading,
+    error,
+    lastFetched,
+    refresh,
+    parameterLabel,
+    noSelectionMessage
+  }) => {
+    const isExpanded = expandedSections[hookName];
+    const dataArray = Array.isArray(data) ? data : (data ? [data] : []);
+    const hasData = dataArray.length > 0 || (data && Object.keys(data).length > 0);
+
+    return (
+      <div className="bg-white rounded-lg border-2 border-purple-200 shadow-sm overflow-hidden mb-4">
+        {/* Header */}
+        <div
+          className="p-4 bg-purple-50 border-b-2 border-purple-200 cursor-pointer hover:bg-purple-100 transition-colors"
+          onClick={() => toggleSection(hookName)}
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3 flex-1 flex-wrap">
+              <Database className="w-5 h-5 text-purple-600" />
+              <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
+
+              {/* Status Badges */}
+              {loading && selectedValue && (
+                <span className="flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full">
+                  <RefreshCw className="w-3 h-3 animate-spin" />
+                  Loading
+                </span>
+              )}
+              {error && selectedValue && (
+                <span className="flex items-center gap-1 px-2 py-1 bg-red-100 text-red-700 text-xs rounded-full">
+                  <XCircle className="w-3 h-3" />
+                  Error
+                </span>
+              )}
+              {!loading && !error && hasData && selectedValue && (
+                <span className="flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full">
+                  <CheckCircle className="w-3 h-3" />
+                  Loaded
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-3">
+              {isExpanded ? (
+                <ChevronUp className="w-5 h-5 text-gray-400" />
+              ) : (
+                <ChevronDown className="w-5 h-5 text-gray-400" />
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Dropdown Selector Bar */}
+        <div className="px-4 py-3 bg-purple-100 border-b border-purple-200">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            {parameterLabel}
+          </label>
+          <div className="flex items-center gap-2">
+            <select
+              value={selectedValue || ''}
+              onChange={(e) => onSelectChange(e.target.value || null)}
+              className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+            >
+              <option value="">-- Select {parameterLabel} --</option>
+              {options.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            {refresh && selectedValue && (
+              <button
+                onClick={() => refresh()}
+                className="p-2 hover:bg-purple-200 rounded transition-colors"
+                title="Refresh"
+              >
+                <RefreshCw className="w-4 h-4 text-purple-600" />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Metadata Bar */}
+        {selectedValue && (
+          <div className="px-4 py-2 bg-gray-100 border-b border-gray-200 flex items-center gap-4 text-xs text-gray-600">
+            <div>
+              <strong>Selected:</strong> {selectedValue}
+            </div>
+            <div>
+              <strong>Loading:</strong> {loading ? 'Yes' : 'No'}
+            </div>
+            <div>
+              <strong>Has Error:</strong> {error ? 'Yes' : 'No'}
+            </div>
+            <div>
+              <strong>Has Data:</strong> {hasData ? 'Yes' : 'No'}
+            </div>
+            {Array.isArray(data) && (
+              <div>
+                <strong>Count:</strong> {data.length}
+              </div>
+            )}
+            {lastFetched && (
+              <div>
+                <strong>Last Fetched:</strong> {Math.round((Date.now() - lastFetched) / 1000)}s ago
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Content */}
+        {isExpanded && (
+          <div className="p-4">
+            {/* No Selection State */}
+            {!selectedValue && (
+              <div className="text-center py-8 text-gray-500">
+                <AlertCircle className="w-8 h-8 mx-auto mb-2" />
+                <p>{noSelectionMessage}</p>
+              </div>
+            )}
+
+            {/* Error Display */}
+            {selectedValue && error && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-red-700 text-sm">
+                <strong>Error:</strong> {error}
+              </div>
+            )}
+
+            {/* Loading State */}
+            {selectedValue && loading && !hasData && (
+              <div className="text-center py-8 text-gray-500">
+                <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-2" />
+                <p>Loading data...</p>
+              </div>
+            )}
+
+            {/* Data Display */}
+            {selectedValue && !loading && hasData && (
+              <div className="space-y-4">
+                {/* Count Info */}
+                {Array.isArray(data) && (
+                  <div className="p-3 bg-purple-50 rounded border border-purple-200">
+                    <p className="text-sm text-purple-900">
+                      <strong>Total Items:</strong> {data.length}
+                    </p>
+                  </div>
+                )}
+
+                {/* Raw Data */}
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-700 mb-2">Raw Data:</h3>
+                  <pre className="bg-gray-900 text-green-400 p-4 rounded text-xs overflow-x-auto max-h-96 overflow-y-auto">
+                    {JSON.stringify(data, null, 2)}
+                  </pre>
+                </div>
+
+                {/* Sample Item (for arrays) */}
+                {Array.isArray(data) && data.length > 0 && (
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-700 mb-2">First Item:</h3>
+                    <pre className="bg-gray-900 text-yellow-400 p-4 rounded text-xs overflow-x-auto max-h-64 overflow-y-auto">
+                      {JSON.stringify(data[0], null, 2)}
+                    </pre>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* No Data State */}
+            {selectedValue && !loading && !hasData && !error && (
+              <div className="text-center py-8 text-gray-500">
+                <AlertCircle className="w-8 h-8 mx-auto mb-2" />
+                <p>No data available for selected {parameterLabel.toLowerCase()}</p>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     );
   };
@@ -604,17 +832,54 @@ export default function DataStoreViewPage() {
             />
           )}
 
-          {/* Notes on parametrized hooks */}
+          {/* Account Trends - Parametrized */}
+          <ParametrizedHookSection
+            title="useAccountTrends (Parametrized)"
+            hookName="accountTrends"
+            options={accountsData.accounts?.map(acc => ({
+              value: acc.id || acc.account_id,
+              label: `${acc.name || acc.account_name} (${acc.institution}) - ${acc.id || acc.account_id}`
+            })) || []}
+            selectedValue={selectedAccountId}
+            onSelectChange={setSelectedAccountId}
+            data={accountTrendsData.accountTrends}
+            loading={accountTrendsData.loading}
+            error={accountTrendsData.error}
+            lastFetched={null}
+            refresh={null}
+            parameterLabel="Account"
+            noSelectionMessage="Please select an account from the dropdown to view trends"
+          />
+          {selectedAccountId && accountTrendsData.metrics && (
+            <SummarySection title="Account Trends Metrics" data={accountTrendsData.metrics} />
+          )}
+
+          {/* Position History - Parametrized */}
+          <ParametrizedHookSection
+            title="usePositionHistory (Parametrized)"
+            hookName="positionHistory"
+            options={groupedPositionsData.positions?.map(pos => ({
+              value: pos.identifier,
+              label: `${pos.name || pos.identifier} (${pos.asset_type})`
+            })) || []}
+            selectedValue={selectedPositionIdentifier}
+            onSelectChange={setSelectedPositionIdentifier}
+            data={positionHistoryData.history}
+            loading={positionHistoryData.loading}
+            error={positionHistoryData.error}
+            lastFetched={positionHistoryData.lastFetched}
+            refresh={positionHistoryData.refresh}
+            parameterLabel="Position"
+            noSelectionMessage="Please select a position from the dropdown to view history"
+          />
+
+          {/* Note on useDataMutations */}
           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
-            <h3 className="text-sm font-semibold text-yellow-800 mb-2">Note: Parametrized Hooks</h3>
+            <h3 className="text-sm font-semibold text-yellow-800 mb-2">Note: useDataMutations</h3>
             <p className="text-sm text-yellow-700">
-              The following hooks require parameters and cannot be displayed without specific IDs:
+              <strong>useDataMutations()</strong> returns mutation functions (add/update/delete operations), not display data.
+              It cannot be visualized in this view.
             </p>
-            <ul className="list-disc list-inside text-sm text-yellow-700 mt-2">
-              <li><strong>useAccountTrends(accountId)</strong> - Requires an account ID</li>
-              <li><strong>usePositionHistory(identifier)</strong> - Requires a position identifier</li>
-              <li><strong>useDataMutations()</strong> - Returns mutation functions, not display data</li>
-            </ul>
           </div>
         </div>
       </div>
