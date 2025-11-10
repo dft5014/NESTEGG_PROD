@@ -24,6 +24,14 @@ export const useAccountsSummaryPositions = (accountId = null, assetType = null) 
       console.log('[useAccountsSummaryPositions] Initial fetch for accounts summary positions');
       fetchAccountsSummaryPositionsData(accountId, assetType);
     }
+  }, []); // Run once on mount
+
+  // Re-fetch when filters change (accountId or assetType)
+  useEffect(() => {
+    if (accountsSummaryPositions.lastFetched && (accountId || assetType)) {
+      console.log('[useAccountsSummaryPositions] Filters changed, refetching with new parameters');
+      fetchAccountsSummaryPositionsData(accountId, assetType, true); // Force refresh
+    }
   }, [accountId, assetType]); // Only run when filters change
 
   // Process positions data with proper field mapping to camelCase
