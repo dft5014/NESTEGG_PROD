@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Head from 'next/head';
 import {
   RefreshCw, Database, CheckCircle, XCircle, Clock,
-  AlertCircle, ChevronDown, ChevronUp
+  AlertCircle, ChevronDown, ChevronUp, Terminal
 } from 'lucide-react';
 
 // Import all DataStore hooks
@@ -22,8 +22,28 @@ export default function DataStoreViewPage() {
     portfolioSummary: false,
     groupedPositions: false,
     groupedLiabilities: false,
-    detailedPositions: false
+    detailedPositions: false,
+    logs: true
   });
+  const [logs, setLogs] = useState([]);
+  const logsEndRef = useRef(null);
+  const logCountRef = useRef(0);
+
+  // Helper to add logs
+  const addLog = (hookName, type, message, data = null) => {
+    const timestamp = new Date().toLocaleTimeString();
+    const logEntry = {
+      id: logCountRef.current++,
+      timestamp,
+      hookName,
+      type, // 'info', 'success', 'error', 'warning'
+      message,
+      data
+    };
+
+    console.log(`[DataStoreView - ${hookName}] ${message}`, data || '');
+    setLogs(prev => [...prev, logEntry].slice(-100)); // Keep last 100 logs
+  };
 
   // Get all datastore data
   const accountsData = useAccounts();
@@ -33,6 +53,95 @@ export default function DataStoreViewPage() {
   const groupedPositionsData = useGroupedPositions();
   const groupedLiabilitiesData = useGroupedLiabilities();
   const detailedPositionsData = useDetailedPositions();
+
+  // Log initial mount
+  useEffect(() => {
+    addLog('PAGE', 'info', 'DataStoreView mounted - observing all hooks');
+  }, []);
+
+  // Monitor Accounts
+  useEffect(() => {
+    addLog('useAccounts', 'info', `State changed - Loading: ${accountsData.loading}, Error: ${!!accountsData.error}, Data: ${accountsData.accounts?.length || 0} items, Stale: ${accountsData.isStale}`, {
+      loading: accountsData.loading,
+      error: accountsData.error,
+      dataCount: accountsData.accounts?.length,
+      isStale: accountsData.isStale,
+      lastFetched: accountsData.lastFetched
+    });
+  }, [accountsData.loading, accountsData.error, accountsData.accounts, accountsData.isStale, accountsData.lastFetched]);
+
+  // Monitor Account Positions
+  useEffect(() => {
+    addLog('useAccountPositions', 'info', `State changed - Loading: ${accountPositionsData.loading}, Error: ${!!accountPositionsData.error}, Data: ${accountPositionsData.positions?.length || 0} items, Stale: ${accountPositionsData.isStale}`, {
+      loading: accountPositionsData.loading,
+      error: accountPositionsData.error,
+      dataCount: accountPositionsData.positions?.length,
+      isStale: accountPositionsData.isStale,
+      lastFetched: accountPositionsData.lastFetched
+    });
+  }, [accountPositionsData.loading, accountPositionsData.error, accountPositionsData.positions, accountPositionsData.isStale, accountPositionsData.lastFetched]);
+
+  // Monitor Accounts Summary Positions (NEW)
+  useEffect(() => {
+    const type = accountsSummaryPositionsData.error ? 'error' : accountsSummaryPositionsData.loading ? 'warning' : 'success';
+    addLog('useAccountsSummaryPositions', type, `State changed - Loading: ${accountsSummaryPositionsData.loading}, Error: ${!!accountsSummaryPositionsData.error}, Data: ${accountsSummaryPositionsData.positions?.length || 0} items, Stale: ${accountsSummaryPositionsData.isStale}`, {
+      loading: accountsSummaryPositionsData.loading,
+      error: accountsSummaryPositionsData.error,
+      dataCount: accountsSummaryPositionsData.positions?.length,
+      isStale: accountsSummaryPositionsData.isStale,
+      lastFetched: accountsSummaryPositionsData.lastFetched,
+      summary: accountsSummaryPositionsData.summary
+    });
+  }, [accountsSummaryPositionsData.loading, accountsSummaryPositionsData.error, accountsSummaryPositionsData.positions, accountsSummaryPositionsData.isStale, accountsSummaryPositionsData.lastFetched]);
+
+  // Monitor Portfolio Summary
+  useEffect(() => {
+    addLog('usePortfolioSummary', 'info', `State changed - Loading: ${portfolioSummaryData.loading}, Error: ${!!portfolioSummaryData.error}, Has Data: ${!!portfolioSummaryData.summary}, Stale: ${portfolioSummaryData.isStale}`, {
+      loading: portfolioSummaryData.loading,
+      error: portfolioSummaryData.error,
+      hasData: !!portfolioSummaryData.summary,
+      isStale: portfolioSummaryData.isStale,
+      lastFetched: portfolioSummaryData.lastFetched
+    });
+  }, [portfolioSummaryData.loading, portfolioSummaryData.error, portfolioSummaryData.summary, portfolioSummaryData.isStale, portfolioSummaryData.lastFetched]);
+
+  // Monitor Grouped Positions
+  useEffect(() => {
+    addLog('useGroupedPositions', 'info', `State changed - Loading: ${groupedPositionsData.loading}, Error: ${!!groupedPositionsData.error}, Data: ${groupedPositionsData.positions?.length || 0} items, Stale: ${groupedPositionsData.isStale}`, {
+      loading: groupedPositionsData.loading,
+      error: groupedPositionsData.error,
+      dataCount: groupedPositionsData.positions?.length,
+      isStale: groupedPositionsData.isStale,
+      lastFetched: groupedPositionsData.lastFetched
+    });
+  }, [groupedPositionsData.loading, groupedPositionsData.error, groupedPositionsData.positions, groupedPositionsData.isStale, groupedPositionsData.lastFetched]);
+
+  // Monitor Grouped Liabilities
+  useEffect(() => {
+    addLog('useGroupedLiabilities', 'info', `State changed - Loading: ${groupedLiabilitiesData.loading}, Error: ${!!groupedLiabilitiesData.error}, Data: ${groupedLiabilitiesData.liabilities?.length || 0} items, Stale: ${groupedLiabilitiesData.isStale}`, {
+      loading: groupedLiabilitiesData.loading,
+      error: groupedLiabilitiesData.error,
+      dataCount: groupedLiabilitiesData.liabilities?.length,
+      isStale: groupedLiabilitiesData.isStale,
+      lastFetched: groupedLiabilitiesData.lastFetched
+    });
+  }, [groupedLiabilitiesData.loading, groupedLiabilitiesData.error, groupedLiabilitiesData.liabilities, groupedLiabilitiesData.isStale, groupedLiabilitiesData.lastFetched]);
+
+  // Monitor Detailed Positions
+  useEffect(() => {
+    addLog('useDetailedPositions', 'info', `State changed - Loading: ${detailedPositionsData.loading}, Error: ${!!detailedPositionsData.error}, Data: ${detailedPositionsData.positions?.length || 0} items, Stale: ${detailedPositionsData.isStale}`, {
+      loading: detailedPositionsData.loading,
+      error: detailedPositionsData.error,
+      dataCount: detailedPositionsData.positions?.length,
+      isStale: detailedPositionsData.isStale,
+      lastFetched: detailedPositionsData.lastFetched
+    });
+  }, [detailedPositionsData.loading, detailedPositionsData.error, detailedPositionsData.positions, detailedPositionsData.isStale, detailedPositionsData.lastFetched]);
+
+  // Auto-scroll logs
+  useEffect(() => {
+    logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [logs]);
 
   const toggleSection = (section) => {
     setExpandedSections(prev => ({
@@ -219,6 +328,95 @@ export default function DataStoreViewPage() {
     );
   };
 
+  const LogsSection = () => {
+    const isExpanded = expandedSections.logs;
+
+    const getLogColor = (type) => {
+      switch (type) {
+        case 'error': return 'text-red-400';
+        case 'warning': return 'text-yellow-400';
+        case 'success': return 'text-green-400';
+        default: return 'text-gray-300';
+      }
+    };
+
+    const getLogBg = (type) => {
+      switch (type) {
+        case 'error': return 'bg-red-900/20';
+        case 'warning': return 'bg-yellow-900/20';
+        case 'success': return 'bg-green-900/20';
+        default: return '';
+      }
+    };
+
+    return (
+      <div className="bg-white rounded-lg border-2 border-blue-300 shadow-lg overflow-hidden mb-6">
+        {/* Header */}
+        <div
+          className="p-4 bg-blue-50 border-b-2 border-blue-300 flex items-center justify-between cursor-pointer hover:bg-blue-100 transition-colors"
+          onClick={() => toggleSection('logs')}
+        >
+          <div className="flex items-center gap-3">
+            <Terminal className="w-5 h-5 text-blue-600" />
+            <h2 className="text-lg font-semibold text-gray-900">Real-Time Logs</h2>
+            <span className="flex items-center gap-1 px-2 py-1 bg-blue-200 text-blue-800 text-xs rounded-full">
+              {logs.length} logs
+            </span>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setLogs([]);
+              }}
+              className="px-3 py-1 bg-white border border-gray-300 text-gray-700 text-xs rounded hover:bg-gray-100 transition-colors"
+            >
+              Clear Logs
+            </button>
+            {isExpanded ? (
+              <ChevronUp className="w-5 h-5 text-gray-400" />
+            ) : (
+              <ChevronDown className="w-5 h-5 text-gray-400" />
+            )}
+          </div>
+        </div>
+
+        {/* Logs Content */}
+        {isExpanded && (
+          <div className="bg-gray-950 p-4 max-h-96 overflow-y-auto font-mono text-xs">
+            {logs.length === 0 ? (
+              <div className="text-gray-500 text-center py-8">
+                No logs yet. Logs will appear as hooks update.
+              </div>
+            ) : (
+              <div className="space-y-1">
+                {logs.map((log) => (
+                  <div
+                    key={log.id}
+                    className={`p-2 rounded ${getLogBg(log.type)}`}
+                  >
+                    <div className="flex items-start gap-2">
+                      <span className="text-gray-500 shrink-0">{log.timestamp}</span>
+                      <span className="text-blue-400 shrink-0 font-semibold">[{log.hookName}]</span>
+                      <span className={`${getLogColor(log.type)} flex-1`}>{log.message}</span>
+                    </div>
+                    {log.data && (
+                      <div className="mt-1 ml-28 text-gray-400 text-[10px] overflow-x-auto">
+                        {JSON.stringify(log.data, null, 2)}
+                      </div>
+                    )}
+                  </div>
+                ))}
+                <div ref={logsEndRef} />
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <>
       <Head>
@@ -234,6 +432,9 @@ export default function DataStoreViewPage() {
               Real-time view of all DataStore hooks and their data
             </p>
           </div>
+
+          {/* Real-Time Logs */}
+          <LogsSection />
 
           {/* Accounts */}
           <DataStoreSection

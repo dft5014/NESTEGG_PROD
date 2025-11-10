@@ -758,40 +758,24 @@ export const DataStoreProvider = ({ children }) => {
   }, [state.groupedLiabilities.loading, state.groupedLiabilities.lastFetched, state.groupedLiabilities.isStale, withAbort, haveToken]);
 
   const fetchAccountsSummaryPositionsData = useCallback(async (accountId = null, assetType = null, force = false) => {
-    console.log('[DataStore] fetchAccountsSummaryPositionsData called', { accountId, assetType, force });
-
-    if (!haveToken()) {
-      console.log('[DataStore] fetchAccountsSummaryPositionsData: No token, returning');
-      return;
-    }
-    if (state.accountsSummaryPositions.loading && !force) {
-      console.log('[DataStore] fetchAccountsSummaryPositionsData: Already loading, returning');
-      return;
-    }
+    if (!haveToken()) return;
+    if (state.accountsSummaryPositions.loading && !force) return;
     const oneMinuteAgo = Date.now() - 60000;
-    if (!force && state.accountsSummaryPositions.lastFetched && state.accountsSummaryPositions.lastFetched > oneMinuteAgo && !state.accountsSummaryPositions.isStale) {
-      console.log('[DataStore] fetchAccountsSummaryPositionsData: Data is cached and not stale, returning');
-      return;
-    }
+    if (!force && state.accountsSummaryPositions.lastFetched && state.accountsSummaryPositions.lastFetched > oneMinuteAgo && !state.accountsSummaryPositions.isStale) return;
 
-    console.log('[DataStore] fetchAccountsSummaryPositionsData: Starting fetch...');
     dispatch({ type: ActionTypes.FETCH_ACCOUNTS_SUMMARY_POSITIONS_START });
     try {
       let url = '/datastore/accounts/summary-positions?snapshot_date=latest';
       if (accountId) url += `&account_id=${accountId}`;
       if (assetType) url += `&asset_type=${assetType}`;
 
-      console.log('[DataStore] fetchAccountsSummaryPositionsData: Fetching URL:', url);
       const response = await withAbort(url);
-      console.log('[DataStore] fetchAccountsSummaryPositionsData: Response status:', response.status);
-
       if (!response.ok) throw new Error(`Failed to fetch accounts summary positions: ${response.status}`);
       const data = await response.json();
-      console.log('[DataStore] fetchAccountsSummaryPositionsData: Data received:', data);
       dispatch({ type: ActionTypes.FETCH_ACCOUNTS_SUMMARY_POSITIONS_SUCCESS, payload: data });
     } catch (error) {
       if (error?.name === 'AbortError') return;
-      console.error('[DataStore] Error fetching accounts summary positions:', error);
+      console.error('Error fetching accounts summary positions:', error);
       dispatch({ type: ActionTypes.FETCH_ACCOUNTS_SUMMARY_POSITIONS_ERROR, payload: error.message });
     }
   }, [state.accountsSummaryPositions.loading, state.accountsSummaryPositions.lastFetched, state.accountsSummaryPositions.isStale, withAbort, haveToken]);
