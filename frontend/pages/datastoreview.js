@@ -8,7 +8,7 @@ import {
 // Import all DataStore hooks
 import { useAccounts } from '@/store/hooks/useAccounts';
 import { useAccountPositions } from '@/store/hooks/useAccountPositions';
-import { useAccountsSummaryPositions } from '@/store/hooks/addAccountsPositions';
+import { useAccountsSummaryPositions } from '@/store/hooks/useAccountsSummaryPositions';
 import { useAccountTrends } from '@/store/hooks/useAccountTrends';
 import { usePortfolioSummary } from '@/store/hooks/usePortfolioSummary';
 import { usePortfolioTrends } from '@/store/hooks/usePortfolioTrends';
