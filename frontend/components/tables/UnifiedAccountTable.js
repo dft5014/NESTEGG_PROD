@@ -6,6 +6,7 @@ import { useAccounts } from '@/store/hooks/useAccounts';
 import { useGroupedPositions } from '@/store/hooks/useGroupedPositions';
 import { useDetailedPositions } from '@/store/hooks/useDetailedPositions';
 import { usePortfolioTrends } from '@/store/hooks/usePortfolioTrends';
+import { useAccountsSummaryPositions } from '@/store/hooks/useAccountsSummaryPositions';
 // Utils
 import { popularBrokerages } from '@/utils/constants';
 import { formatCurrency, formatDate, formatPercentage, formatNumber } from '@/utils/formatters';
@@ -2243,8 +2244,8 @@ const UnifiedAccountTable = ({
                 )}
             </div>
 
-            {/* Detail Modal */}
-            <AccountDetailModal
+            {/* Detail Modal - Using SecondaryAccountDetailModal for testing */}
+            <SecondaryAccountDetailModal
                 isOpen={isDetailModalOpen}
                 onClose={() => {
                     setIsDetailModalOpen(false);
