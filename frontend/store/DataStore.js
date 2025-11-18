@@ -89,6 +89,7 @@ const initialState = {
     error: null,
     lastFetched: null,
     isStale: false,
+    fetchDuration: null, // Time in ms for last fetch
   },
   snapshots: {
     data: null,
@@ -441,7 +442,8 @@ const dataStoreReducer = (state, action) => {
           loading: false,
           error: null,
           lastFetched: Date.now(),
-          isStale: false
+          isStale: false,
+          fetchDuration: action.payload.fetchDuration || null
         }
       };
 
@@ -763,6 +765,7 @@ export const DataStoreProvider = ({ children }) => {
     const oneMinuteAgo = Date.now() - 60000;
     if (!force && state.accountsSummaryPositions.lastFetched && state.accountsSummaryPositions.lastFetched > oneMinuteAgo && !state.accountsSummaryPositions.isStale) return;
 
+    const startTime = Date.now(); // Track fetch start time
     dispatch({ type: ActionTypes.FETCH_ACCOUNTS_SUMMARY_POSITIONS_START });
     try {
       let url = '/datastore/accounts/summary-positions?snapshot_date=latest';
@@ -772,7 +775,9 @@ export const DataStoreProvider = ({ children }) => {
       const response = await withAbort(url);
       if (!response.ok) throw new Error(`Failed to fetch accounts summary positions: ${response.status}`);
       const data = await response.json();
-      dispatch({ type: ActionTypes.FETCH_ACCOUNTS_SUMMARY_POSITIONS_SUCCESS, payload: data });
+      const fetchDuration = Date.now() - startTime; // Calculate duration
+      console.log(`[DataStore] fetchAccountsSummaryPositions completed in ${fetchDuration}ms`);
+      dispatch({ type: ActionTypes.FETCH_ACCOUNTS_SUMMARY_POSITIONS_SUCCESS, payload: { ...data, fetchDuration } });
     } catch (error) {
       if (error?.name === 'AbortError') return;
       console.error('Error fetching accounts summary positions:', error);
