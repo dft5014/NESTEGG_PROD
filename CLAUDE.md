@@ -243,6 +243,220 @@ const { updatePosition, deletePosition } = useDataMutations();
 
 ---
 
+## DataStore Field Library
+
+Complete reference of every field available in the NestEgg DataStore. Use search to find fields by name, type, or description.
+
+### Portfolio Summary Fields
+
+#### Core Financial Metrics
+
+| Field | Type | Path | Description |
+|-------|------|------|-------------|
+| net_worth | number | `summary.netWorth` | Total net worth (assets - liabilities) |
+| total_assets | number | `summary.totalAssets` | Sum of all assets |
+| total_liabilities | number | `summary.totalLiabilities` | Sum of all debts |
+| liquid_assets | number | `summary.liquidAssets` | Securities + crypto + metals + cash |
+| other_assets | number | `summary.otherAssets` | Real estate + vehicles + other illiquid |
+| total_cost_basis | number | `summary.totalCostBasis` | Total amount invested |
+| liquid_cost_basis | number | `summary.liquidCostBasis` | Cost basis of liquid assets |
+| other_assets_cost_basis | number | `summary.otherAssetsCostBasis` | Cost basis of illiquid assets |
+| total_unrealized_gain | number | `summary.unrealizedGain` | Total gain/loss $ |
+| total_unrealized_gain_percent | number | `summary.unrealizedGainPercent` | Total gain/loss % |
+| liquid_unrealized_gain | number | `summary.liquidUnrealizedGain` | Liquid assets gain/loss $ |
+| liquid_unrealized_gain_percent | number | `summary.liquidUnrealizedGainPercent` | Liquid assets gain/loss % |
+
+#### Asset Class Breakdown
+
+| Field | Type | Path | Description |
+|-------|------|------|-------------|
+| security_value | number | `summary.assetAllocation.securities.value` | Total stocks/ETFs value |
+| security_mix | number | `summary.assetAllocation.securities.percentage` | % of portfolio in securities |
+| security_cost_basis | number | `summary.assetAllocation.securities.costBasis` | Amount invested in securities |
+| security_gain_loss | number | `summary.assetAllocation.securities.gainLoss` | Securities profit/loss $ |
+| security_gain_loss_percent | number | `summary.assetAllocation.securities.gainLossPercent` | Securities profit/loss % |
+| security_count | number | `summary.assetAllocation.securities.count` | Number of security positions |
+| security_annual_income | number | `summary.assetAllocation.securities.annualIncome` | Annual dividend income |
+| cash_value | number | `summary.assetAllocation.cash.value` | Total cash holdings |
+| cash_mix | number | `summary.assetAllocation.cash.percentage` | % of portfolio in cash |
+| crypto_value | number | `summary.assetAllocation.crypto.value` | Total cryptocurrency value |
+| crypto_mix | number | `summary.assetAllocation.crypto.percentage` | % of portfolio in crypto |
+| metal_value | number | `summary.assetAllocation.metals.value` | Total precious metals value |
+| metal_mix | number | `summary.assetAllocation.metals.percentage` | % of portfolio in metals |
+| real_estate_value | number | `summary.assetAllocation.realEstate.value` | Total real estate value |
+| real_estate_mix | number | `summary.assetAllocation.realEstate.percentage` | % of portfolio in real estate |
+
+#### Liability Breakdown
+
+| Field | Type | Path | Description |
+|-------|------|------|-------------|
+| credit_card_liabilities | number | `summary.liabilities.creditCard` | Total credit card debt |
+| mortgage_liabilities | number | `summary.liabilities.mortgage` | Total mortgage balance |
+| loan_liabilities | number | `summary.liabilities.loan` | Total loan balances |
+| other_liabilities_value | number | `summary.liabilities.other` | Other debt types |
+| liability_count | number | `summary.liabilities.counts.total` | Total number of liabilities |
+| credit_card_count | number | `summary.liabilities.counts.creditCard` | Number of credit cards |
+| mortgage_count | number | `summary.liabilities.counts.mortgage` | Number of mortgages |
+| loan_count | number | `summary.liabilities.counts.loan` | Number of loans |
+
+#### Period Performance
+
+Periods: 1d, 1w, 1m, 3m, ytd, 1y, 2y, 3y
+
+| Field Pattern | Type | Path Pattern | Description |
+|---------------|------|--------------|-------------|
+| net_worth_[period]_change | number | `summary.periodChanges['[period]'].netWorth` | Net worth $ change |
+| net_worth_[period]_change_pct | number | `summary.periodChanges['[period]'].netWorthPercent` | Net worth % change |
+| total_assets_[period]_change | number | `summary.periodChanges['[period]'].totalAssets` | Assets $ change |
+| liquid_assets_[period]_change | number | `summary.periodChanges['[period]'].liquidAssets` | Liquid $ change |
+| total_liabilities_[period]_change | number | `summary.periodChanges['[period]'].totalLiabilities` | Debt $ change |
+
+#### Alternative Net Worth Components
+
+| Field | Type | Path | Description |
+|-------|------|------|-------------|
+| alt_net_worth_value_real_estate | number | `summary.altNetWorth.realEstate` | Real estate component |
+| alt_net_worth_net_cash_value | number | `summary.altNetWorth.netCash` | Net cash position |
+| alt_net_worth_net_other_assets | number | `summary.altNetWorth.netOtherAssets` | Net other assets |
+| alt_liquid_net_worth | number | `summary.altLiquidNetWorth` | Liquid net worth |
+| alt_retirement_assets | number | `summary.altRetirementAssets` | Retirement accounts |
+| alt_illiquid_net_worth | number | `summary.altIlliquidNetWorth` | Illiquid net worth |
+
+### Account Fields (useAccounts)
+
+| Field | Type | Path | Description |
+|-------|------|------|-------------|
+| id | number | `accounts[i].id` | Account ID |
+| name | string | `accounts[i].name` | Account name |
+| institution | string | `accounts[i].institution` | Bank/broker name |
+| account_type | string | `accounts[i].accountType` | Type (e.g., 'brokerage') |
+| account_subtype | string | `accounts[i].accountSubtype` | Subtype (e.g., 'taxable') |
+| current_value | number | `accounts[i].currentValue` | Total account value |
+| liquid_value | number | `accounts[i].liquidValue` | Liquid portion |
+| illiquid_value | number | `accounts[i].illiquidValue` | Illiquid portion |
+| total_cost_basis | number | `accounts[i].costBasis` | Total invested |
+| unrealized_gain | number | `accounts[i].unrealizedGain` | Profit/loss $ |
+| unrealized_gain_percent | number | `accounts[i].unrealizedGainPercent` | Profit/loss % |
+| value_1d_change | number | `accounts[i].value1dChange` | 1-day $ change |
+| value_1d_change_pct | number | `accounts[i].value1dChangePct` | 1-day % change |
+| allocation_percent | number | `accounts[i].allocationPercent` | % of total portfolio |
+| yield_percent | number | `accounts[i].yieldPercent` | Annual yield % |
+| dividend_income_annual | number | `accounts[i].dividendIncomeAnnual` | Annual dividends |
+| security_count | number | `accounts[i].securityCount` | # of securities |
+| crypto_count | number | `accounts[i].cryptoCount` | # of cryptocurrencies |
+| cash_count | number | `accounts[i].cashCount` | # of cash positions |
+
+### Position Fields (useGroupedPositions)
+
+| Field | Type | Path | Description |
+|-------|------|------|-------------|
+| identifier | string | `positions[i].identifier` | Ticker/symbol |
+| name | string | `positions[i].name` | Full security name |
+| asset_type | string | `positions[i].asset_type` | security/crypto/cash/metal |
+| total_quantity | number | `positions[i].total_quantity` | Total shares/units |
+| account_count | number | `positions[i].account_count` | # of accounts holding |
+| avg_purchase_price | number | `positions[i].avg_purchase_price` | Average cost/share |
+| latest_price_per_unit | number | `positions[i].current_price` | Current market price |
+| total_current_value | number | `positions[i].total_current_value` | Total position value |
+| total_cost_basis | number | `positions[i].total_cost_basis` | Total invested |
+| total_gain_loss | number | `positions[i].total_gain_loss` | Profit/loss $ |
+| total_gain_loss_pct | number | `positions[i].total_gain_loss_pct` | Profit/loss % |
+| predominant_holding_term | string | `positions[i].predominant_holding_term` | 'long_term'/'short_term' |
+| long_term_value | number | `positions[i].long_term_value` | Long-term cap gains value |
+| short_term_value | number | `positions[i].short_term_value` | Short-term cap gains value |
+| portfolio_allocation_pct | number | `positions[i].allocation_percent` | % of portfolio |
+| value_1d_change | number | `positions[i].value_1d_change` | 1-day $ change |
+| value_1d_change_pct | number | `positions[i].value_1d_change_pct` | 1-day % change |
+| annual_income | number | `positions[i].annual_income` | Annual dividends |
+| yield_percent | number | `positions[i].yield_percent` | Dividend yield % |
+| ex_dividend_date | string | `positions[i].ex_dividend_date` | Next ex-dividend date |
+| sector | string | `positions[i].sector` | Market sector |
+| industry | string | `positions[i].industry` | Industry classification |
+| pe_ratio | number | `positions[i].pe_ratio` | Price/earnings ratio |
+| market_cap | number | `positions[i].market_cap` | Market capitalization |
+
+### Liability Fields (useGroupedLiabilities)
+
+| Field | Type | Path | Description |
+|-------|------|------|-------------|
+| identifier | string | `liabilities[i].identifier` | Unique ID |
+| name | string | `liabilities[i].name` | Liability name |
+| liability_type | string | `liabilities[i].liability_type` | credit_card/mortgage/loan |
+| institution | string | `liabilities[i].institution` | Lender name |
+| liability_count | number | `liabilities[i].account_count` | # of accounts |
+| total_current_balance | number | `liabilities[i].total_current_balance` | Current balance |
+| total_original_amount | number | `liabilities[i].total_original_balance` | Original amount |
+| total_paid_down | number | `liabilities[i].total_paid_down` | Amount paid off |
+| paydown_percentage | number | `liabilities[i].paydown_percentage` | % paid off |
+| weighted_avg_interest_rate | number | `liabilities[i].weighted_avg_interest_rate` | Average APR |
+| max_interest_rate | number | `liabilities[i].max_interest_rate` | Highest APR |
+| min_interest_rate | number | `liabilities[i].min_interest_rate` | Lowest APR |
+| estimated_annual_interest | number | `liabilities[i].annual_interest` | Interest cost/year |
+| total_credit_limit | number | `liabilities[i].total_credit_limit` | Credit limit (cards) |
+| credit_utilization_pct | number | `liabilities[i].credit_utilization_pct` | % of credit used |
+| debt_allocation_pct | number | `liabilities[i].debt_allocation_pct` | % of total debt |
+
+### Historical/Trend Fields (usePortfolioTrends)
+
+| Field | Type | Path | Description |
+|-------|------|------|-------------|
+| date | string | `trends.chartData[i].date` | Snapshot date |
+| netWorth | number | `trends.chartData[i].netWorth` | Net worth on date |
+| totalAssets | number | `trends.chartData[i].totalAssets` | Assets on date |
+| totalLiabilities | number | `trends.chartData[i].totalLiabilities` | Liabilities on date |
+| liquidAssets | number | `trends.chartData[i].liquidAssets` | Liquid assets on date |
+| unrealizedGain | number | `trends.chartData[i].unrealizedGain` | Gain/loss on date |
+| unrealizedGainPercent | number | `trends.chartData[i].unrealizedGainPercent` | Gain/loss % on date |
+| netCashPosition | number | `trends.chartData[i].netCashPosition` | Cash position on date |
+| altLiquidNetWorth | number | `trends.chartData[i].altLiquidNetWorth` | Alt liquid NW on date |
+| altRetirementAssets | number | `trends.chartData[i].altRetirementAssets` | Retirement on date |
+| altIlliquidNetWorth | number | `trends.chartData[i].altIlliquidNetWorth` | Illiquid NW on date |
+
+### Rich JSON Fields (usePortfolioSummary)
+
+| Field | Type | Description |
+|-------|------|-------------|
+| topPositions | array | Top liquid holdings by value |
+| topPerformersAmount | array | Top gainers by $ |
+| topPerformersPercent | array | Top gainers by % |
+| accountDiversification | object | Account allocation |
+| sectorAllocation | object | Sector breakdown |
+| institutionAllocation | array | Institution breakdown |
+| concentrationMetrics | object | Concentration analysis |
+| riskMetrics | object | Risk measurements |
+| dividendMetrics | object | Dividend analysis |
+| taxEfficiencyMetrics | object | Tax efficiency data |
+
+### Field Naming Conventions
+
+- **Database**: Fields use `snake_case`
+- **Hooks**: Fields use `camelCase`
+- **Percentages**: Suffixed with `_pct` or `Percent`
+- **Changes**: Format is `[metric]_[period]_change`
+- **Dates**: Strings in 'YYYY-MM-DD' format
+- **Money**: All monetary values are numbers (floats)
+
+### Usage Examples
+
+```javascript
+// Get net worth
+const { summary } = usePortfolioSummary();
+const netWorth = summary?.netWorth || 0;
+
+// Get all positions
+const { positions } = useGroupedPositions();
+positions.forEach(p => console.log(p.identifier, p.total_current_value));
+
+// Get account list
+const { accounts } = useAccounts();
+const totalValue = accounts.reduce((sum, a) => sum + a.currentValue, 0);
+
+// Get 1-month change
+const monthChange = summary?.periodChanges?.['1m']?.netWorth || 0;
+```
+
+---
+
 ## API Patterns
 
 ### Authentication
