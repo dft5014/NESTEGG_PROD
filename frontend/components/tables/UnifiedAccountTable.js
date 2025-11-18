@@ -76,12 +76,32 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
         const { positions: groupedPositions } = useGroupedPositions();
         const { positions: detailedPositions } = useDetailedPositions();
 
-        // Filter positions for this account
+        // NEW: Get positions from useAccountsSummaryPositions for testing
+        const { positions: summaryPositions, loading: summaryLoading } = useAccountsSummaryPositions();
+
+        // NEW: Filter positions from useAccountsSummaryPositions for this account
+        const testPositions = useMemo(() => {
+            if (!account || !summaryPositions || summaryPositions.length === 0) return [];
+
+            return summaryPositions
+                .filter(pos => pos.accountId === account.id)
+                .map(pos => ({
+                    symbol: pos.identifier,
+                    name: pos.name,
+                    quantity: pos.totalQuantity || 0,
+                    currentValue: pos.totalCurrentValue || 0,
+                    costBasis: pos.totalCostBasis || 0,
+                    gainLoss: pos.totalGainLossAmt || 0,
+                    gainLossPercent: pos.totalGainLossPct || 0
+                }));
+        }, [account, summaryPositions]);
+
+        // Filter positions for this account (ORIGINAL)
         const accountPositions = useMemo(() => {
             if (!account || !groupedPositions) return [];
-            
+
             // Get positions that have this account in their account_details
-            return groupedPositions.filter(pos => 
+            return groupedPositions.filter(pos =>
                 pos.account_details?.some(detail => detail.account_id === account.id)
             ).map(pos => {
                 // Find the specific account detail for this account
@@ -370,6 +390,72 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
 
                         {/* Modal Body - Scrollable */}
                         <div className="flex-1 overflow-y-auto p-6 max-h-[calc(85vh-8rem)]">
+                            {/* TEST TABLE - Data from useAccountsSummaryPositions */}
+                            <div className="bg-purple-900/30 border-2 border-purple-500 rounded-lg p-4 mb-6">
+                                <div className="flex items-center justify-between mb-3">
+                                    <h4 className="text-sm font-bold text-purple-300">
+                                        🧪 TEST: useAccountsSummaryPositions Data
+                                    </h4>
+                                    <span className="text-xs text-purple-400">
+                                        {summaryLoading ? 'Loading...' : `${testPositions.length} positions found`}
+                                    </span>
+                                </div>
+                                {summaryLoading ? (
+                                    <div className="text-center py-4">
+                                        <Loader className="inline-block w-5 h-5 animate-spin text-purple-400" />
+                                    </div>
+                                ) : testPositions.length > 0 ? (
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-xs">
+                                            <thead>
+                                                <tr className="border-b border-purple-700">
+                                                    <th className="px-2 py-1 text-left text-purple-300">Symbol</th>
+                                                    <th className="px-2 py-1 text-left text-purple-300">Name</th>
+                                                    <th className="px-2 py-1 text-right text-purple-300">Qty</th>
+                                                    <th className="px-2 py-1 text-right text-purple-300">Value</th>
+                                                    <th className="px-2 py-1 text-right text-purple-300">Cost</th>
+                                                    <th className="px-2 py-1 text-right text-purple-300">Gain/Loss</th>
+                                                    <th className="px-2 py-1 text-right text-purple-300">%</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {testPositions.map((pos, idx) => (
+                                                    <tr key={idx} className="border-b border-purple-800/50">
+                                                        <td className="px-2 py-1 font-medium">{pos.symbol}</td>
+                                                        <td className="px-2 py-1 text-gray-400 truncate max-w-[150px]">{pos.name}</td>
+                                                        <td className="px-2 py-1 text-right">{formatNumber(pos.quantity, { maximumFractionDigits: 2 })}</td>
+                                                        <td className="px-2 py-1 text-right">{formatCurrency(pos.currentValue)}</td>
+                                                        <td className="px-2 py-1 text-right text-gray-400">{formatCurrency(pos.costBasis)}</td>
+                                                        <td className={`px-2 py-1 text-right ${pos.gainLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                                            {pos.gainLoss >= 0 ? '+' : ''}{formatCurrency(pos.gainLoss)}
+                                                        </td>
+                                                        <td className={`px-2 py-1 text-right ${pos.gainLossPercent >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                                            {pos.gainLossPercent >= 0 ? '+' : ''}{pos.gainLossPercent?.toFixed(2) || '0.00'}%
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                                {/* Total row */}
+                                                <tr className="bg-purple-900/50 font-bold">
+                                                    <td className="px-2 py-1" colSpan="3">TOTAL</td>
+                                                    <td className="px-2 py-1 text-right">{formatCurrency(testPositions.reduce((sum, p) => sum + p.currentValue, 0))}</td>
+                                                    <td className="px-2 py-1 text-right text-gray-400">{formatCurrency(testPositions.reduce((sum, p) => sum + p.costBasis, 0))}</td>
+                                                    <td className={`px-2 py-1 text-right ${testPositions.reduce((sum, p) => sum + p.gainLoss, 0) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                                        {testPositions.reduce((sum, p) => sum + p.gainLoss, 0) >= 0 ? '+' : ''}
+                                                        {formatCurrency(testPositions.reduce((sum, p) => sum + p.gainLoss, 0))}
+                                                    </td>
+                                                    <td className="px-2 py-1 text-right">-</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                ) : (
+                                    <div className="text-center py-4 text-purple-400">
+                                        <p>No positions found for account ID: {account.id}</p>
+                                        <p className="text-xs mt-1">Check if summaryPositions.accountId matches account.id</p>
+                                    </div>
+                                )}
+                            </div>
+
                             {/* Key Metrics */}
                             <div className="grid grid-cols-4 gap-4 mb-6">
                                 <div className="bg-gray-800/50 p-4 rounded">
@@ -2244,8 +2330,8 @@ const UnifiedAccountTable = ({
                 )}
             </div>
 
-            {/* Detail Modal - Using SecondaryAccountDetailModal for testing */}
-            <SecondaryAccountDetailModal
+            {/* Detail Modal */}
+            <AccountDetailModal
                 isOpen={isDetailModalOpen}
                 onClose={() => {
                     setIsDetailModalOpen(false);
