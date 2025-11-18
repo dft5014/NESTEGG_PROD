@@ -13,6 +13,12 @@
 - Goal setting and financial planning
 - System event monitoring and data consistency tracking
 
+### Architecture Principles
+- **Database-First:** Complex calculations happen in PostgreSQL views, not application code
+- **Security-First:** No bank credential sharing required - manual entry model
+- **Centralized State:** DataStore pattern for predictable data flow
+- **UI Excellence:** Clean, interactive interfaces with purposeful animations
+
 ---
 
 ## Technology Stack
@@ -196,6 +202,12 @@ python scheduler.py
   - `formatPercentage(value)`
   - `formatDate(date)`
 - **Notifications:** React Hot Toast for user feedback
+
+### UI/UX Design Principles
+- **Hierarchy:** Clear visual importance through size, color, spacing
+- **Contrast:** Sufficient distinction between elements
+- **Balance:** Harmonious layout distribution
+- **Movement:** Purposeful animations that enhance without overwhelming
 
 ### Import Order
 
@@ -662,6 +674,13 @@ Currently no formal testing framework. Test pages exist for Clerk integration:
 - Backend: Python logging to console
 - Scheduler: Separate logger for job status
 - Frontend: Browser console
+
+---
+
+## External Documentation
+
+- **DataStore Field Library:** https://www.notion.so/NestEgg-DataStore-Field-Library-2426699fc7038146a984d3fee7386d2e
+- **Project Overview:** https://www.notion.so/NestEgg-Overview-2426699fc7038129835fff6e56ef85a9
 
 ---
 
