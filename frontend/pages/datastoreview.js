@@ -688,6 +688,7 @@ Loading: ${accountsSummaryPositionsData.loading}
 Error: ${accountsSummaryPositionsData.error || 'None'}
 Data Count: ${accountsSummaryPositionsData.positions?.length || 0}
 Last Fetched: ${accountsSummaryPositionsData.lastFetched ? new Date(accountsSummaryPositionsData.lastFetched).toLocaleString() : 'Never'}
+Fetch Duration: ${accountsSummaryPositionsData.fetchDuration ? `${accountsSummaryPositionsData.fetchDuration}ms` : 'N/A'}
 Is Stale: ${accountsSummaryPositionsData.isStale}
 ${accountsSummaryPositionsData.summary ? `
 Summary Stats:

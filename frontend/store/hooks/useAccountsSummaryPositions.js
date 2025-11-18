@@ -340,6 +340,7 @@ export const useAccountsSummaryPositions = (accountId = null, assetType = null) 
     error: accountsSummaryPositions.error,
     lastFetched: accountsSummaryPositions.lastFetched,
     isStale: accountsSummaryPositions.isStale,
+    fetchDuration: accountsSummaryPositions.fetchDuration, // Time in ms for last fetch
     refresh: (accId = null, assetType = null) => fetchAccountsSummaryPositionsData(accId || accountId, assetType, true),
     markStale: () => markAccountsSummaryPositionsStale()
   };
