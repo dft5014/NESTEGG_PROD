@@ -2359,16 +2359,6 @@ const UnifiedAccountTable = ({
                 }}
                 account={selectedAccount}
             />
-
-            {/* Secondary Detail Modal */}
-            <SecondaryAccountDetailModal
-                isOpen={isDetailModalOpen}
-                onClose={() => {
-                    setIsDetailModalOpen(false);
-                    setSelectedAccount(null);
-                }}
-                account={selectedAccount}
-            />
         </>
     );
 };
