@@ -79,11 +79,27 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
         // NEW: Get positions from useAccountsSummaryPositions for testing
         const { positions: summaryPositions, loading: summaryLoading } = useAccountsSummaryPositions();
 
+        // DEBUG: Log when modal opens and data state
+        useEffect(() => {
+            if (isOpen && account) {
+                console.log('[AccountDetailModal] Modal opened for account:', account.id, account.name);
+                console.log('[AccountDetailModal] summaryPositions count:', summaryPositions?.length || 0);
+                console.log('[AccountDetailModal] summaryLoading:', summaryLoading);
+                if (summaryPositions?.length > 0) {
+                    console.log('[AccountDetailModal] First position accountId:', summaryPositions[0]?.accountId);
+                    console.log('[AccountDetailModal] Account IDs in data:', [...new Set(summaryPositions.map(p => p.accountId))]);
+                }
+            }
+        }, [isOpen, account, summaryPositions, summaryLoading]);
+
         // NEW: Filter positions from useAccountsSummaryPositions for this account
         const testPositions = useMemo(() => {
-            if (!account || !summaryPositions || summaryPositions.length === 0) return [];
+            if (!account || !summaryPositions || summaryPositions.length === 0) {
+                console.log('[AccountDetailModal] testPositions: returning empty - account:', !!account, 'summaryPositions:', summaryPositions?.length || 0);
+                return [];
+            }
 
-            return summaryPositions
+            const filtered = summaryPositions
                 .filter(pos => pos.accountId === account.id)
                 .map(pos => ({
                     symbol: pos.identifier,
@@ -94,6 +110,9 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                     gainLoss: pos.totalGainLossAmt || 0,
                     gainLossPercent: pos.totalGainLossPct || 0
                 }));
+
+            console.log('[AccountDetailModal] testPositions filtered:', filtered.length, 'for account.id:', account.id);
+            return filtered;
         }, [account, summaryPositions]);
 
         // Filter positions for this account (ORIGINAL)
@@ -391,6 +410,7 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                         {/* Modal Body - Scrollable */}
                         <div className="flex-1 overflow-y-auto p-6 max-h-[calc(85vh-8rem)]">
                             {/* TEST TABLE - Data from useAccountsSummaryPositions */}
+                            {console.log('[AccountDetailModal] Rendering test table section, testPositions:', testPositions?.length || 0)}
                             <div className="bg-purple-900/30 border-2 border-purple-500 rounded-lg p-4 mb-6">
                                 <div className="flex items-center justify-between mb-3">
                                     <h4 className="text-sm font-bold text-purple-300">
