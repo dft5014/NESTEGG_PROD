@@ -698,7 +698,48 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                                                             )}
                                                         </button>
                                                     </th>
-                                                    <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">Cost/Share</th>
+                                                    <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">
+                                                        <button
+                                                            onClick={() => setTestPositionSort({
+                                                                field: 'costPerShare',
+                                                                direction: testPositionSort.field === 'costPerShare' && testPositionSort.direction === 'desc' ? 'asc' : 'desc'
+                                                            })}
+                                                            className="flex items-center space-x-1 hover:text-white ml-auto"
+                                                        >
+                                                            <span>Cost per Share</span>
+                                                            {testPositionSort.field === 'costPerShare' && (
+                                                                testPositionSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
+                                                            )}
+                                                        </button>
+                                                    </th>
+                                                    <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">
+                                                        <button
+                                                            onClick={() => setTestPositionSort({
+                                                                field: 'costBasis',
+                                                                direction: testPositionSort.field === 'costBasis' && testPositionSort.direction === 'desc' ? 'asc' : 'desc'
+                                                            })}
+                                                            className="flex items-center space-x-1 hover:text-white ml-auto"
+                                                        >
+                                                            <span>Total Cost</span>
+                                                            {testPositionSort.field === 'costBasis' && (
+                                                                testPositionSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
+                                                            )}
+                                                        </button>
+                                                    </th>
+                                                    <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">
+                                                        <button
+                                                            onClick={() => setTestPositionSort({
+                                                                field: 'gainLossPerShare',
+                                                                direction: testPositionSort.field === 'gainLossPerShare' && testPositionSort.direction === 'desc' ? 'asc' : 'desc'
+                                                            })}
+                                                            className="flex items-center space-x-1 hover:text-white ml-auto"
+                                                        >
+                                                            <span>Gain (Loss) Per Share</span>
+                                                            {testPositionSort.field === 'gainLossPerShare' && (
+                                                                testPositionSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
+                                                            )}
+                                                        </button>
+                                                    </th>
                                                     <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">
                                                         <button
                                                             onClick={() => setTestPositionSort({
@@ -707,7 +748,7 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                                                             })}
                                                             className="flex items-center space-x-1 hover:text-white ml-auto"
                                                         >
-                                                            <span>Gain/Loss</span>
+                                                            <span>Total Gain / (Loss)</span>
                                                             {testPositionSort.field === 'gain' && (
                                                                 testPositionSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
                                                             )}
@@ -756,12 +797,14 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                                                     <td className="px-3 py-2 text-xs text-right font-bold text-white">
                                                         {formatCurrency(sortedTestPositions.reduce((sum, p) => sum + p.currentValue, 0))}
                                                     </td>
+                                                    <td className="px-3 py-2 text-xs text-right text-gray-400">-</td>
                                                     <td className="px-3 py-2 text-xs text-right text-gray-400">
                                                         {formatCurrency(sortedTestPositions.reduce((sum, p) => sum + p.costBasis, 0))}
                                                     </td>
+                                                    <td className="px-3 py-2 text-xs text-right text-gray-400">-</td>
                                                     <td className="px-3 py-2 text-xs text-right">
                                                         <span className={`font-bold ${
-                                                            sortedTestPositions.reduce((sum, p) => sum + p.gainLoss, 0) >= 0 
+                                                            sortedTestPositions.reduce((sum, p) => sum + p.gainLoss, 0) >= 0
                                                                 ? 'text-green-400' : 'text-red-400'
                                                         }`}>
                                                             {sortedTestPositions.reduce((sum, p) => sum + p.gainLoss, 0) >= 0 && '+'}
@@ -770,11 +813,11 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                                                     </td>
                                                     <td className="px-3 py-2 text-xs text-right">
                                                         <span className={`font-bold ${
-                                                            ((sortedTestPositions.reduce((sum, p) => sum + p.gainLoss, 0) / 
-                                                            sortedTestPositions.reduce((sum, p) => sum + p.costBasis, 0)) * 100) >= 0 
+                                                            ((sortedTestPositions.reduce((sum, p) => sum + p.gainLoss, 0) /
+                                                            sortedTestPositions.reduce((sum, p) => sum + p.costBasis, 0)) * 100) >= 0
                                                                 ? 'text-green-400' : 'text-red-400'
                                                         }`}>
-                                                            {((sortedTestPositions.reduce((sum, p) => sum + p.gainLoss, 0) / 
+                                                            {((sortedTestPositions.reduce((sum, p) => sum + p.gainLoss, 0) /
                                                             sortedTestPositions.reduce((sum, p) => sum + p.costBasis, 0)) * 100).toFixed(2)}%
                                                         </span>
                                                     </td>
@@ -841,7 +884,15 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                                                             {formatCurrency(position.currentValue || 0)}
                                                         </td>
                                                         <td className="px-3 py-2 text-xs text-right text-gray-400">
-                                                            {formatCurrency((position.costBasis || 0) / (position.quantity || 1))}
+                                                            {formatCurrency(position.costPerShare || 0)}
+                                                        </td>
+                                                        <td className="px-3 py-2 text-xs text-right text-gray-400">
+                                                            {formatCurrency(position.costBasis || 0)}
+                                                        </td>
+                                                        <td className="px-3 py-2 text-xs text-right">
+                                                            <span className={`font-medium ${position.gainLossPerShare >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                                                {position.gainLossPerShare >= 0 && '+'}{formatCurrency(position.gainLossPerShare || 0)}
+                                                            </span>
                                                         </td>
                                                         <td className="px-3 py-2 text-xs text-right">
                                                             <span className={`font-medium ${position.gainLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
@@ -865,7 +916,7 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                                                                     <>
                                                                         <tr className="bg-gray-800/50 border-b border-gray-700">
                                                                             <td></td>
-                                                                            <td colSpan="8" className="px-3 py-1">
+                                                                            <td colSpan="10" className="px-3 py-1">
                                                                                 <div className="text-xs text-gray-400 font-medium">Tax Lot Details</div>
                                                                             </td>
                                                                         </tr>
@@ -898,13 +949,22 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                                                                                         {formatNumber(lot.quantity, { maximumFractionDigits: 4 })}
                                                                                     </td>
                                                                                     <td className="px-3 py-1 text-right text-gray-400">
-                                                                                        {formatCurrency(lot.costBasis / lot.quantity)}
+                                                                                        {formatCurrency(position.currentPrice)}
                                                                                     </td>
                                                                                     <td className="px-3 py-1 text-right text-gray-300">
                                                                                         {formatCurrency(lot.quantity * position.currentPrice)}
                                                                                     </td>
                                                                                     <td className="px-3 py-1 text-right text-gray-400">
+                                                                                        {formatCurrency(lot.costBasis / lot.quantity)}
+                                                                                    </td>
+                                                                                    <td className="px-3 py-1 text-right text-gray-400">
                                                                                         {formatCurrency(lot.costBasis)}
+                                                                                    </td>
+                                                                                    <td className="px-3 py-1 text-right">
+                                                                                        <span className={`${(position.currentPrice - (lot.costBasis / lot.quantity)) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                                                                            {(position.currentPrice - (lot.costBasis / lot.quantity)) >= 0 && '+'}
+                                                                                            {formatCurrency(position.currentPrice - (lot.costBasis / lot.quantity))}
+                                                                                        </span>
                                                                                     </td>
                                                                                     <td className="px-3 py-1 text-right">
                                                                                         <span className={lotGain >= 0 ? 'text-green-400' : 'text-red-400'}>
@@ -916,6 +976,7 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                                                                                             {lotGainPct >= 0 && '+'}{lotGainPct.toFixed(2)}%
                                                                                         </span>
                                                                                     </td>
+                                                                                    <td className="px-3 py-1 text-right text-gray-600">-</td>
                                                                                 </tr>
                                                                             );
                                                                         })}
@@ -1438,7 +1499,48 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                                                             )}
                                                         </button>
                                                     </th>
-                                                    <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">Cost/Share</th>
+                                                    <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">
+                                                        <button
+                                                            onClick={() => setTestPositionSort({
+                                                                field: 'costPerShare',
+                                                                direction: testPositionSort.field === 'costPerShare' && testPositionSort.direction === 'desc' ? 'asc' : 'desc'
+                                                            })}
+                                                            className="flex items-center space-x-1 hover:text-white ml-auto"
+                                                        >
+                                                            <span>Cost per Share</span>
+                                                            {testPositionSort.field === 'costPerShare' && (
+                                                                testPositionSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
+                                                            )}
+                                                        </button>
+                                                    </th>
+                                                    <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">
+                                                        <button
+                                                            onClick={() => setTestPositionSort({
+                                                                field: 'costBasis',
+                                                                direction: testPositionSort.field === 'costBasis' && testPositionSort.direction === 'desc' ? 'asc' : 'desc'
+                                                            })}
+                                                            className="flex items-center space-x-1 hover:text-white ml-auto"
+                                                        >
+                                                            <span>Total Cost</span>
+                                                            {testPositionSort.field === 'costBasis' && (
+                                                                testPositionSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
+                                                            )}
+                                                        </button>
+                                                    </th>
+                                                    <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">
+                                                        <button
+                                                            onClick={() => setTestPositionSort({
+                                                                field: 'gainLossPerShare',
+                                                                direction: testPositionSort.field === 'gainLossPerShare' && testPositionSort.direction === 'desc' ? 'asc' : 'desc'
+                                                            })}
+                                                            className="flex items-center space-x-1 hover:text-white ml-auto"
+                                                        >
+                                                            <span>Gain (Loss) Per Share</span>
+                                                            {testPositionSort.field === 'gainLossPerShare' && (
+                                                                testPositionSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
+                                                            )}
+                                                        </button>
+                                                    </th>
                                                     <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">
                                                         <button
                                                             onClick={() => setTestPositionSort({
@@ -1447,7 +1549,7 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                                                             })}
                                                             className="flex items-center space-x-1 hover:text-white ml-auto"
                                                         >
-                                                            <span>Gain/Loss</span>
+                                                            <span>Total Gain / (Loss)</span>
                                                             {testPositionSort.field === 'gain' && (
                                                                 testPositionSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
                                                             )}
@@ -1581,7 +1683,15 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                                                             {formatCurrency(position.currentValue || 0)}
                                                         </td>
                                                         <td className="px-3 py-2 text-xs text-right text-gray-400">
-                                                            {formatCurrency((position.costBasis || 0) / (position.quantity || 1))}
+                                                            {formatCurrency(position.costPerShare || 0)}
+                                                        </td>
+                                                        <td className="px-3 py-2 text-xs text-right text-gray-400">
+                                                            {formatCurrency(position.costBasis || 0)}
+                                                        </td>
+                                                        <td className="px-3 py-2 text-xs text-right">
+                                                            <span className={`font-medium ${position.gainLossPerShare >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                                                {position.gainLossPerShare >= 0 && '+'}{formatCurrency(position.gainLossPerShare || 0)}
+                                                            </span>
                                                         </td>
                                                         <td className="px-3 py-2 text-xs text-right">
                                                             <span className={`font-medium ${position.gainLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
@@ -1605,7 +1715,7 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                                                                     <>
                                                                         <tr className="bg-gray-800/50 border-b border-gray-700">
                                                                             <td></td>
-                                                                            <td colSpan="8" className="px-3 py-1">
+                                                                            <td colSpan="10" className="px-3 py-1">
                                                                                 <div className="text-xs text-gray-400 font-medium">Tax Lot Details</div>
                                                                             </td>
                                                                         </tr>
@@ -1638,13 +1748,22 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                                                                                         {formatNumber(lot.quantity, { maximumFractionDigits: 4 })}
                                                                                     </td>
                                                                                     <td className="px-3 py-1 text-right text-gray-400">
-                                                                                        {formatCurrency(lot.costBasis / lot.quantity)}
+                                                                                        {formatCurrency(position.currentPrice)}
                                                                                     </td>
                                                                                     <td className="px-3 py-1 text-right text-gray-300">
                                                                                         {formatCurrency(lot.quantity * position.currentPrice)}
                                                                                     </td>
                                                                                     <td className="px-3 py-1 text-right text-gray-400">
+                                                                                        {formatCurrency(lot.costBasis / lot.quantity)}
+                                                                                    </td>
+                                                                                    <td className="px-3 py-1 text-right text-gray-400">
                                                                                         {formatCurrency(lot.costBasis)}
+                                                                                    </td>
+                                                                                    <td className="px-3 py-1 text-right">
+                                                                                        <span className={`${(position.currentPrice - (lot.costBasis / lot.quantity)) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                                                                            {(position.currentPrice - (lot.costBasis / lot.quantity)) >= 0 && '+'}
+                                                                                            {formatCurrency(position.currentPrice - (lot.costBasis / lot.quantity))}
+                                                                                        </span>
                                                                                     </td>
                                                                                     <td className="px-3 py-1 text-right">
                                                                                         <span className={lotGain >= 0 ? 'text-green-400' : 'text-red-400'}>
@@ -1656,6 +1775,7 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                                                                                             {lotGainPct >= 0 && '+'}{lotGainPct.toFixed(2)}%
                                                                                         </span>
                                                                                     </td>
+                                                                                    <td className="px-3 py-1 text-right text-gray-600">-</td>
                                                                                 </tr>
                                                                             );
                                                                         })}
