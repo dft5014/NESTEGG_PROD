@@ -105,21 +105,28 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
 
             const filtered = summaryPositions
                 .filter(pos => pos.accountId === account.id)
-                .map(pos => ({
-                    symbol: pos.identifier,
-                    name: pos.name,
-                    asset_type: pos.assetType,
-                    sector: pos.sector,
-                    quantity: pos.totalQuantity || 0,
-                    currentPrice: pos.latestPricePerUnit || 0,
-                    currentValue: pos.totalCurrentValue || 0,
-                    costBasis: pos.totalCostBasis || 0,
-                    gainLoss: pos.totalGainLossAmt || 0,
-                    gainLossPercent: pos.totalGainLossPct || 0,
-                    annualIncome: pos.totalAnnualIncome || 0,
-                    dividendYield: pos.dividendYield || 0,
-                    priceChange1d: pos.value1dChangePct || null
-                }));
+                .map(pos => {
+                    const costPerShare = pos.weightedAvgCost || (pos.totalCostBasis / pos.totalQuantity) || 0;
+                    const gainLossPerShare = (pos.latestPricePerUnit || 0) - costPerShare;
+
+                    return {
+                        symbol: pos.identifier,
+                        name: pos.name,
+                        asset_type: pos.assetType,
+                        sector: pos.sector,
+                        quantity: pos.totalQuantity || 0,
+                        currentPrice: pos.latestPricePerUnit || 0,
+                        currentValue: pos.totalCurrentValue || 0,
+                        costPerShare: costPerShare,
+                        costBasis: pos.totalCostBasis || 0,
+                        gainLossPerShare: gainLossPerShare,
+                        gainLoss: pos.totalGainLossAmt || 0,
+                        gainLossPercent: pos.totalGainLossPct || 0,
+                        annualIncome: pos.totalAnnualIncome || 0,
+                        dividendYield: pos.dividendYield || 0,
+                        priceChange1d: pos.value1dChangePct || null
+                    };
+                });
 
             console.log('[AccountDetailModal] testPositions filtered:', filtered.length, 'for account.id:', account.id);
             return filtered;
@@ -169,6 +176,18 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                     case 'value':
                         aVal = a.currentValue || 0;
                         bVal = b.currentValue || 0;
+                        break;
+                    case 'costPerShare':
+                        aVal = a.costPerShare || 0;
+                        bVal = b.costPerShare || 0;
+                        break;
+                    case 'costBasis':
+                        aVal = a.costBasis || 0;
+                        bVal = b.costBasis || 0;
+                        break;
+                    case 'gainLossPerShare':
+                        aVal = a.gainLossPerShare || 0;
+                        bVal = b.gainLossPerShare || 0;
                         break;
                     case 'gain':
                         aVal = a.gainLoss || 0;
@@ -659,7 +678,7 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                                                             })}
                                                             className="flex items-center space-x-1 hover:text-white ml-auto"
                                                         >
-                                                            <span>Price</span>
+                                                            <span>Current Price</span>
                                                             {testPositionSort.field === 'price' && (
                                                                 testPositionSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
                                                             )}
@@ -673,7 +692,7 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                                                             })}
                                                             className="flex items-center space-x-1 hover:text-white ml-auto"
                                                         >
-                                                            <span>Value</span>
+                                                            <span>Market Value</span>
                                                             {testPositionSort.field === 'value' && (
                                                                 testPositionSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
                                                             )}
@@ -1399,7 +1418,7 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                                                             })}
                                                             className="flex items-center space-x-1 hover:text-white ml-auto"
                                                         >
-                                                            <span>Price</span>
+                                                            <span>Current Price</span>
                                                             {testPositionSort.field === 'price' && (
                                                                 testPositionSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
                                                             )}
@@ -1413,7 +1432,7 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                                                             })}
                                                             className="flex items-center space-x-1 hover:text-white ml-auto"
                                                         >
-                                                            <span>Value</span>
+                                                            <span>Market Value</span>
                                                             {testPositionSort.field === 'value' && (
                                                                 testPositionSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
                                                             )}
