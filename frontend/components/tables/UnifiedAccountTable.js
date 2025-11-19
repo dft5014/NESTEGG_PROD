@@ -411,12 +411,12 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                         <div className="flex-1 overflow-y-auto p-6 max-h-[calc(85vh-8rem)]">
                             {/* TEST TABLE - Data from useAccountsSummaryPositions */}
                             {console.log('[AccountDetailModal] Rendering test table section, testPositions:', testPositions?.length || 0)}
-                            <div className="bg-purple-900/30 border-2 border-purple-500 rounded-lg p-4 mb-6">
+                            <div className="bg-purple-600 border-4 border-yellow-400 rounded-lg p-4 mb-6 shadow-lg">
                                 <div className="flex items-center justify-between mb-3">
-                                    <h4 className="text-sm font-bold text-purple-300">
+                                    <h4 className="text-base font-bold text-white">
                                         🧪 TEST: useAccountsSummaryPositions Data
                                     </h4>
-                                    <span className="text-xs text-purple-400">
+                                    <span className="text-sm font-semibold text-yellow-300">
                                         {summaryLoading ? 'Loading...' : `${testPositions.length} positions found`}
                                     </span>
                                 </div>
@@ -425,17 +425,17 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                                         <Loader className="inline-block w-5 h-5 animate-spin text-purple-400" />
                                     </div>
                                 ) : testPositions.length > 0 ? (
-                                    <div className="overflow-x-auto">
-                                        <table className="w-full text-xs">
+                                    <div className="overflow-x-auto bg-gray-900 rounded">
+                                        <table className="w-full text-sm">
                                             <thead>
-                                                <tr className="border-b border-purple-700">
-                                                    <th className="px-2 py-1 text-left text-purple-300">Symbol</th>
-                                                    <th className="px-2 py-1 text-left text-purple-300">Name</th>
-                                                    <th className="px-2 py-1 text-right text-purple-300">Qty</th>
-                                                    <th className="px-2 py-1 text-right text-purple-300">Value</th>
-                                                    <th className="px-2 py-1 text-right text-purple-300">Cost</th>
-                                                    <th className="px-2 py-1 text-right text-purple-300">Gain/Loss</th>
-                                                    <th className="px-2 py-1 text-right text-purple-300">%</th>
+                                                <tr className="border-b-2 border-yellow-400 bg-gray-800">
+                                                    <th className="px-2 py-2 text-left text-yellow-300 font-bold">Symbol</th>
+                                                    <th className="px-2 py-2 text-left text-yellow-300 font-bold">Name</th>
+                                                    <th className="px-2 py-2 text-right text-yellow-300 font-bold">Qty</th>
+                                                    <th className="px-2 py-2 text-right text-yellow-300 font-bold">Value</th>
+                                                    <th className="px-2 py-2 text-right text-yellow-300 font-bold">Cost</th>
+                                                    <th className="px-2 py-2 text-right text-yellow-300 font-bold">Gain/Loss</th>
+                                                    <th className="px-2 py-2 text-right text-yellow-300 font-bold">%</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
