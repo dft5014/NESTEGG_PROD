@@ -6,6 +6,7 @@ import { useAccounts } from '@/store/hooks/useAccounts';
 import { useGroupedPositions } from '@/store/hooks/useGroupedPositions';
 import { useDetailedPositions } from '@/store/hooks/useDetailedPositions';
 import { usePortfolioTrends } from '@/store/hooks/usePortfolioTrends';
+import { useAccountTrends } from '@/store/hooks/useAccountTrends';
 import { useAccountsSummaryPositions } from '@/store/hooks/useAccountsSummaryPositions';
 // Utils
 import { popularBrokerages } from '@/utils/constants';
@@ -306,14 +307,14 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
             return sorted;
         }, [accountPositions, account?.totalValue, positionSort]);
 
-        // Get trend data
-        const { trends } = usePortfolioTrends();
+        // Get account-specific trend data
+        const { trends: accountTrends, metrics: trendMetrics, loading: trendsLoading } = useAccountTrends(account?.id);
 
         const chartData = useMemo(() => {
             if (!account) return [];
-            
-            // Try to use real trend data if available
-            if (trends && trends.length > 0) {
+
+            // Use real account trend data if available
+            if (accountTrends && accountTrends.length > 0) {
                 const periods = {
                     '1D': 1,
                     '1W': 7,
@@ -323,19 +324,21 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                     '1Y': 365,
                     'ALL': 9999
                 };
-                
+
                 const daysToShow = periods[performanceRange] || 30;
                 const cutoffDate = new Date(Date.now() - (daysToShow * 24 * 60 * 60 * 1000));
-                
-                // Filter trends to date range
-                const filteredTrends = trends
+
+                // Filter trends to date range and format for chart
+                const filteredTrends = accountTrends
                     .filter(t => new Date(t.date) >= cutoffDate)
                     .map(t => ({
                         date: t.date,
-                        value: account.totalValue || t.total_value,
-                        percentChange: ((account.totalValue - account.totalCostBasis) / account.totalCostBasis) * 100
+                        value: t.value,
+                        costBasis: t.costBasis,
+                        gainLoss: t.gainLoss,
+                        gainLossPercent: t.gainLossPercent
                     }));
-                
+
                 if (filteredTrends.length > 0) return filteredTrends;
             }
             
@@ -375,9 +378,9 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
             // Ensure last point matches current value
             data[data.length - 1].value = account.totalValue;
             data[data.length - 1].percentChange = account.totalGainLossPercent || 0;
-            
+
             return data;
-        }, [account, performanceRange]);
+        }, [account, performanceRange, accountTrends]);
         
         // Early returns after ALL hooks
         if (!isOpen || !account) return null;
