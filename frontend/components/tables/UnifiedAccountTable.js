@@ -453,10 +453,9 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
             return <Briefcase className="w-5 h-5 text-blue-400" />;
         };
 
-        // Chart colors
-        const chartColor = chartData.length > 0 && chartData[chartData.length - 1].percentChange >= 0 
-            ? '#10b981' // green
-            : '#ef4444'; // red
+        // Chart color - use neutral blue instead of conditional red/green
+        // Red/green line can be misleading when just looking at trend shape
+        const chartColor = '#3b82f6'; // blue-500
 
         return (
             <div className="fixed inset-0 z-50 overflow-hidden">
@@ -552,6 +551,25 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                                 </div>
                             </div>
 
+                            {/* Performance Metrics Grid - Moved above chart */}
+                            <div className="grid grid-cols-6 gap-2 mb-6">
+                                {performanceMetrics.map((metric) => (
+                                    <div key={metric.key} className="bg-gray-800/50 p-3 rounded text-center">
+                                        <div className="text-xs text-gray-400 mb-1">{metric.label}</div>
+                                        <div className={`text-sm font-semibold ${
+                                            metric.value >= 0 ? 'text-green-400' : 'text-red-400'
+                                        }`}>
+                                            {metric.value >= 0 ? '+' : ''}{metric.value.toFixed(2)}%
+                                        </div>
+                                        <div className={`text-xs mt-1 ${
+                                            metric.change >= 0 ? 'text-green-400' : 'text-red-400'
+                                        }`}>
+                                            {metric.change >= 0 ? '+' : ''}{formatCurrency(metric.change, { compact: true })}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+
                             {/* Performance Chart Section */}
                             <div className="bg-gray-800/30 rounded p-4 mb-6">
                                 <div className="flex items-center justify-between mb-4">
@@ -572,68 +590,62 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                                         ))}
                                     </div>
                                 </div>
-                                
-                                {/* Chart */}
+
+                                {/* Chart with loading state */}
                                 <div className="h-64">
-                                    <ResponsiveContainer width="100%" height="100%">
-                                        <LineChart data={chartData} margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
-                                            <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                                            <XAxis 
-                                                dataKey="date" 
-                                                stroke="#6B7280"
-                                                tick={{ fontSize: 10 }}
-                                                tickFormatter={(date) => {
-                                                    const d = new Date(date);
-                                                    return performanceRange === '1D' 
-                                                        ? d.toLocaleTimeString('en-US', { hour: '2-digit' })
-                                                        : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                                                }}
-                                            />
-                                            <YAxis 
-                                                stroke="#6B7280"
-                                                tick={{ fontSize: 10 }}
-                                                tickFormatter={(value) => formatCurrency(value, { compact: true })}
-                                            />
-                                            <Tooltip
-                                                contentStyle={{ backgroundColor: '#1F2937', border: 'none', borderRadius: '0.375rem' }}
-                                                labelStyle={{ color: '#9CA3AF' }}
-                                                formatter={(value, name) => [formatCurrency(value), 'Value']}
-                                                labelFormatter={(label) => `Date: ${label}`}
-                                            />
-                                            <Line 
-                                                type="monotone" 
-                                                dataKey="value" 
-                                                stroke={chartColor}
-                                                strokeWidth={2}
-                                                dot={false}
-                                                activeDot={{ r: 4 }}
-                                            />
-                                        </LineChart>
-                                    </ResponsiveContainer>
+                                    {trendsLoading ? (
+                                        <div className="h-full flex items-center justify-center">
+                                            <Loader className="w-8 h-8 animate-spin text-blue-400" />
+                                        </div>
+                                    ) : (
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <LineChart data={chartData} margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
+                                                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                                                <XAxis
+                                                    dataKey="date"
+                                                    stroke="#6B7280"
+                                                    tick={{ fontSize: 10 }}
+                                                    tickFormatter={(date) => {
+                                                        const d = new Date(date);
+                                                        return performanceRange === '1D'
+                                                            ? d.toLocaleTimeString('en-US', { hour: '2-digit' })
+                                                            : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                                                    }}
+                                                />
+                                                <YAxis
+                                                    stroke="#6B7280"
+                                                    tick={{ fontSize: 10 }}
+                                                    tickFormatter={(value) => formatCurrency(value, { compact: true })}
+                                                />
+                                                <Tooltip
+                                                    contentStyle={{ backgroundColor: '#1F2937', border: 'none', borderRadius: '0.375rem' }}
+                                                    labelStyle={{ color: '#9CA3AF' }}
+                                                    formatter={(value, name) => [formatCurrency(value), 'Value']}
+                                                    labelFormatter={(label) => `Date: ${label}`}
+                                                />
+                                                <Line
+                                                    type="monotone"
+                                                    dataKey="value"
+                                                    stroke={chartColor}
+                                                    strokeWidth={2}
+                                                    dot={false}
+                                                    activeDot={{ r: 4 }}
+                                                />
+                                            </LineChart>
+                                        </ResponsiveContainer>
+                                    )}
                                 </div>
                             </div>
 
-                            {/* Performance Metrics Grid */}
-                            <div className="grid grid-cols-6 gap-2 mb-6">
-                                {performanceMetrics.map((metric) => (
-                                    <div key={metric.key} className="bg-gray-800/50 p-3 rounded text-center">
-                                        <div className="text-xs text-gray-400 mb-1">{metric.label}</div>
-                                        <div className={`text-sm font-semibold ${
-                                            metric.value >= 0 ? 'text-green-400' : 'text-red-400'
-                                        }`}>
-                                            {metric.value >= 0 ? '+' : ''}{metric.value.toFixed(2)}%
-                                        </div>
-                                        <div className={`text-xs mt-1 ${
-                                            metric.change >= 0 ? 'text-green-400' : 'text-red-400'
-                                        }`}>
-                                            {metric.change >= 0 ? '+' : ''}{formatCurrency(metric.change, { compact: true })}
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-
                             {/* Positions Table */}
-                            {testPositions.length > 0 && (
+                            {summaryLoading ? (
+                                <div className="bg-gray-800/30 rounded p-12 mb-6">
+                                    <div className="flex flex-col items-center justify-center space-y-4">
+                                        <Loader className="w-12 h-12 animate-spin text-blue-400" />
+                                        <p className="text-gray-400 text-sm">Loading position details...</p>
+                                    </div>
+                                </div>
+                            ) : testPositions.length > 0 && (
                                 <div className="bg-gray-800/30 rounded">
                                     <div className="px-4 py-3 border-b border-gray-700">
                                         <h4 className="text-sm font-semibold text-gray-300">
