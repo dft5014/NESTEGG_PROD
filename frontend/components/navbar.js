@@ -6,6 +6,7 @@ import { motion } from 'framer-motion';
 import { QuickStartButton } from '@/components/QuickStartModal';
 import { QuickReconciliationButton } from '@/components/modals/QuickReconciliationModal';
 import { QuickEditDeleteButton } from '@/components/modals/QuickEditDeleteModal';
+import { QuickStatementValidationButton } from '@/components/modals/QuickStatementValidationModal';
 
 import { useGroupedPositions } from '@/store/hooks/useGroupedPositions';
 import { useDataStore } from '@/store/DataStore';
@@ -606,6 +607,11 @@ const Navbar = () => {
                   {/* Update / Reconciliation */}
                   <div ref={recRef} className={PRO_WRAP_CLASSES}>
                     <QuickReconciliationButton />
+                  </div>
+
+                  {/* Validate / Statement Reconciliation */}
+                  <div className={PRO_WRAP_CLASSES}>
+                    <QuickStatementValidationButton />
                   </div>
                 </div>
               </div>
