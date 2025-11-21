@@ -825,7 +825,9 @@ export default function Analytics() {
             { id: 'risk', label: 'Risk Analysis', icon: Shield },
             { id: 'planning', label: 'Financial Planning', icon: Calculator },
             { id: 'holdings', label: 'Top Holdings', icon: Award },
-            { id: 'builder', label: 'Chart Builder', icon: Settings }
+            { id: 'builder', label: 'Chart Builder', icon: Settings },
+            { id: 'comparison', label: 'Comparison', icon: Repeat },
+            { id: 'reports', label: 'Table Builder', icon: Grid }
           ].map((tab) => {
             const Icon = tab.icon;
             return (
@@ -931,6 +933,28 @@ export default function Analytics() {
               setSelectedMetrics={setSelectedMetrics}
               selectedChartType={selectedChartType}
               setSelectedChartType={setSelectedChartType}
+            />
+          )}
+
+          {/* COMPARISON TAB */}
+          {activeTab === 'comparison' && (
+            <ComparisonTab
+              key="comparison-tab"
+              chartData={chartData}
+              groupedPositions={groupedPositions}
+              summary={summary}
+            />
+          )}
+
+          {/* TABLE BUILDER TAB */}
+          {activeTab === 'reports' && (
+            <TableBuilderTab
+              key="reports-tab"
+              groupedPositions={groupedPositions}
+              detailedPositions={detailedPositions}
+              accounts={accounts}
+              chartData={chartData}
+              summary={summary}
             />
           )}
         </div>
@@ -2876,6 +2900,527 @@ const PlanningTab = ({ summary, chartData }) => {
           </ResponsiveContainer>
         </div>
       </motion.div>
+    </div>
+  );
+};
+
+// ============================================================================
+// TAB COMPONENTS - COMPARISON
+// ============================================================================
+
+const ComparisonTab = ({ chartData, groupedPositions, summary }) => {
+  const [compareDate1, setCompareDate1] = useState('');
+  const [compareDate2, setCompareDate2] = useState('');
+  const [showDifferences, setShowDifferences] = useState(true);
+  const [expandedGroups, setExpandedGroups] = useState(new Set());
+
+  console.log('ComparisonTab: Rendering with data:', {
+    chartDataLength: chartData?.length,
+    groupedPositionsLength: groupedPositions?.length
+  });
+
+  // Get available dates from chartData
+  const availableDates = useMemo(() => {
+    if (!chartData || chartData.length === 0) return [];
+    return chartData.map(d => d.date).reverse(); // Most recent first
+  }, [chartData]);
+
+  // Set default dates (most recent and 30 days ago)
+  useEffect(() => {
+    if (availableDates.length > 0 && !compareDate1) {
+      setCompareDate2(availableDates[0]); // Most recent
+      setCompareDate1(availableDates[Math.min(availableDates.length - 1, 29)] || availableDates[availableDates.length - 1]);
+    }
+  }, [availableDates, compareDate1]);
+
+  // Get snapshots for selected dates
+  const snapshot1 = useMemo(() => {
+    if (!chartData || !compareDate1) return null;
+    return chartData.find(d => d.date === compareDate1);
+  }, [chartData, compareDate1]);
+
+  const snapshot2 = useMemo(() => {
+    if (!chartData || !compareDate2) return null;
+    return chartData.find(d => d.date === compareDate2);
+  }, [chartData, compareDate2]);
+
+  // Calculate comparison metrics
+  const comparisonMetrics = useMemo(() => {
+    if (!snapshot1 || !snapshot2) return null;
+
+    const valueDelta = snapshot2.netWorth - snapshot1.netWorth;
+    const percentChange = snapshot1.netWorth > 0 ? (valueDelta / snapshot1.netWorth) * 100 : 0;
+
+    return {
+      value1: snapshot1.netWorth,
+      value2: snapshot2.netWorth,
+      valueDelta,
+      percentChange,
+      assetsDelta: snapshot2.totalAssets - snapshot1.totalAssets,
+      liabilitiesDelta: snapshot2.totalLiabilities - snapshot1.totalLiabilities
+    };
+  }, [snapshot1, snapshot2]);
+
+  if (!chartData || chartData.length === 0) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 text-blue-400 animate-spin mx-auto mb-4" />
+          <p className="text-gray-400">Loading comparison data...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Date Selection */}
+      <div className="bg-gradient-to-br from-gray-800/60 to-gray-900/60 backdrop-blur-xl rounded-3xl border border-gray-700/50 p-6">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="p-2 rounded-xl bg-blue-500/20">
+            <Repeat className="w-5 h-5 text-blue-400" />
+          </div>
+          <h3 className="text-lg font-bold text-white">Compare Snapshots</h3>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-400 mb-2">From Date</label>
+            <select
+              value={compareDate1}
+              onChange={(e) => setCompareDate1(e.target.value)}
+              className="w-full px-4 py-3 bg-gray-900/60 border border-gray-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {availableDates.map(date => (
+                <option key={date} value={date}>{formatDate(date)}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-400 mb-2">To Date</label>
+            <select
+              value={compareDate2}
+              onChange={(e) => setCompareDate2(e.target.value)}
+              className="w-full px-4 py-3 bg-gray-900/60 border border-gray-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {availableDates.map(date => (
+                <option key={date} value={date}>{formatDate(date)}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex items-end">
+            <button
+              onClick={() => setShowDifferences(!showDifferences)}
+              className={`w-full px-4 py-3 rounded-xl font-medium transition-all ${
+                showDifferences
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-700 text-gray-400'
+              }`}
+            >
+              {showDifferences ? 'Hide' : 'Show'} Differences
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Comparison Summary Cards */}
+      {comparisonMetrics && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="bg-gradient-to-br from-blue-900/20 to-indigo-900/20 backdrop-blur-xl rounded-3xl border border-blue-500/20 p-6">
+            <p className="text-gray-400 text-sm font-medium uppercase tracking-wider">Start Value</p>
+            <p className="text-2xl font-bold text-white mt-2">{formatCurrency(comparisonMetrics.value1)}</p>
+            <p className="text-xs text-gray-500 mt-1">{formatDate(compareDate1)}</p>
+          </div>
+
+          <div className="bg-gradient-to-br from-purple-900/20 to-pink-900/20 backdrop-blur-xl rounded-3xl border border-purple-500/20 p-6">
+            <p className="text-gray-400 text-sm font-medium uppercase tracking-wider">End Value</p>
+            <p className="text-2xl font-bold text-white mt-2">{formatCurrency(comparisonMetrics.value2)}</p>
+            <p className="text-xs text-gray-500 mt-1">{formatDate(compareDate2)}</p>
+          </div>
+
+          <div className={`bg-gradient-to-br backdrop-blur-xl rounded-3xl border p-6 ${
+            comparisonMetrics.valueDelta >= 0
+              ? 'from-green-900/20 to-emerald-900/20 border-green-500/20'
+              : 'from-red-900/20 to-rose-900/20 border-red-500/20'
+          }`}>
+            <p className="text-gray-400 text-sm font-medium uppercase tracking-wider">Net Change</p>
+            <p className={`text-2xl font-bold mt-2 ${
+              comparisonMetrics.valueDelta >= 0 ? 'text-green-400' : 'text-red-400'
+            }`}>
+              {comparisonMetrics.valueDelta >= 0 ? '+' : ''}{formatCurrency(comparisonMetrics.valueDelta)}
+            </p>
+            <p className="text-xs text-gray-500 mt-1">
+              {Math.abs((compareDate2 && compareDate1) ?
+                Math.ceil((new Date(compareDate2) - new Date(compareDate1)) / (1000 * 60 * 60 * 24)) : 0)} days
+            </p>
+          </div>
+
+          <div className={`bg-gradient-to-br backdrop-blur-xl rounded-3xl border p-6 ${
+            comparisonMetrics.percentChange >= 0
+              ? 'from-orange-900/20 to-amber-900/20 border-orange-500/20'
+              : 'from-red-900/20 to-rose-900/20 border-red-500/20'
+          }`}>
+            <p className="text-gray-400 text-sm font-medium uppercase tracking-wider">% Change</p>
+            <p className={`text-2xl font-bold mt-2 ${
+              comparisonMetrics.percentChange >= 0 ? 'text-orange-400' : 'text-red-400'
+            }`}>
+              {comparisonMetrics.percentChange >= 0 ? '+' : ''}{formatPercent(comparisonMetrics.percentChange, false)}
+            </p>
+            <p className="text-xs text-gray-500 mt-1">Period return</p>
+          </div>
+        </div>
+      )}
+
+      {/* Detailed Comparison Info */}
+      {comparisonMetrics && showDifferences && (
+        <div className="bg-gradient-to-br from-gray-800/60 to-gray-900/60 backdrop-blur-xl rounded-3xl border border-gray-700/50 p-6">
+          <h3 className="text-lg font-bold text-white mb-4">Breakdown</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="flex justify-between items-center p-3 bg-gray-900/40 rounded-xl">
+              <span className="text-gray-400">Assets Change</span>
+              <span className={`font-semibold ${comparisonMetrics.assetsDelta >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                {comparisonMetrics.assetsDelta >= 0 ? '+' : ''}{formatCurrency(comparisonMetrics.assetsDelta)}
+              </span>
+            </div>
+            <div className="flex justify-between items-center p-3 bg-gray-900/40 rounded-xl">
+              <span className="text-gray-400">Liabilities Change</span>
+              <span className={`font-semibold ${comparisonMetrics.liabilitiesDelta <= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                {comparisonMetrics.liabilitiesDelta >= 0 ? '+' : ''}{formatCurrency(comparisonMetrics.liabilitiesDelta)}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Note about detailed position comparison */}
+      <div className="bg-blue-900/10 border border-blue-500/20 rounded-2xl p-6">
+        <div className="flex items-start gap-3">
+          <Info className="w-5 h-5 text-blue-400 mt-0.5 flex-shrink-0" />
+          <div>
+            <p className="text-white font-medium mb-2">Portfolio-Level Comparison</p>
+            <p className="text-gray-400 text-sm">
+              This comparison shows net worth changes between two dates. For detailed position-level analysis
+              including additions, removals, and price changes, use the Command Center's comparison feature.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ============================================================================
+// TAB COMPONENTS - TABLE BUILDER
+// ============================================================================
+
+const TableBuilderTab = ({ groupedPositions, detailedPositions, accounts, chartData, summary }) => {
+  const [selectedAccounts, setSelectedAccounts] = useState(new Set());
+  const [selectedPositions, setSelectedPositions] = useState(new Set());
+  const [selectedTimeframe, setSelectedTimeframe] = useState('1m');
+  const [tableView, setTableView] = useState('positions'); // 'positions' or 'accounts'
+
+  console.log('TableBuilderTab: Rendering with data:', {
+    groupedPositionsLength: groupedPositions?.length,
+    accountsLength: accounts?.length,
+    selectedAccountsCount: selectedAccounts.size,
+    selectedPositionsCount: selectedPositions.size
+  });
+
+  // Toggle account selection
+  const toggleAccount = (accountId) => {
+    const newSelection = new Set(selectedAccounts);
+    if (newSelection.has(accountId)) {
+      newSelection.delete(accountId);
+    } else {
+      newSelection.add(accountId);
+    }
+    setSelectedAccounts(newSelection);
+  };
+
+  // Toggle position selection
+  const togglePosition = (identifier) => {
+    const newSelection = new Set(selectedPositions);
+    if (newSelection.has(identifier)) {
+      newSelection.delete(identifier);
+    } else {
+      newSelection.add(identifier);
+    }
+    setSelectedPositions(newSelection);
+  };
+
+  // Select all accounts
+  const selectAllAccounts = () => {
+    if (accounts && accounts.length > 0) {
+      setSelectedAccounts(new Set(accounts.map(a => a.id)));
+    }
+  };
+
+  // Clear all selections
+  const clearAllSelections = () => {
+    setSelectedAccounts(new Set());
+    setSelectedPositions(new Set());
+  };
+
+  // Filter positions based on selections
+  const filteredPositions = useMemo(() => {
+    if (!groupedPositions) return [];
+
+    // If specific positions are selected, show only those
+    if (selectedPositions.size > 0) {
+      return groupedPositions.filter(p => selectedPositions.has(p.identifier));
+    }
+
+    // Otherwise filter by selected accounts
+    if (selectedAccounts.size > 0) {
+      return groupedPositions.filter(p => {
+        // Check if position belongs to any selected account
+        return Array.from(selectedAccounts).some(accountId => {
+          const account = accounts?.find(a => a.id === accountId);
+          return account && p.account_name === account.name;
+        });
+      });
+    }
+
+    // If nothing selected, show all
+    return groupedPositions;
+  }, [groupedPositions, selectedAccounts, selectedPositions, accounts]);
+
+  // Calculate totals
+  const totals = useMemo(() => {
+    return filteredPositions.reduce((acc, pos) => ({
+      value: acc.value + (pos.total_current_value || 0),
+      costBasis: acc.costBasis + (pos.total_cost_basis || 0),
+      gainLoss: acc.gainLoss + (pos.total_gain_loss || 0)
+    }), { value: 0, costBasis: 0, gainLoss: 0 });
+  }, [filteredPositions]);
+
+  if (!groupedPositions || !accounts) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 text-cyan-400 animate-spin mx-auto mb-4" />
+          <p className="text-gray-400">Loading table builder...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="bg-gradient-to-br from-gray-800/60 to-gray-900/60 backdrop-blur-xl rounded-3xl border border-gray-700/50 p-6">
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-xl bg-cyan-500/20">
+              <Grid className="w-5 h-5 text-cyan-400" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-white">Custom Report Builder</h3>
+              <p className="text-sm text-gray-400">Select accounts or positions to build custom reports</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={selectAllAccounts}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm font-medium transition-colors"
+            >
+              Select All Accounts
+            </button>
+            <button
+              onClick={clearAllSelections}
+              className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm font-medium transition-colors"
+            >
+              Clear All
+            </button>
+          </div>
+        </div>
+
+        {/* Timeframe Selector */}
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-gray-400">Timeframe:</span>
+          {['1d', '1w', '1m', '3m', 'ytd', '1y'].map(tf => (
+            <button
+              key={tf}
+              onClick={() => setSelectedTimeframe(tf)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                selectedTimeframe === tf
+                  ? 'bg-cyan-600 text-white'
+                  : 'bg-gray-700 text-gray-400 hover:text-white'
+              }`}
+            >
+              {tf.toUpperCase()}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Selection Panels */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Accounts Panel */}
+        <div className="bg-gradient-to-br from-gray-800/60 to-gray-900/60 backdrop-blur-xl rounded-3xl border border-gray-700/50 p-6">
+          <h4 className="text-md font-bold text-white mb-4 flex items-center gap-2">
+            <Wallet className="w-4 h-4 text-indigo-400" />
+            Accounts ({selectedAccounts.size} selected)
+          </h4>
+          <div className="space-y-2 max-h-96 overflow-y-auto">
+            {accounts && accounts.map(account => (
+              <div
+                key={account.id}
+                onClick={() => toggleAccount(account.id)}
+                className={`p-3 rounded-xl cursor-pointer transition-all ${
+                  selectedAccounts.has(account.id)
+                    ? 'bg-indigo-600/20 border-2 border-indigo-500'
+                    : 'bg-gray-900/40 border-2 border-transparent hover:border-gray-600'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-white">{account.name}</p>
+                    <p className="text-xs text-gray-500">{account.institution}</p>
+                  </div>
+                  <p className="text-sm font-semibold text-white">
+                    {formatCurrency(account.currentValue || 0, true)}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Positions Panel */}
+        <div className="bg-gradient-to-br from-gray-800/60 to-gray-900/60 backdrop-blur-xl rounded-3xl border border-gray-700/50 p-6">
+          <h4 className="text-md font-bold text-white mb-4 flex items-center gap-2">
+            <Package className="w-4 h-4 text-emerald-400" />
+            Top Positions ({selectedPositions.size} selected)
+          </h4>
+          <div className="space-y-2 max-h-96 overflow-y-auto">
+            {groupedPositions && groupedPositions.slice(0, 20).map(position => (
+              <div
+                key={position.identifier}
+                onClick={() => togglePosition(position.identifier)}
+                className={`p-3 rounded-xl cursor-pointer transition-all ${
+                  selectedPositions.has(position.identifier)
+                    ? 'bg-emerald-600/20 border-2 border-emerald-500'
+                    : 'bg-gray-900/40 border-2 border-transparent hover:border-gray-600'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-white">{position.identifier}</p>
+                    <p className="text-xs text-gray-500">{position.name}</p>
+                  </div>
+                  <p className="text-sm font-semibold text-white">
+                    {formatCurrency(position.total_current_value || 0, true)}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Results Table */}
+      <div className="bg-gradient-to-br from-gray-800/60 to-gray-900/60 backdrop-blur-xl rounded-3xl border border-gray-700/50 overflow-hidden">
+        <div className="p-6 border-b border-gray-700">
+          <div className="flex items-center justify-between">
+            <h4 className="text-lg font-bold text-white">
+              Report Results ({filteredPositions.length} positions)
+            </h4>
+            <button className="px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg text-sm font-medium transition-colors flex items-center gap-2">
+              <Download className="w-4 h-4" />
+              Export CSV
+            </button>
+          </div>
+        </div>
+
+        {/* Summary Row */}
+        <div className="grid grid-cols-3 gap-4 p-6 bg-gray-900/40 border-b border-gray-700">
+          <div>
+            <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Total Value</p>
+            <p className="text-xl font-bold text-white">{formatCurrency(totals.value)}</p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Total Cost Basis</p>
+            <p className="text-xl font-bold text-white">{formatCurrency(totals.costBasis)}</p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Total Gain/Loss</p>
+            <p className={`text-xl font-bold ${totals.gainLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+              {formatCurrency(totals.gainLoss)}
+            </p>
+          </div>
+        </div>
+
+        {/* Table */}
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-900">
+              <tr>
+                <th className="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                  Symbol
+                </th>
+                <th className="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                  Name
+                </th>
+                <th className="px-6 py-4 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">
+                  Quantity
+                </th>
+                <th className="px-6 py-4 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">
+                  Price
+                </th>
+                <th className="px-6 py-4 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">
+                  Value
+                </th>
+                <th className="px-6 py-4 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">
+                  Gain/Loss
+                </th>
+                <th className="px-6 py-4 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">
+                  Return %
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-700">
+              {filteredPositions.map((position, idx) => {
+                const gainLoss = position.total_gain_loss || 0;
+                const gainLossPct = position.total_gain_loss_pct || 0;
+
+                return (
+                  <tr key={idx} className="hover:bg-gray-800/40 transition-colors">
+                    <td className="px-6 py-4 text-sm font-medium text-white">
+                      {position.identifier}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-300">
+                      {position.name}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-300 text-right">
+                      {(position.total_quantity || 0).toFixed(2)}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-300 text-right">
+                      {formatCurrency(position.current_price || 0)}
+                    </td>
+                    <td className="px-6 py-4 text-sm font-semibold text-white text-right">
+                      {formatCurrency(position.total_current_value || 0)}
+                    </td>
+                    <td className={`px-6 py-4 text-sm font-semibold text-right ${
+                      gainLoss >= 0 ? 'text-green-400' : 'text-red-400'
+                    }`}>
+                      {formatCurrency(gainLoss)}
+                    </td>
+                    <td className={`px-6 py-4 text-sm font-semibold text-right ${
+                      gainLossPct >= 0 ? 'text-green-400' : 'text-red-400'
+                    }`}>
+                      {formatPercent(gainLossPct, false)}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 };
