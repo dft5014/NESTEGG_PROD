@@ -541,6 +541,9 @@ export const DataStoreProvider = ({ children }) => {
 
   const hasInitialized = useRef(false);
   const phase1Timeout = useRef(null);
+  const phase1bTimeout = useRef(null);
+  const phase1cTimeout = useRef(null);
+  const phase1dTimeout = useRef(null);
   const phase2Timeout = useRef(null);
   const phase3Timeout = useRef(null);
 
@@ -554,6 +557,9 @@ export const DataStoreProvider = ({ children }) => {
 
     // Cancel staged timers
     if (phase1Timeout.current) { clearTimeout(phase1Timeout.current); phase1Timeout.current = null; }
+    if (phase1bTimeout.current) { clearTimeout(phase1bTimeout.current); phase1bTimeout.current = null; }
+    if (phase1cTimeout.current) { clearTimeout(phase1cTimeout.current); phase1cTimeout.current = null; }
+    if (phase1dTimeout.current) { clearTimeout(phase1dTimeout.current); phase1dTimeout.current = null; }
     if (phase2Timeout.current) { clearTimeout(phase2Timeout.current); phase2Timeout.current = null; }
     if (phase3Timeout.current) { clearTimeout(phase3Timeout.current); phase3Timeout.current = null; }
 
@@ -933,14 +939,30 @@ export const DataStoreProvider = ({ children }) => {
     if (hasInitialized.current) return;
     hasInitialized.current = true;
 
-    // Phase 1: immediate
+    // Phase 1: Staggered to prevent overwhelming backend during cold start
+    // Phase 1a: Most critical - Portfolio summary (immediate)
     phase1Timeout.current = setTimeout(() => {
-      console.log('[DataStore] Phase 1: Loading critical data...');
+      console.log('[DataStore] Phase 1a: Loading portfolio summary...');
       if (!state.portfolioSummary.data && !state.portfolioSummary.loading) fetchPortfolioData();
-      if ((!state.groupedPositions.data || state.groupedPositions.data.length === 0) && !state.groupedPositions.loading) fetchGroupedPositionsData();
-      if ((!state.accounts.data || state.accounts.data.length === 0) && !state.accounts.loading) fetchAccountsData();
-      if ((!state.accountsSummaryPositions.data || state.accountsSummaryPositions.data.length === 0) && !state.accountsSummaryPositions.loading) fetchAccountsSummaryPositionsData();
     }, 0);
+
+    // Phase 1b: Banner ticker data (100ms delay)
+    phase1bTimeout.current = setTimeout(() => {
+      console.log('[DataStore] Phase 1b: Loading grouped positions...');
+      if ((!state.groupedPositions.data || state.groupedPositions.data.length === 0) && !state.groupedPositions.loading) fetchGroupedPositionsData();
+    }, 100);
+
+    // Phase 1c: Account list (200ms delay)
+    phase1cTimeout.current = setTimeout(() => {
+      console.log('[DataStore] Phase 1c: Loading accounts...');
+      if ((!state.accounts.data || state.accounts.data.length === 0) && !state.accounts.loading) fetchAccountsData();
+    }, 200);
+
+    // Phase 1d: Account modal data (300ms delay)
+    phase1dTimeout.current = setTimeout(() => {
+      console.log('[DataStore] Phase 1d: Loading accounts summary positions...');
+      if ((!state.accountsSummaryPositions.data || state.accountsSummaryPositions.data.length === 0) && !state.accountsSummaryPositions.loading) fetchAccountsSummaryPositionsData();
+    }, 300);
 
     // Phase 2
     phase2Timeout.current = setTimeout(() => {
@@ -957,7 +979,7 @@ export const DataStoreProvider = ({ children }) => {
     }, 3000);
   }, [
     state, fetchPortfolioData, fetchGroupedPositionsData, fetchAccountsData,
-    fetchGroupedLiabilitiesData, fetchDetailedPositionsData
+    fetchAccountsSummaryPositionsData, fetchGroupedLiabilitiesData, fetchDetailedPositionsData
   ]);
 
   useEffect(() => {
@@ -992,6 +1014,9 @@ export const DataStoreProvider = ({ children }) => {
       window.removeEventListener('storage', onStorage);
       clearInterval(poll);
       if (phase1Timeout.current) clearTimeout(phase1Timeout.current);
+      if (phase1bTimeout.current) clearTimeout(phase1bTimeout.current);
+      if (phase1cTimeout.current) clearTimeout(phase1cTimeout.current);
+      if (phase1dTimeout.current) clearTimeout(phase1dTimeout.current);
       if (phase2Timeout.current) clearTimeout(phase2Timeout.current);
       if (phase3Timeout.current) clearTimeout(phase3Timeout.current);
     };
