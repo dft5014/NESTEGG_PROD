@@ -111,53 +111,6 @@ export default function AccountsPage() {
     return Object.values(breakdown).sort((a, b) => b.totalValue - a.totalValue);
   }, [accounts]);
 
-  // Calculate performance metrics from accounts data
-  const performanceMetrics = React.useMemo(() => {
-    if (!accounts.length) return null;
-
-    const totalValue = accounts.reduce((sum, acc) => sum + (acc.totalValue || 0), 0);
-    const totalCostBasis = accounts.reduce((sum, acc) => sum + (acc.totalCostBasis || 0), 0);
-    const totalGainLoss = accounts.reduce((sum, acc) => sum + (acc.totalGainLoss || 0), 0);
-    const value1dChange = accounts.reduce((sum, acc) => sum + (acc.value1dChange || 0), 0);
-    const value1wChange = accounts.reduce((sum, acc) => sum + (acc.value1wChange || 0), 0);
-    const value1mChange = accounts.reduce((sum, acc) => sum + (acc.value1mChange || 0), 0);
-    const annualDividends = accounts.reduce((sum, acc) => sum + (acc.dividendIncomeAnnual || 0), 0);
-
-    return {
-      totalValue,
-      totalCostBasis,
-      totalGainLoss,
-      totalGainLossPercent: totalCostBasis > 0 ? (totalGainLoss / totalCostBasis) * 100 : 0,
-      value1dChange,
-      value1dChangePercent: totalValue > 0 ? (value1dChange / totalValue) * 100 : 0,
-      value1wChange,
-      value1wChangePercent: totalValue > 0 ? (value1wChange / totalValue) * 100 : 0,
-      value1mChange,
-      value1mChangePercent: totalValue > 0 ? (value1mChange / totalValue) * 100 : 0,
-      annualDividends,
-      avgYield: totalValue > 0 ? (annualDividends / totalValue) * 100 : 0
-    };
-  }, [accounts]);
-
-  // Top performing accounts
-  const topPerformers = React.useMemo(() => {
-    return [...accounts]
-      .sort((a, b) => (b.totalGainLoss || 0) - (a.totalGainLoss || 0))
-      .slice(0, 5);
-  }, [accounts]);
-
-  // Account distribution for pie chart
-  const accountDistribution = React.useMemo(() => {
-    return institutionBreakdown.slice(0, 8).map(inst => ({
-      name: inst.name,
-      value: inst.totalValue,
-      color: getInstitutionColor(inst.name),
-      percentage: portfolioSummary?.totalAssets > 0
-        ? ((inst.totalValue / portfolioSummary.totalAssets) * 100)
-        : 0
-    }));
-  }, [institutionBreakdown, portfolioSummary?.totalAssets]);
-
   // Institution Colors (Tailwind classes for existing sections)
   const institutionColorClasses = {
     'Vanguard': 'bg-red-600',
@@ -206,6 +159,53 @@ export default function AccountsPage() {
   const getInstitutionColorClass = (institution) => {
     return institutionColorClasses[institution] || institutionColorClasses['Default'];
   };
+
+  // Calculate performance metrics from accounts data
+  const performanceMetrics = React.useMemo(() => {
+    if (!accounts.length) return null;
+
+    const totalValue = accounts.reduce((sum, acc) => sum + (acc.totalValue || 0), 0);
+    const totalCostBasis = accounts.reduce((sum, acc) => sum + (acc.totalCostBasis || 0), 0);
+    const totalGainLoss = accounts.reduce((sum, acc) => sum + (acc.totalGainLoss || 0), 0);
+    const value1dChange = accounts.reduce((sum, acc) => sum + (acc.value1dChange || 0), 0);
+    const value1wChange = accounts.reduce((sum, acc) => sum + (acc.value1wChange || 0), 0);
+    const value1mChange = accounts.reduce((sum, acc) => sum + (acc.value1mChange || 0), 0);
+    const annualDividends = accounts.reduce((sum, acc) => sum + (acc.dividendIncomeAnnual || 0), 0);
+
+    return {
+      totalValue,
+      totalCostBasis,
+      totalGainLoss,
+      totalGainLossPercent: totalCostBasis > 0 ? (totalGainLoss / totalCostBasis) * 100 : 0,
+      value1dChange,
+      value1dChangePercent: totalValue > 0 ? (value1dChange / totalValue) * 100 : 0,
+      value1wChange,
+      value1wChangePercent: totalValue > 0 ? (value1wChange / totalValue) * 100 : 0,
+      value1mChange,
+      value1mChangePercent: totalValue > 0 ? (value1mChange / totalValue) * 100 : 0,
+      annualDividends,
+      avgYield: totalValue > 0 ? (annualDividends / totalValue) * 100 : 0
+    };
+  }, [accounts]);
+
+  // Top performing accounts
+  const topPerformers = React.useMemo(() => {
+    return [...accounts]
+      .sort((a, b) => (b.totalGainLoss || 0) - (a.totalGainLoss || 0))
+      .slice(0, 5);
+  }, [accounts]);
+
+  // Account distribution for pie chart
+  const accountDistribution = React.useMemo(() => {
+    return institutionBreakdown.slice(0, 8).map(inst => ({
+      name: inst.name,
+      value: inst.totalValue,
+      color: getInstitutionColor(inst.name),
+      percentage: portfolioSummary?.totalAssets > 0
+        ? ((inst.totalValue / portfolioSummary.totalAssets) * 100)
+        : 0
+    }));
+  }, [institutionBreakdown, portfolioSummary?.totalAssets]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-950 to-slate-900 text-white">
