@@ -535,142 +535,163 @@ export default function AccountsPage() {
         </div>
 
         {/* Asset Allocation Summary */}
-        <div className="mb-8">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {/* Asset Types */}
-            <div className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-6">
-              <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
-                <PieChartIcon className="w-5 h-5 mr-2 text-indigo-400" />
-                Asset Allocation
-              </h3>
-              <div className="space-y-3">
-                {portfolioSummary?.assetAllocation && (
-                  <>
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-400">Securities</span>
-                      <span className="text-white font-medium">
-                        {showValues ? formatCurrency(portfolioSummary.assetAllocation.securities?.value || 0) : '•••••'}
-                            <span className="text-gray-400 text-sm ml-2">
-                              ({formatPercentage(portfolioSummary.assetAllocation.securities?.percentage, { minimumFractionDigits: 1, maximumFractionDigits: 1 })})
-                            </span>     
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-400">Cash</span>
-                      <span className="text-white font-medium">
-                        {showValues ? formatCurrency(portfolioSummary.assetAllocation.cash?.value || 0) : '•••••'}
-                        <span className="text-gray-400 text-sm ml-2">
-                          ({formatPercentage(portfolioSummary.assetAllocation.cash?.percentage || 0, { minimumFractionDigits: 1, maximumFractionDigits: 1 })})
-                        </span>
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-400">Crypto</span>
-                      <span className="text-white font-medium">
-                        {showValues ? formatCurrency(portfolioSummary.assetAllocation.crypto?.value || 0) : '•••••'}
-                        <span className="text-gray-400 text-sm ml-2">
-                          ({formatPercentage(portfolioSummary.assetAllocation.crypto?.percentage || 0, { minimumFractionDigits: 1, maximumFractionDigits: 1 })})
-                        </span>
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-400">Metals</span>
-                      <span className="text-white font-medium">
-                        {showValues ? formatCurrency(portfolioSummary.assetAllocation.metal?.value || 0) : '•••••'}
-                        <span className="text-gray-400 text-sm ml-2">
-                          ({formatPercentage(portfolioSummary.assetAllocation.metal?.percentage || 0, { minimumFractionDigits: 1, maximumFractionDigits: 1 })})
-                        </span>
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-400">Other Assets</span>
-                      <span className="text-white font-medium">
-                        {showValues ? formatCurrency(portfolioSummary.otherAssets || 0) : '•••••'}
-                        <span className="text-gray-400 text-sm ml-2">
-                          ({formatPercentage(portfolioSummary.totalAssets > 0 ? (portfolioSummary.otherAssets / portfolioSummary.totalAssets) : 0, { minimumFractionDigits: 1, maximumFractionDigits: 1 })})
-                        </span>
-                      </span>
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="mb-8"
+        >
+          <h2 className="text-2xl font-bold text-white mb-6 flex items-center">
+            <Layers className="w-6 h-6 mr-2 text-indigo-400" />
+            Asset Class Breakdown
+          </h2>
 
-            {/* Performance Summary */}
-            <div className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-6">
-              <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
-                <Activity className="w-5 h-5 mr-2 text-indigo-400" />
-                Performance Summary
-              </h3>
-              <div className="space-y-3">
-                {portfolioSummary?.periodChanges && (
-                  <>
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-400">Today</span>
-                      <span className={`font-medium ${
-                        portfolioSummary.periodChanges['1d']?.netWorth > 0 ? 'text-green-500' :
-                        portfolioSummary.periodChanges['1d']?.netWorth < 0 ? 'text-red-500' :
-                        'text-gray-400'
-                      }`}>
-                        {portfolioSummary.periodChanges['1d']?.netWorth > 0 ? '+' : ''}
-                        {showValues ? formatCurrency(portfolioSummary.periodChanges['1d']?.netWorth || 0) : '•••••'}
-                        <span className="text-sm ml-1">
-                          ({portfolioSummary.periodChanges['1d']?.netWorthPercent > 0 ? '+' : ''}
-                          ({formatPercentage(portfolioSummary.periodChanges['1d'].percentChange / 100, { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
-                        </span>
-                      </span>
+          <div className="bg-gray-900/70 backdrop-blur-sm border border-gray-800 rounded-2xl p-6">
+            {portfolioSummary?.assetAllocation ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+                {/* Securities */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-sm font-medium text-gray-400">Securities</span>
+                    <TrendingUp className="w-4 h-4 text-blue-400" />
+                  </div>
+                  <div className="text-2xl font-bold text-white">
+                    {showValues ? formatCurrency(portfolioSummary.assetAllocation.securities?.value || 0) : '•••••'}
+                  </div>
+                  <div className="text-sm text-blue-400 font-medium">
+                    {formatPercentage((portfolioSummary.assetAllocation.securities?.percentage || 0) / 100, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                  </div>
+                  {portfolioSummary.assetAllocation.securities?.count > 0 && (
+                    <div className="text-xs text-gray-500">
+                      {portfolioSummary.assetAllocation.securities.count} positions
                     </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-400">This Week</span>
-                      <span className={`font-medium ${
-                        portfolioSummary.periodChanges['1w']?.netWorth > 0 ? 'text-green-500' :
-                        portfolioSummary.periodChanges['1w']?.netWorth < 0 ? 'text-red-500' :
-                        'text-gray-400'
-                      }`}>
-                        {portfolioSummary.periodChanges['1w']?.netWorth > 0 ? '+' : ''}
-                        {showValues ? formatCurrency(portfolioSummary.periodChanges['1w']?.netWorth || 0) : '•••••'}
-                        <span className="text-sm ml-1">
-                          ({portfolioSummary.periodChanges['1w']?.netWorthPercent > 0 ? '+' : ''}
-                          ({formatPercentage(portfolioSummary.periodChanges['1w'].percentChange / 100, { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
-                        </span>
-                      </span>
+                  )}
+                  <div className="w-full bg-gray-800 rounded-full h-2 mt-2">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${portfolioSummary.assetAllocation.securities?.percentage || 0}%` }}
+                      transition={{ duration: 0.5, delay: 0.4 }}
+                      className="h-full bg-blue-500 rounded-full"
+                    />
+                  </div>
+                </div>
+
+                {/* Cash */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-sm font-medium text-gray-400">Cash</span>
+                    <DollarSign className="w-4 h-4 text-green-400" />
+                  </div>
+                  <div className="text-2xl font-bold text-white">
+                    {showValues ? formatCurrency(portfolioSummary.assetAllocation.cash?.value || 0) : '•••••'}
+                  </div>
+                  <div className="text-sm text-green-400 font-medium">
+                    {formatPercentage((portfolioSummary.assetAllocation.cash?.percentage || 0) / 100, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                  </div>
+                  {portfolioSummary.assetAllocation.cash?.count > 0 && (
+                    <div className="text-xs text-gray-500">
+                      {portfolioSummary.assetAllocation.cash.count} accounts
                     </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-400">This Month</span>
-                      <span className={`font-medium ${
-                        portfolioSummary.periodChanges['1m']?.netWorth > 0 ? 'text-green-500' :
-                        portfolioSummary.periodChanges['1m']?.netWorth < 0 ? 'text-red-500' :
-                        'text-gray-400'
-                      }`}>
-                        {portfolioSummary.periodChanges['1m']?.netWorth > 0 ? '+' : ''}
-                        {showValues ? formatCurrency(portfolioSummary.periodChanges['1m']?.netWorth || 0) : '•••••'}
-                        <span className="text-sm ml-1">
-                          ({portfolioSummary.periodChanges['1m']?.netWorthPercent > 0 ? '+' : ''}
-                          ({formatPercentage(portfolioSummary.periodChanges['1m'].percentChange / 100, { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
-                        </span>
-                      </span>
+                  )}
+                  <div className="w-full bg-gray-800 rounded-full h-2 mt-2">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${portfolioSummary.assetAllocation.cash?.percentage || 0}%` }}
+                      transition={{ duration: 0.5, delay: 0.5 }}
+                      className="h-full bg-green-500 rounded-full"
+                    />
+                  </div>
+                </div>
+
+                {/* Crypto */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-sm font-medium text-gray-400">Crypto</span>
+                    <Sparkles className="w-4 h-4 text-purple-400" />
+                  </div>
+                  <div className="text-2xl font-bold text-white">
+                    {showValues ? formatCurrency(portfolioSummary.assetAllocation.crypto?.value || 0) : '•••••'}
+                  </div>
+                  <div className="text-sm text-purple-400 font-medium">
+                    {formatPercentage((portfolioSummary.assetAllocation.crypto?.percentage || 0) / 100, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                  </div>
+                  {portfolioSummary.assetAllocation.crypto?.count > 0 && (
+                    <div className="text-xs text-gray-500">
+                      {portfolioSummary.assetAllocation.crypto.count} positions
                     </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-400">YTD</span>
-                      <span className={`font-medium ${
-                        portfolioSummary.periodChanges['ytd']?.netWorth > 0 ? 'text-green-500' :
-                        portfolioSummary.periodChanges['ytd']?.netWorth < 0 ? 'text-red-500' :
-                        'text-gray-400'
-                      }`}>
-                        {portfolioSummary.periodChanges['ytd']?.netWorth > 0 ? '+' : ''}
-                        {showValues ? formatCurrency(portfolioSummary.periodChanges['ytd']?.netWorth || 0) : '•••••'}
-                        <span className="text-sm ml-1">
-                          ({portfolioSummary.periodChanges['ytd']?.netWorthPercent > 0 ? '+' : ''}
-                          ({formatPercentage(portfolioSummary.periodChanges['ytd'].percentChange / 100, { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
-                        </span>
-                      </span>
+                  )}
+                  <div className="w-full bg-gray-800 rounded-full h-2 mt-2">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${portfolioSummary.assetAllocation.crypto?.percentage || 0}%` }}
+                      transition={{ duration: 0.5, delay: 0.6 }}
+                      className="h-full bg-purple-500 rounded-full"
+                    />
+                  </div>
+                </div>
+
+                {/* Metals */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-sm font-medium text-gray-400">Metals</span>
+                    <Star className="w-4 h-4 text-yellow-400" />
+                  </div>
+                  <div className="text-2xl font-bold text-white">
+                    {showValues ? formatCurrency(portfolioSummary.assetAllocation.metals?.value || 0) : '•••••'}
+                  </div>
+                  <div className="text-sm text-yellow-400 font-medium">
+                    {formatPercentage((portfolioSummary.assetAllocation.metals?.percentage || 0) / 100, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                  </div>
+                  {portfolioSummary.assetAllocation.metals?.count > 0 && (
+                    <div className="text-xs text-gray-500">
+                      {portfolioSummary.assetAllocation.metals.count} holdings
                     </div>
-                  </>
-                )}
+                  )}
+                  <div className="w-full bg-gray-800 rounded-full h-2 mt-2">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${portfolioSummary.assetAllocation.metals?.percentage || 0}%` }}
+                      transition={{ duration: 0.5, delay: 0.7 }}
+                      className="h-full bg-yellow-500 rounded-full"
+                    />
+                  </div>
+                </div>
+
+                {/* Real Estate & Other */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-sm font-medium text-gray-400">Real Estate</span>
+                    <Building2 className="w-4 h-4 text-teal-400" />
+                  </div>
+                  <div className="text-2xl font-bold text-white">
+                    {showValues ? formatCurrency(portfolioSummary.assetAllocation.realEstate?.value || 0) : '•••••'}
+                  </div>
+                  <div className="text-sm text-teal-400 font-medium">
+                    {formatPercentage((portfolioSummary.assetAllocation.realEstate?.percentage || 0) / 100, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                  </div>
+                  {portfolioSummary.assetAllocation.realEstate?.count > 0 && (
+                    <div className="text-xs text-gray-500">
+                      {portfolioSummary.assetAllocation.realEstate.count} properties
+                    </div>
+                  )}
+                  <div className="w-full bg-gray-800 rounded-full h-2 mt-2">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${portfolioSummary.assetAllocation.realEstate?.percentage || 0}%` }}
+                      transition={{ duration: 0.5, delay: 0.8 }}
+                      className="h-full bg-teal-500 rounded-full"
+                    />
+                  </div>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="text-center py-8 text-gray-400">
+                <PieChartIcon className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                <p>No asset allocation data available</p>
+              </div>
+            )}
           </div>
-        </div>
+        </motion.div>
 
         {/* Accounts Table */}
         {!isLoading && accounts.length === 0 ? (
