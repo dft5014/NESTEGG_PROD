@@ -23,6 +23,16 @@ const FinancialPlanning = () => {
   const { summary, loading: portfolioLoading } = usePortfolioSummary();
   const { trends, loading: trendsLoading } = usePortfolioTrends();
 
+  // Debug logging
+  useEffect(() => {
+    console.log('=== PLANNING DEBUG ===');
+    console.log('Portfolio Loading:', portfolioLoading, 'Summary:', summary);
+    console.log('Trends Loading:', trendsLoading, 'Trends:', trends);
+    console.log('Starting Net Worth:', summary?.netWorth);
+    console.log('Trends Data Length:', trends?.chartData?.length);
+    console.log('=====================');
+  }, [portfolioLoading, trendsLoading, summary, trends]);
+
   // Core state
   const [planName, setPlanName] = useState('My Financial Plan');
   const [isEditingName, setIsEditingName] = useState(false);
@@ -34,6 +44,11 @@ const FinancialPlanning = () => {
   const [showValues, setShowValues] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
   const [showMonteCarlo, setShowMonteCarlo] = useState(false);
+
+  // Log tab changes
+  useEffect(() => {
+    console.log('Active Planning Tab Changed:', activeTab);
+  }, [activeTab]);
   const [monteCarloRuns, setMonteCarloRuns] = useState(1000);
   const [isRunningMonteCarlo, setIsRunningMonteCarlo] = useState(false);
   const [monteCarloResults, setMonteCarloResults] = useState(null);
@@ -346,7 +361,11 @@ const FinancialPlanning = () => {
 
   // Summary statistics
   const summaryStats = useMemo(() => {
-    if (yearlyData.length === 0) return {};
+    console.log('Computing summaryStats, yearlyData length:', yearlyData.length);
+    if (yearlyData.length === 0) {
+      console.log('summaryStats: No yearlyData, returning empty object');
+      return {};
+    }
 
     const finalData = yearlyData[yearlyData.length - 1];
     const totalContributions = finalData.totalContributions;
@@ -368,7 +387,7 @@ const FinancialPlanning = () => {
       };
     });
 
-    return {
+    const stats = {
       totalContributions,
       finalValue,
       totalGrowth,
@@ -379,6 +398,9 @@ const FinancialPlanning = () => {
       fireAge,
       goalAchievements,
     };
+
+    console.log('summaryStats computed:', stats);
+    return stats;
   }, [yearlyData, fireSettings, goals, portfolioMetrics]);
 
   // PHASE 2: Generate AI insights based on portfolio data
@@ -742,6 +764,24 @@ const FinancialPlanning = () => {
     }
     return null;
   };
+
+  // Combined loading state
+  const isLoading = portfolioLoading || trendsLoading;
+
+  console.log('RENDERING: Financial Planning, isLoading:', isLoading, 'activeTab:', activeTab);
+
+  // Show loading state if initial data hasn't loaded
+  if (isLoading && !summary) {
+    return (
+      <div className="min-h-screen bg-gray-950 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-16 h-16 text-indigo-400 animate-spin mx-auto mb-4" />
+          <p className="text-gray-400 text-lg">Loading your financial plan...</p>
+          <p className="text-gray-500 text-sm mt-2">Gathering portfolio data and trends</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <Protect
