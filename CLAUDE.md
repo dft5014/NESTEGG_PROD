@@ -343,7 +343,7 @@ Periods: 1d, 1w, 1m, 3m, ytd, 1y, 2y, 3y
 | institution | string | `accounts[i].institution` | Bank/broker name |
 | account_type | string | `accounts[i].accountType` | Type (e.g., 'brokerage') |
 | account_subtype | string | `accounts[i].accountSubtype` | Subtype (e.g., 'taxable') |
-| current_value | number | `accounts[i].currentValue` | Total account value |
+| current_value | number | `accounts[i].totalValue` | Total account value |
 | liquid_value | number | `accounts[i].liquidValue` | Liquid portion |
 | illiquid_value | number | `accounts[i].illiquidValue` | Illiquid portion |
 | total_cost_basis | number | `accounts[i].costBasis` | Total invested |

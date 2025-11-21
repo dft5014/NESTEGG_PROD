@@ -379,7 +379,7 @@ const InstitutionCard = ({
     let hasDiscrepancies = false;
 
     accounts.forEach(acc => {
-      const nestegg = acc.currentValue || acc.current_value || 0;
+      const nestegg = acc.totalValue || 0;
       const statement = statementBalances[acc.id];
 
       nesteggTotal += nestegg;
@@ -428,7 +428,7 @@ const InstitutionCard = ({
       case 'discrepancy':
         const count = accounts.filter(acc => {
           const stmt = statementBalances[acc.id];
-          return stmt != null && stmt !== 0 && Math.abs(stmt - (acc.currentValue || acc.current_value || 0)) >= 1;
+          return stmt != null && stmt !== 0 && Math.abs(stmt - (acc.totalValue || 0)) >= 1;
         }).length;
         return {
           icon: AlertTriangle,
@@ -514,7 +514,7 @@ const InstitutionCard = ({
               </thead>
               <tbody>
                 {accounts.map((account, idx) => {
-                  const nesteggVal = account.currentValue || account.current_value || 0;
+                  const nesteggVal = account.totalValue || 0;
                   const statementVal = statementBalances[account.id];
                   const diff = (statementVal != null && statementVal !== 0) ? statementVal - nesteggVal : 0;
                   const status = getDiffStatus(diff);
@@ -676,8 +676,8 @@ const QuickStatementValidationModal = ({ isOpen, onClose }) => {
 
     // Sort by total value
     const sorted = Array.from(grouped.entries()).sort((a, b) => {
-      const totalA = a[1].reduce((sum, acc) => sum + (acc.currentValue || acc.current_value || 0), 0);
-      const totalB = b[1].reduce((sum, acc) => sum + (acc.currentValue || acc.current_value || 0), 0);
+      const totalA = a[1].reduce((sum, acc) => sum + (acc.totalValue || 0), 0);
+      const totalB = b[1].reduce((sum, acc) => sum + (acc.totalValue || 0), 0);
       return totalB - totalA;
     });
 
@@ -706,7 +706,7 @@ const QuickStatementValidationModal = ({ isOpen, onClose }) => {
     accountsByInstitution.forEach(accts => {
       accts.forEach(acc => {
         totalAccounts++;
-        const nestegg = acc.currentValue || acc.current_value || 0;
+        const nestegg = acc.totalValue || 0;
         totalNestegg += nestegg;
 
         const stmt = statementBalances[acc.id];
@@ -799,7 +799,7 @@ const QuickStatementValidationModal = ({ isOpen, onClose }) => {
 
     accountsByInstitution.forEach((accts, institution) => {
       accts.forEach(acc => {
-        const nestegg = acc.currentValue || acc.current_value || 0;
+        const nestegg = acc.totalValue || 0;
         const statement = statementBalances[acc.id] || '';
         const diff = statement ? statement - nestegg : '';
         const status = reconciledAccounts.has(acc.id) ? 'Reconciled' :
@@ -1169,7 +1169,7 @@ const QuickStatementValidationModal = ({ isOpen, onClose }) => {
       {investigatingAccount && (
         <InvestigationModal
           account={investigatingAccount}
-          nesteggBalance={investigatingAccount.currentValue || investigatingAccount.current_value || 0}
+          nesteggBalance={investigatingAccount.totalValue || 0}
           statementBalance={statementBalances[investigatingAccount.id] || 0}
           positions={investigatingAccount.positions || []}
           onClose={() => setInvestigatingAccount(null)}
