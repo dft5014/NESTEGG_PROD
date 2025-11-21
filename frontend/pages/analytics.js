@@ -493,7 +493,7 @@ export default function Analytics() {
     isStale
   } = usePortfolioSummary();
 
-  const { trends } = usePortfolioTrends();
+  const { trends, loading: trendsLoading } = usePortfolioTrends();
   const {
     positions: groupedPositions,
     summary: positionsSummary,
@@ -503,8 +503,25 @@ export default function Analytics() {
   const { positions: detailedPositions } = useDetailedPositions();
   const { accounts } = useAccounts();
 
+  // Debug logging
+  useEffect(() => {
+    console.log('=== ANALYTICS DEBUG ===');
+    console.log('Summary Loading:', summaryLoading, 'Summary:', summary);
+    console.log('Trends Loading:', trendsLoading, 'Trends:', trends);
+    console.log('Positions Loading:', positionsLoading, 'Positions:', groupedPositions);
+    console.log('Top Positions:', topPositions);
+    console.log('Sector Allocation:', rawSectorAllocation);
+    console.log('Institution Allocation:', institutionAllocation);
+    console.log('=====================');
+  }, [summaryLoading, trendsLoading, positionsLoading, summary, trends, groupedPositions, topPositions, rawSectorAllocation, institutionAllocation]);
+
   // State
   const [activeTab, setActiveTab] = useState('overview');
+
+  // Log tab changes
+  useEffect(() => {
+    console.log('Active Tab Changed:', activeTab);
+  }, [activeTab]);
   const [filters, setFilters] = useState({
     timeframe: '1m',
     selectedAssetTypes: new Set(['security', 'crypto', 'cash', 'metal'])
@@ -522,11 +539,18 @@ export default function Analytics() {
     return Array.from(types);
   }, [groupedPositions]);
 
+  // Combined loading state
+  const isLoading = summaryLoading || trendsLoading || positionsLoading;
+
   // Process chart data based on timeframe
   const chartData = useMemo(() => {
-    if (!trends?.chartData) return [];
+    if (!trends?.chartData) {
+      console.log('Chart Data: No trends data available');
+      return [];
+    }
 
     let data = [...trends.chartData];
+    console.log('Chart Data: Processing', data.length, 'data points for timeframe:', filters.timeframe);
 
     // Apply timeframe filter
     if (filters.timeframe !== 'all') {
@@ -559,6 +583,7 @@ export default function Analytics() {
       data = data.filter((d) => new Date(d.date) >= cutoff);
     }
 
+    console.log('Chart Data: Filtered to', data.length, 'points');
     return data;
   }, [trends, filters.timeframe]);
 
@@ -576,8 +601,11 @@ export default function Analytics() {
 
   // Process sector allocation
   const sectorData = useMemo(() => {
-    if (!rawSectorAllocation) return [];
-    return Object.entries(rawSectorAllocation)
+    if (!rawSectorAllocation) {
+      console.log('Sector Data: No raw sector allocation');
+      return [];
+    }
+    const sectors = Object.entries(rawSectorAllocation)
       .filter(([, d]) => d?.value > 0)
       .map(([name, d]) => ({
         name,
@@ -586,11 +614,17 @@ export default function Analytics() {
         positionCount: d.position_count || 0
       }))
       .sort((a, b) => b.value - a.value);
+    console.log('Sector Data: Processed', sectors.length, 'sectors');
+    return sectors;
   }, [rawSectorAllocation]);
 
   // Calculate comprehensive risk metrics
   const enhancedRiskMetrics = useMemo(() => {
-    if (!chartData || chartData.length < 2) return null;
+    if (!chartData || chartData.length < 2) {
+      console.log('Risk Metrics: Insufficient chart data');
+      return null;
+    }
+    console.log('Risk Metrics: Calculating from', chartData.length, 'data points');
 
     const returns = [];
     for (let i = 1; i < chartData.length; i++) {
@@ -630,8 +664,11 @@ export default function Analytics() {
 
   // Process asset allocation data
   const assetAllocationData = useMemo(() => {
-    if (!summary?.assetAllocation) return [];
-    return Object.entries(summary.assetAllocation)
+    if (!summary?.assetAllocation) {
+      console.log('Asset Allocation: No summary asset allocation');
+      return [];
+    }
+    const allocation = Object.entries(summary.assetAllocation)
       .filter(([, d]) => d.value > 0)
       .map(([type, d]) => ({
         name: type.charAt(0).toUpperCase() + type.slice(1),
@@ -643,10 +680,13 @@ export default function Analytics() {
         count: d.count || 0
       }))
       .sort((a, b) => b.value - a.value);
+    console.log('Asset Allocation: Processed', allocation.length, 'asset classes');
+    return allocation;
   }, [summary]);
 
-  // Loading state
-  if (summaryLoading && !summary) {
+  // Loading state - show loading if ANY data source is still loading
+  if (isLoading && !summary) {
+    console.log('RENDERING: Initial loading state');
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-950 via-gray-900 to-black">
         <motion.div
@@ -697,6 +737,8 @@ export default function Analytics() {
   }
 
   // Main render
+  console.log('RENDERING: Main analytics component, activeTab:', activeTab);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-black text-white">
       <Head>
