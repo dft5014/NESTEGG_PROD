@@ -68,10 +68,47 @@ const FinancialPlanning = () => {
   const [compareMode, setCompareMode] = useState(false);
   const [showInsights, setShowInsights] = useState(true);
 
+  // Personal Information & Finance State
+  const [personalInfo, setPersonalInfo] = useState({
+    name: '',
+    currentAge: 35,
+    retirementAge: 65,
+  });
+
+  const [personalFinance, setPersonalFinance] = useState({
+    annualIncome: 100000,
+    annualExpenses: 60000,
+    annualIncomeChange: 3, // % per year
+    maxIncome: 200000,
+    cashAllocationPercent: 20, // % of cash flow to cash vs invested
+    emergencyFundTarget: 50000,
+    emergencyFundGrowthRate: 2.5, // default to inflation
+  });
+
+  // Tooltip state
+  const [activeTooltip, setActiveTooltip] = useState(null);
+
   // Starting portfolio value from DataStore
   const startingNetWorth = useMemo(() => {
     return summary?.netWorth || 0;
   }, [summary]);
+
+  // Calculate personal finance derived values
+  const personalFinanceCalculated = useMemo(() => {
+    const annualCashFlow = personalFinance.annualIncome - personalFinance.annualExpenses;
+    const monthlyCashFlow = annualCashFlow / 12;
+    const cashToSavings = annualCashFlow * (personalFinance.cashAllocationPercent / 100);
+    const cashToInvestments = annualCashFlow * ((100 - personalFinance.cashAllocationPercent) / 100);
+    const savingsRate = (annualCashFlow / personalFinance.annualIncome) * 100;
+
+    return {
+      annualCashFlow,
+      monthlyCashFlow,
+      cashToSavings,
+      cashToInvestments,
+      savingsRate,
+    };
+  }, [personalFinance]);
 
   // PHASE 1: Calculate historical return from trends
   const calculateHistoricalReturn = useMemo(() => {
@@ -765,23 +802,29 @@ const FinancialPlanning = () => {
     return null;
   };
 
-  // Combined loading state
-  const isLoading = portfolioLoading || trendsLoading;
-
-  console.log('RENDERING: Financial Planning, isLoading:', isLoading, 'activeTab:', activeTab);
-
-  // Show loading state if initial data hasn't loaded
-  if (isLoading && !summary) {
-    return (
-      <div className="min-h-screen bg-gray-950 flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="w-16 h-16 text-indigo-400 animate-spin mx-auto mb-4" />
-          <p className="text-gray-400 text-lg">Loading your financial plan...</p>
-          <p className="text-gray-500 text-sm mt-2">Gathering portfolio data and trends</p>
+  // Info tooltip component for KPIs
+  const InfoTooltip = ({ id, title, description }) => (
+    <div className="relative inline-block">
+      <button
+        onMouseEnter={() => setActiveTooltip(id)}
+        onMouseLeave={() => setActiveTooltip(null)}
+        onClick={(e) => {
+          e.stopPropagation();
+          setActiveTooltip(activeTooltip === id ? null : id);
+        }}
+        className="text-gray-500 hover:text-gray-300 transition-colors ml-1"
+      >
+        <HelpCircle className="w-3.5 h-3.5" />
+      </button>
+      {activeTooltip === id && (
+        <div className="absolute z-50 w-64 p-3 bg-gray-800 border border-gray-700 rounded-lg shadow-xl text-left bottom-full left-1/2 transform -translate-x-1/2 mb-2">
+          <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-1/2 rotate-45 w-2 h-2 bg-gray-800 border-r border-b border-gray-700"></div>
+          <h4 className="text-white font-semibold text-sm mb-1">{title}</h4>
+          <p className="text-gray-300 text-xs leading-relaxed">{description}</p>
         </div>
-      </div>
-    );
-  }
+      )}
+    </div>
+  );
 
   return (
     <Protect
@@ -874,42 +917,84 @@ const FinancialPlanning = () => {
             {/* Quick Stats */}
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mt-6">
               <div className="bg-gray-800/50 backdrop-blur p-4 rounded-xl border border-gray-700/50">
-                <p className="text-gray-400 text-xs font-medium uppercase tracking-wider">Final Value</p>
+                <p className="text-gray-400 text-xs font-medium uppercase tracking-wider flex items-center">
+                  Final Value
+                  <InfoTooltip
+                    id="final-value"
+                    title="Final Portfolio Value"
+                    description="The projected total value of your portfolio at the end of the planning period. This includes your starting amount, all contributions, and investment returns compounded over time."
+                  />
+                </p>
                 <p className="text-xl font-bold text-white mt-1">
                   {formatCompact(summaryStats.finalValue)}
                 </p>
               </div>
 
               <div className="bg-gray-800/50 backdrop-blur p-4 rounded-xl border border-gray-700/50">
-                <p className="text-gray-400 text-xs font-medium uppercase tracking-wider">Total Growth</p>
+                <p className="text-gray-400 text-xs font-medium uppercase tracking-wider flex items-center">
+                  Total Growth
+                  <InfoTooltip
+                    id="total-growth"
+                    title="Total Investment Growth"
+                    description="The amount your investments have grown through market returns. This is the difference between your final portfolio value and the total amount you've contributed. It represents the power of compound returns."
+                  />
+                </p>
                 <p className="text-xl font-bold text-green-400 mt-1">
                   {formatCompact(summaryStats.totalGrowth)}
                 </p>
               </div>
 
               <div className="bg-gray-800/50 backdrop-blur p-4 rounded-xl border border-gray-700/50">
-                <p className="text-gray-400 text-xs font-medium uppercase tracking-wider">Multiplier</p>
+                <p className="text-gray-400 text-xs font-medium uppercase tracking-wider flex items-center">
+                  Multiplier
+                  <InfoTooltip
+                    id="multiplier"
+                    title="Growth Multiplier"
+                    description="How many times your portfolio value has grown compared to what you contributed. A 3x multiplier means for every $1 invested, you now have $3. Higher multipliers show the powerful effect of compound interest over time."
+                  />
+                </p>
                 <p className="text-xl font-bold text-purple-400 mt-1">
                   {summaryStats.growthMultiplier?.toFixed(1)}x
                 </p>
               </div>
 
               <div className="bg-gray-800/50 backdrop-blur p-4 rounded-xl border border-gray-700/50">
-                <p className="text-gray-400 text-xs font-medium uppercase tracking-wider">Exp. Return</p>
+                <p className="text-gray-400 text-xs font-medium uppercase tracking-wider flex items-center">
+                  Exp. Return
+                  <InfoTooltip
+                    id="exp-return"
+                    title="Expected Annual Return"
+                    description="The weighted average annual return of your portfolio based on your asset allocation. This is calculated from the growth rates of your different asset classes (stocks, bonds, etc.) and their percentages in your portfolio."
+                  />
+                </p>
                 <p className="text-xl font-bold text-blue-400 mt-1">
                   {portfolioMetrics.expectedReturn.toFixed(1)}%
                 </p>
               </div>
 
               <div className="bg-gray-800/50 backdrop-blur p-4 rounded-xl border border-gray-700/50">
-                <p className="text-gray-400 text-xs font-medium uppercase tracking-wider">FIRE Number</p>
+                <p className="text-gray-400 text-xs font-medium uppercase tracking-wider flex items-center">
+                  FIRE Number
+                  <InfoTooltip
+                    id="fire-number"
+                    title="Financial Independence Number"
+                    description="The portfolio value needed to retire using the 4% rule. Calculated as 25x your annual expenses (or your expenses divided by your safe withdrawal rate). When you reach this number, you can theoretically live off your investments indefinitely."
+                  />
+                </p>
                 <p className="text-xl font-bold text-amber-400 mt-1">
                   {formatCompact(summaryStats.fireNumber)}
                 </p>
               </div>
 
               <div className="bg-gray-800/50 backdrop-blur p-4 rounded-xl border border-gray-700/50">
-                <p className="text-gray-400 text-xs font-medium uppercase tracking-wider">Years to FI</p>
+                <p className="text-gray-400 text-xs font-medium uppercase tracking-wider flex items-center">
+                  Years to FI
+                  <InfoTooltip
+                    id="years-to-fi"
+                    title="Years to Financial Independence"
+                    description="How many years until your portfolio reaches your FIRE number at your current savings rate and expected returns. This shows when you could potentially retire and live off your investments. The faster you save and invest, the sooner you reach FI."
+                  />
+                </p>
                 <p className="text-xl font-bold text-emerald-400 mt-1">
                   {summaryStats.yearsToFire !== null ? `${summaryStats.yearsToFire} yrs` : '—'}
                 </p>
@@ -1362,6 +1447,226 @@ const FinancialPlanning = () => {
                       </div>
                     </div>
                   )}
+                </div>
+
+                {/* Personal Information Section */}
+                <div className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 rounded-2xl border border-blue-500/30 p-6">
+                  <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                    <Users className="w-5 h-5 text-blue-400" />
+                    Personal Information
+                  </h3>
+                  <p className="text-gray-300 text-sm mb-4">
+                    Basic information used throughout your financial plan and projections.
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="text-sm text-gray-400">Name (Optional)</label>
+                      <input
+                        type="text"
+                        value={personalInfo.name}
+                        onChange={(e) => setPersonalInfo(prev => ({ ...prev, name: e.target.value }))}
+                        placeholder="Your Name"
+                        className="w-full mt-1 px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm focus:border-blue-500 outline-none text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm text-gray-400">Current Age</label>
+                      <input
+                        type="number"
+                        value={personalInfo.currentAge}
+                        onChange={(e) => setPersonalInfo(prev => ({ ...prev, currentAge: toNum(e.target.value) }))}
+                        className="w-full mt-1 px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm focus:border-blue-500 outline-none text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm text-gray-400">Target Retirement Age</label>
+                      <input
+                        type="number"
+                        value={personalInfo.retirementAge}
+                        onChange={(e) => setPersonalInfo(prev => ({ ...prev, retirementAge: toNum(e.target.value) }))}
+                        className="w-full mt-1 px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm focus:border-blue-500 outline-none text-white"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Personal Finance Section */}
+                <div className="bg-gray-900 rounded-2xl border border-gray-800 p-6">
+                  <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                    <Banknote className="w-5 h-5 text-green-400" />
+                    Personal Finance
+                  </h3>
+                  <p className="text-gray-300 text-sm mb-4">
+                    Your current financial situation including income, expenses, and savings strategy.
+                  </p>
+
+                  {/* Income & Expenses */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                    <div>
+                      <label className="text-sm text-gray-400">Annual Income</label>
+                      <input
+                        type="number"
+                        value={personalFinance.annualIncome}
+                        onChange={(e) => setPersonalFinance(prev => ({ ...prev, annualIncome: toNum(e.target.value) }))}
+                        className="w-full mt-1 px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm focus:border-blue-500 outline-none text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm text-gray-400">Annual Expenses</label>
+                      <input
+                        type="number"
+                        value={personalFinance.annualExpenses}
+                        onChange={(e) => setPersonalFinance(prev => ({ ...prev, annualExpenses: toNum(e.target.value) }))}
+                        className="w-full mt-1 px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm focus:border-blue-500 outline-none text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm text-gray-400">Income Growth (% per year)</label>
+                      <input
+                        type="number"
+                        value={personalFinance.annualIncomeChange}
+                        onChange={(e) => setPersonalFinance(prev => ({ ...prev, annualIncomeChange: toNum(e.target.value) }))}
+                        step="0.5"
+                        className="w-full mt-1 px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm focus:border-blue-500 outline-none text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm text-gray-400">Max Expected Income</label>
+                      <input
+                        type="number"
+                        value={personalFinance.maxIncome}
+                        onChange={(e) => setPersonalFinance(prev => ({ ...prev, maxIncome: toNum(e.target.value) }))}
+                        className="w-full mt-1 px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm focus:border-blue-500 outline-none text-white"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Calculated Fields */}
+                  <div className="bg-gray-800/50 rounded-xl p-4 mb-6">
+                    <h4 className="text-sm font-semibold text-white mb-3">Calculated Cash Flow</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div>
+                        <p className="text-xs text-gray-500 uppercase">Annual Cash Flow</p>
+                        <p className="text-lg font-bold text-green-400 mt-1">{formatCurrency(personalFinanceCalculated.annualCashFlow)}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500 uppercase">Monthly Cash Flow</p>
+                        <p className="text-lg font-bold text-green-400 mt-1">{formatCurrency(personalFinanceCalculated.monthlyCashFlow)}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500 uppercase">Savings Rate</p>
+                        <p className="text-lg font-bold text-blue-400 mt-1">{personalFinanceCalculated.savingsRate.toFixed(1)}%</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500 uppercase">Years to Max Income</p>
+                        <p className="text-lg font-bold text-purple-400 mt-1">
+                          {personalFinance.annualIncomeChange > 0
+                            ? Math.ceil(Math.log(personalFinance.maxIncome / personalFinance.annualIncome) / Math.log(1 + personalFinance.annualIncomeChange / 100))
+                            : '—'
+                          }
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Allocation & Emergency Fund */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="text-sm text-gray-400">Cash Allocation (% to savings)</label>
+                      <input
+                        type="number"
+                        value={personalFinance.cashAllocationPercent}
+                        onChange={(e) => setPersonalFinance(prev => ({ ...prev, cashAllocationPercent: toNum(e.target.value) }))}
+                        min="0"
+                        max="100"
+                        className="w-full mt-1 px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm focus:border-blue-500 outline-none text-white"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">
+                        {personalFinance.cashAllocationPercent}% to cash ({formatCurrency(personalFinanceCalculated.cashToSavings)}/yr),
+                        {' '}{100 - personalFinance.cashAllocationPercent}% to investments ({formatCurrency(personalFinanceCalculated.cashToInvestments)}/yr)
+                      </p>
+                    </div>
+                    <div>
+                      <label className="text-sm text-gray-400">Emergency Fund Target</label>
+                      <input
+                        type="number"
+                        value={personalFinance.emergencyFundTarget}
+                        onChange={(e) => setPersonalFinance(prev => ({ ...prev, emergencyFundTarget: toNum(e.target.value) }))}
+                        className="w-full mt-1 px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm focus:border-blue-500 outline-none text-white"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">
+                        {(personalFinance.emergencyFundTarget / (personalFinance.annualExpenses / 12)).toFixed(1)} months of expenses
+                      </p>
+                    </div>
+                    <div>
+                      <label className="text-sm text-gray-400">Emergency Fund Growth (% per year)</label>
+                      <input
+                        type="number"
+                        value={personalFinance.emergencyFundGrowthRate}
+                        onChange={(e) => setPersonalFinance(prev => ({ ...prev, emergencyFundGrowthRate: toNum(e.target.value) }))}
+                        step="0.1"
+                        className="w-full mt-1 px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm focus:border-blue-500 outline-none text-white"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">Default: {inflationRate}% (inflation-adjusted)</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* FIRE Settings Section */}
+                <div className="bg-gradient-to-r from-amber-500/10 to-orange-500/10 rounded-2xl border border-amber-500/30 p-6">
+                  <div className="flex items-center gap-3 mb-2">
+                    <Flame className="w-6 h-6 text-amber-400" />
+                    <h3 className="text-lg font-semibold text-white">FIRE Settings</h3>
+                  </div>
+                  <div className="bg-amber-500/10 rounded-lg p-3 mb-4">
+                    <p className="text-amber-100 text-sm leading-relaxed">
+                      <strong>FIRE (Financial Independence, Retire Early)</strong> is a movement focused on achieving financial freedom through aggressive saving and smart investing.
+                      The core principle is the <strong>4% rule</strong>: you need 25x your annual expenses invested to retire safely.
+                      At this point, you can withdraw 4% per year indefinitely without running out of money.
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div>
+                      <label className="text-sm text-gray-400">Annual Expenses in Retirement</label>
+                      <input
+                        type="number"
+                        value={fireSettings.annualExpenses}
+                        onChange={(e) => setFireSettings(prev => ({ ...prev, annualExpenses: toNum(e.target.value) }))}
+                        className="w-full mt-1 px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm focus:border-blue-500 outline-none text-white"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">FIRE Number: {formatCurrency(fireSettings.annualExpenses * 25)}</p>
+                    </div>
+                    <div>
+                      <label className="text-sm text-gray-400">Safe Withdrawal Rate (%)</label>
+                      <input
+                        type="number"
+                        value={fireSettings.safeWithdrawalRate}
+                        onChange={(e) => setFireSettings(prev => ({ ...prev, safeWithdrawalRate: toNum(e.target.value) }))}
+                        step="0.1"
+                        className="w-full mt-1 px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm focus:border-blue-500 outline-none text-white"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">Annual withdrawal: {formatCurrency(fireSettings.annualExpenses)}</p>
+                    </div>
+                    <div>
+                      <label className="text-sm text-gray-400">Target FIRE Age</label>
+                      <input
+                        type="number"
+                        value={fireSettings.retirementAge}
+                        onChange={(e) => setFireSettings(prev => ({ ...prev, retirementAge: toNum(e.target.value) }))}
+                        className="w-full mt-1 px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm focus:border-blue-500 outline-none text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm text-gray-400">Current Age</label>
+                      <input
+                        type="number"
+                        value={fireSettings.currentAge}
+                        onChange={(e) => setFireSettings(prev => ({ ...prev, currentAge: toNum(e.target.value) }))}
+                        className="w-full mt-1 px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm focus:border-blue-500 outline-none text-white"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">{fireSettings.retirementAge - fireSettings.currentAge} years until FIRE target</p>
+                    </div>
+                  </div>
                 </div>
 
                 {/* Two Column Layout for Inputs */}
