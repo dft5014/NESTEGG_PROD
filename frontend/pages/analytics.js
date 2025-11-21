@@ -966,29 +966,17 @@ const OverviewTab = ({
   // Show loading if critical data is missing
   if (!summary || !chartData || chartData.length === 0) {
     return (
-      <motion.div
-        key="overview"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -20 }}
-        className="flex items-center justify-center min-h-[400px]"
-      >
+      <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center">
           <Loader2 className="w-12 h-12 text-indigo-400 animate-spin mx-auto mb-4" />
           <p className="text-gray-400">Loading overview data...</p>
         </div>
-      </motion.div>
+      </div>
     );
   }
 
   return (
-    <motion.div
-      key="overview"
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -20 }}
-      className="space-y-6"
-    >
+    <div className="space-y-6">
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <PremiumMetricCard
@@ -1269,7 +1257,7 @@ const OverviewTab = ({
           ))}
         </div>
       </motion.div>
-    </motion.div>
+    </div>
   );
 };
 
@@ -1294,33 +1282,21 @@ const PerformanceTab = ({
 
   if (!summary || !chartData || chartData.length === 0) {
     return (
-      <motion.div
-        key="performance"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -20 }}
-        className="flex items-center justify-center min-h-[400px]"
-      >
+      <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center">
           <Loader2 className="w-12 h-12 text-emerald-400 animate-spin mx-auto mb-4" />
           <p className="text-gray-400">Loading performance data...</p>
         </div>
-      </motion.div>
+      </div>
     );
   }
 
+  console.log('PerformanceTab: About to render full content');
+
   return (
-    <motion.div
-      key="performance"
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -20 }}
-      className="space-y-6"
-    >
+    <div className="space-y-6">
       {/* Multi-Metric Chart */}
-      <motion.div
-        variants={cardVariants}
-        className="bg-gradient-to-br from-gray-800/60 to-gray-900/60 backdrop-blur-xl rounded-3xl border border-gray-700/50 p-6"
+      <div className="bg-gradient-to-br from-gray-800/60 to-gray-900/60 backdrop-blur-xl rounded-3xl border border-gray-700/50 p-6"
       >
         <div className="flex items-center gap-3 mb-6">
           <div className="p-2 rounded-xl bg-emerald-500/20">
@@ -1547,8 +1523,8 @@ const PerformanceTab = ({
                 );
               })}
         </div>
-      </motion.div>
-    </motion.div>
+      </div>
+    </div>
   );
 };
 
@@ -1571,29 +1547,17 @@ const AllocationTab = ({
 
   if (!summary || !assetAllocationData || assetAllocationData.length === 0) {
     return (
-      <motion.div
-        key="allocation"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -20 }}
-        className="flex items-center justify-center min-h-[400px]"
-      >
+      <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center">
           <Loader2 className="w-12 h-12 text-indigo-400 animate-spin mx-auto mb-4" />
           <p className="text-gray-400">Loading allocation data...</p>
         </div>
-      </motion.div>
+      </div>
     );
   }
 
   return (
-    <motion.div
-      key="allocation"
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -20 }}
-      className="space-y-6"
-    >
+    <div className="space-y-6">
       {/* Asset Allocation */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <motion.div
@@ -1820,7 +1784,7 @@ const AllocationTab = ({
           ))}
         </div>
       </motion.div>
-    </motion.div>
+    </div>
   );
 };
 
@@ -1843,29 +1807,17 @@ const RiskAnalysisTab = ({
 
   if (!summary) {
     return (
-      <motion.div
-        key="risk"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -20 }}
-        className="flex items-center justify-center min-h-[400px]"
-      >
+      <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center">
           <Loader2 className="w-12 h-12 text-red-400 animate-spin mx-auto mb-4" />
           <p className="text-gray-400">Loading risk analysis data...</p>
         </div>
-      </motion.div>
+      </div>
     );
   }
 
   return (
-    <motion.div
-      key="risk"
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -20 }}
-      className="space-y-6"
-    >
+    <div className="space-y-6">
       {/* Risk Metrics Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <motion.div
@@ -2060,7 +2012,7 @@ const RiskAnalysisTab = ({
           </div>
         </div>
       </motion.div>
-    </motion.div>
+    </div>
   );
 };
 
@@ -2123,29 +2075,17 @@ const TopHoldingsTab = ({ topPositions, groupedPositions, summary, filters }) =>
 
   if (!topPositions || topPositions.length === 0) {
     return (
-      <motion.div
-        key="holdings"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -20 }}
-        className="flex items-center justify-center min-h-[400px]"
-      >
+      <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center">
           <Loader2 className="w-12 h-12 text-amber-400 animate-spin mx-auto mb-4" />
           <p className="text-gray-400">Loading holdings data...</p>
         </div>
-      </motion.div>
+      </div>
     );
   }
 
   return (
-    <motion.div
-      key="holdings"
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -20 }}
-      className="space-y-6"
-    >
+    <div className="space-y-6">
       <motion.div
         variants={cardVariants}
         className="bg-gradient-to-br from-gray-800/60 to-gray-900/60 backdrop-blur-xl rounded-3xl border border-gray-700/50 overflow-hidden"
@@ -2259,7 +2199,7 @@ const TopHoldingsTab = ({ topPositions, groupedPositions, summary, filters }) =>
           </table>
         </div>
       </motion.div>
-    </motion.div>
+    </div>
   );
 };
 
@@ -2283,18 +2223,12 @@ const ChartBuilderTab = ({
   // Show loading if critical data is missing
   if (!chartData || chartData.length === 0) {
     return (
-      <motion.div
-        key="builder"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -20 }}
-        className="flex items-center justify-center min-h-[400px]"
-      >
+      <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center">
           <Loader2 className="w-12 h-12 text-cyan-400 animate-spin mx-auto mb-4" />
           <p className="text-gray-400">Loading chart data...</p>
         </div>
-      </motion.div>
+      </div>
     );
   }
 
@@ -2319,13 +2253,7 @@ const ChartBuilderTab = ({
   };
 
   return (
-    <motion.div
-      key="builder"
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -20 }}
-      className="space-y-6"
-    >
+    <div className="space-y-6">
       <motion.div
         variants={cardVariants}
         className="bg-gradient-to-br from-gray-800/60 to-gray-900/60 backdrop-blur-xl rounded-3xl border border-gray-700/50 p-6"
@@ -2524,7 +2452,7 @@ const ChartBuilderTab = ({
           </p>
         </div>
       </motion.div>
-    </motion.div>
+    </div>
   );
 };
 
@@ -2542,18 +2470,12 @@ const PlanningTab = ({ summary, chartData }) => {
   // Show loading if critical data is missing
   if (!summary) {
     return (
-      <motion.div
-        key="planning"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -20 }}
-        className="flex items-center justify-center min-h-[400px]"
-      >
+      <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center">
           <Loader2 className="w-12 h-12 text-purple-400 animate-spin mx-auto mb-4" />
           <p className="text-gray-400">Loading planning data...</p>
         </div>
-      </motion.div>
+      </div>
     );
   }
 
@@ -2601,13 +2523,7 @@ const PlanningTab = ({ summary, chartData }) => {
   }, [emergencyFund, emergencyFundGrowth]);
 
   return (
-    <motion.div
-      key="planning"
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -20 }}
-      className="space-y-6"
-    >
+    <div className="space-y-6">
       {/* Personal Information Section */}
       <motion.div
         variants={cardVariants}
@@ -2960,6 +2876,6 @@ const PlanningTab = ({ summary, chartData }) => {
           </ResponsiveContainer>
         </div>
       </motion.div>
-    </motion.div>
+    </div>
   );
 };
