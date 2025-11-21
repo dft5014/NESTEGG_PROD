@@ -95,13 +95,33 @@ export default function AccountsPage() {
       breakdown[type].count++;
       breakdown[type].totalValue += account.totalValue || 0;
     });
-    
+
     const total = Object.values(breakdown).reduce((sum, item) => sum + item.totalValue, 0);
     Object.values(breakdown).forEach(item => {
       item.percentage = total > 0 ? (item.totalValue / total) * 100 : 0;
     });
-    
+
     return Object.values(breakdown).sort((a, b) => b.totalValue - a.totalValue);
+  }, [accounts]);
+
+  // Calculate performance metrics from accounts data
+  const performanceMetrics = React.useMemo(() => {
+    if (!accounts.length) return null;
+
+    const totalValue = accounts.reduce((sum, acc) => sum + (acc.totalValue || 0), 0);
+    const value1dChange = accounts.reduce((sum, acc) => sum + (acc.value1dChange || 0), 0);
+    const value1wChange = accounts.reduce((sum, acc) => sum + (acc.value1wChange || 0), 0);
+    const value1mChange = accounts.reduce((sum, acc) => sum + (acc.value1mChange || 0), 0);
+
+    return {
+      totalValue,
+      value1dChange,
+      value1dChangePercent: totalValue > 0 ? (value1dChange / totalValue) * 100 : 0,
+      value1wChange,
+      value1wChangePercent: totalValue > 0 ? (value1wChange / totalValue) * 100 : 0,
+      value1mChange,
+      value1mChangePercent: totalValue > 0 ? (value1mChange / totalValue) * 100 : 0
+    };
   }, [accounts]);
 
   // Institution Colors
@@ -128,7 +148,7 @@ export default function AccountsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-indigo-900 text-white">
+    <div className="min-h-screen bg-gradient-to-br from-gray-950 to-slate-900 text-white">
       <Head>
         <title>NestEgg - Accounts</title>
         <meta name="description" content="Manage your investment accounts" />
@@ -400,6 +420,103 @@ export default function AccountsPage() {
           </div>
         </div>
 
+        {/* Performance Breakdown */}
+        {performanceMetrics && accounts.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="mb-8"
+          >
+            <h2 className="text-2xl font-bold text-white mb-6 flex items-center">
+              <Activity className="w-6 h-6 mr-2 text-indigo-400" />
+              Performance Breakdown
+            </h2>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* 1 Day */}
+              <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 rounded-xl p-5 hover:border-gray-600/50 transition-all">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-sm font-medium text-gray-400">1 Day</span>
+                  <Clock className="w-4 h-4 text-gray-500" />
+                </div>
+                <div className={`text-3xl font-bold mb-2 ${
+                  performanceMetrics.value1dChange >= 0 ? 'text-green-400' : 'text-red-400'
+                }`}>
+                  {performanceMetrics.value1dChange >= 0 ? '+' : ''}
+                  {showValues ? formatCurrency(performanceMetrics.value1dChange) : '•••••'}
+                </div>
+                <div className="flex items-center gap-2">
+                  {performanceMetrics.value1dChange >= 0 ? (
+                    <ArrowUpRight className="w-4 h-4 text-green-400" />
+                  ) : (
+                    <ArrowDownRight className="w-4 h-4 text-red-400" />
+                  )}
+                  <span className={`text-sm font-medium ${
+                    performanceMetrics.value1dChangePercent >= 0 ? 'text-green-400' : 'text-red-400'
+                  }`}>
+                    {performanceMetrics.value1dChangePercent >= 0 ? '+' : ''}
+                    {performanceMetrics.value1dChangePercent.toFixed(2)}%
+                  </span>
+                </div>
+              </div>
+
+              {/* 1 Week */}
+              <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 rounded-xl p-5 hover:border-gray-600/50 transition-all">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-sm font-medium text-gray-400">1 Week</span>
+                  <Calendar className="w-4 h-4 text-gray-500" />
+                </div>
+                <div className={`text-3xl font-bold mb-2 ${
+                  performanceMetrics.value1wChange >= 0 ? 'text-green-400' : 'text-red-400'
+                }`}>
+                  {performanceMetrics.value1wChange >= 0 ? '+' : ''}
+                  {showValues ? formatCurrency(performanceMetrics.value1wChange) : '•••••'}
+                </div>
+                <div className="flex items-center gap-2">
+                  {performanceMetrics.value1wChange >= 0 ? (
+                    <ArrowUpRight className="w-4 h-4 text-green-400" />
+                  ) : (
+                    <ArrowDownRight className="w-4 h-4 text-red-400" />
+                  )}
+                  <span className={`text-sm font-medium ${
+                    performanceMetrics.value1wChangePercent >= 0 ? 'text-green-400' : 'text-red-400'
+                  }`}>
+                    {performanceMetrics.value1wChangePercent >= 0 ? '+' : ''}
+                    {performanceMetrics.value1wChangePercent.toFixed(2)}%
+                  </span>
+                </div>
+              </div>
+
+              {/* 1 Month */}
+              <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 rounded-xl p-5 hover:border-gray-600/50 transition-all">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-sm font-medium text-gray-400">1 Month</span>
+                  <LineChart className="w-4 h-4 text-gray-500" />
+                </div>
+                <div className={`text-3xl font-bold mb-2 ${
+                  performanceMetrics.value1mChange >= 0 ? 'text-green-400' : 'text-red-400'
+                }`}>
+                  {performanceMetrics.value1mChange >= 0 ? '+' : ''}
+                  {showValues ? formatCurrency(performanceMetrics.value1mChange) : '•••••'}
+                </div>
+                <div className="flex items-center gap-2">
+                  {performanceMetrics.value1mChange >= 0 ? (
+                    <ArrowUpRight className="w-4 h-4 text-green-400" />
+                  ) : (
+                    <ArrowDownRight className="w-4 h-4 text-red-400" />
+                  )}
+                  <span className={`text-sm font-medium ${
+                    performanceMetrics.value1mChangePercent >= 0 ? 'text-green-400' : 'text-red-400'
+                  }`}>
+                    {performanceMetrics.value1mChangePercent >= 0 ? '+' : ''}
+                    {performanceMetrics.value1mChangePercent.toFixed(2)}%
+                  </span>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
 
         {/* Accounts Table */}
         {!isLoading && accounts.length === 0 ? (
