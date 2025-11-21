@@ -6,9 +6,9 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import {
   X, ChevronDown, ChevronRight, Check, AlertTriangle, Info,
   Building2, CheckCircle, Clock, TrendingUp, TrendingDown,
-  Search, Download, Calendar, Eye, EyeOff, RefreshCw,
-  FileText, Sparkles, Target, Award, AlertCircle, HelpCircle,
-  ArrowRight, Minus, Loader2, ExternalLink, Zap, Shield, Upload
+  Search, Download, Eye, EyeOff, RefreshCw,
+  FileText, Sparkles, Target, AlertCircle, HelpCircle,
+  Loader2, ExternalLink, Zap, Shield, Upload
 } from 'lucide-react';
 import { useDataStore } from '@/store/DataStore';
 import { useAccounts } from '@/store/hooks/useAccounts';
@@ -43,10 +43,10 @@ const getDiffStatus = (diff) => {
 
 const getDiffColor = (status) => {
   switch (status) {
-    case 'match': return { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', ring: 'ring-emerald-500' };
-    case 'minor': return { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200', ring: 'ring-amber-500' };
-    case 'major': return { bg: 'bg-rose-50', text: 'text-rose-700', border: 'border-rose-200', ring: 'ring-rose-500' };
-    default: return { bg: 'bg-gray-50', text: 'text-gray-700', border: 'border-gray-200', ring: 'ring-gray-500' };
+    case 'match': return { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-300' };
+    case 'minor': return { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-300' };
+    case 'major': return { bg: 'bg-rose-50', text: 'text-rose-700', border: 'border-rose-300' };
+    default: return { bg: 'bg-gray-50', text: 'text-gray-700', border: 'border-gray-300' };
   }
 };
 
@@ -66,9 +66,7 @@ const CurrencyInput = React.memo(function CurrencyInput({
   id,
   value,
   onChange,
-  onFocus,
-  onBlur,
-  placeholder = '$0.00',
+  placeholder = 'Enter amount',
   autoFocus = false,
   className = ''
 }) {
@@ -78,7 +76,7 @@ const CurrencyInput = React.memo(function CurrencyInput({
 
   useEffect(() => {
     if (!focused) {
-      setRawValue(value != null ? String(value) : '');
+      setRawValue(value != null && value !== 0 ? String(value) : '');
     }
   }, [value, focused]);
 
@@ -96,7 +94,6 @@ const CurrencyInput = React.memo(function CurrencyInput({
 
   const handleFocus = (e) => {
     setFocused(true);
-    onFocus?.(e);
     setTimeout(() => {
       if (inputRef.current) {
         inputRef.current.select();
@@ -106,7 +103,6 @@ const CurrencyInput = React.memo(function CurrencyInput({
 
   const handleBlur = (e) => {
     setFocused(false);
-    onBlur?.(e);
   };
 
   const displayValue = focused
@@ -125,11 +121,11 @@ const CurrencyInput = React.memo(function CurrencyInput({
       onBlur={handleBlur}
       placeholder={placeholder}
       className={`
-        w-32 px-3 py-1.5 text-sm text-right rounded-lg border
+        w-36 px-3 py-2 text-sm text-right rounded-lg border
         bg-white focus:bg-blue-50
-        border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20
+        border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200
         transition-all duration-200
-        font-medium tabular-nums
+        font-semibold tabular-nums
         ${className}
       `}
     />
@@ -271,19 +267,19 @@ const InvestigationModal = ({ account, nesteggBalance, statementBalance, positio
             </h4>
             <div className="space-y-2">
               {securityTotal > 0 && (
-                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
                   <span className="text-sm text-gray-700">Securities ({positionsByType.securities.length})</span>
                   <span className="text-sm font-semibold text-gray-900">{fmtCurrency(securityTotal)}</span>
                 </div>
               )}
               {cashTotal > 0 && (
-                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
                   <span className="text-sm text-gray-700">Cash ({positionsByType.cash.length})</span>
                   <span className="text-sm font-semibold text-gray-900">{fmtCurrency(cashTotal)}</span>
                 </div>
               )}
               {positionsByType.crypto.length > 0 && (
-                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
                   <span className="text-sm text-gray-700">Crypto ({positionsByType.crypto.length})</span>
                   <span className="text-sm font-semibold text-gray-900">
                     {fmtCurrency(positionsByType.crypto.reduce((sum, p) => sum + (p.currentValue || 0), 0))}
@@ -320,13 +316,6 @@ const InvestigationModal = ({ account, nesteggBalance, statementBalance, positio
                   <div className="flex-1">
                     <div className="text-sm font-medium text-green-900">Dividends or Interest</div>
                     <div className="text-xs text-green-700 mt-0.5">Recent income not yet recorded</div>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3 p-3 bg-gray-50 border border-gray-200 rounded-lg">
-                  <AlertCircle className="w-4 h-4 text-gray-600 mt-0.5 flex-shrink-0" />
-                  <div className="flex-1">
-                    <div className="text-sm font-medium text-gray-900">Data Entry Error</div>
-                    <div className="text-xs text-gray-700 mt-0.5">Check quantities and purchase prices</div>
                   </div>
                 </div>
               </div>
@@ -390,12 +379,12 @@ const InstitutionCard = ({
     let hasDiscrepancies = false;
 
     accounts.forEach(acc => {
-      const nestegg = acc.currentValue || 0;
+      const nestegg = acc.currentValue || acc.current_value || 0;
       const statement = statementBalances[acc.id];
 
       nesteggTotal += nestegg;
 
-      if (statement != null) {
+      if (statement != null && statement !== 0) {
         statementTotal += statement;
         accountsWithInput++;
 
@@ -439,7 +428,7 @@ const InstitutionCard = ({
       case 'discrepancy':
         const count = accounts.filter(acc => {
           const stmt = statementBalances[acc.id];
-          return stmt != null && Math.abs(stmt - (acc.currentValue || 0)) >= 1;
+          return stmt != null && stmt !== 0 && Math.abs(stmt - (acc.currentValue || acc.current_value || 0)) >= 1;
         }).length;
         return {
           icon: AlertTriangle,
@@ -463,7 +452,7 @@ const InstitutionCard = ({
   const StatusIcon = statusConfig.icon;
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow">
+    <div className="bg-white rounded-xl shadow-sm border border-gray-300 overflow-hidden">
       {/* Header */}
       <button
         onClick={() => onToggleExpanded(institution)}
@@ -471,17 +460,17 @@ const InstitutionCard = ({
       >
         <div className="flex items-center gap-4 flex-1">
           {logo ? (
-            <img src={logo} alt={institution} className="w-10 h-10 rounded-lg object-contain" />
+            <img src={logo} alt={institution} className="w-12 h-12 rounded-lg object-contain border border-gray-200 bg-white p-1" />
           ) : (
-            <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
+            <div className="w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center border border-gray-200">
               <Building2 className="w-6 h-6 text-gray-400" />
             </div>
           )}
 
           <div className="flex-1 text-left">
-            <div className="flex items-center gap-3 mb-1">
-              <h3 className="text-lg font-semibold text-gray-900">{institution}</h3>
-              <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${statusConfig.bg} ${statusConfig.border} border`}>
+            <div className="flex items-center gap-3 mb-1.5">
+              <h3 className="text-lg font-bold text-gray-900">{institution}</h3>
+              <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold ${statusConfig.bg} ${statusConfig.border} border`}>
                 <StatusIcon className={`w-3.5 h-3.5 ${statusConfig.color}`} />
                 <span className={statusConfig.color}>{statusConfig.text}</span>
               </span>
@@ -489,16 +478,16 @@ const InstitutionCard = ({
             <div className="text-sm text-gray-600">
               {accounts.length} {accounts.length === 1 ? 'account' : 'accounts'}
               {totals.accountsWithInput > 0 && (
-                <span className="text-gray-400"> • {totals.accountsWithInput}/{accounts.length} reconciled</span>
+                <span className="text-gray-400"> • {totals.accountsWithInput}/{accounts.length} entered</span>
               )}
             </div>
           </div>
 
           <div className="text-right mr-4">
-            <div className="text-sm text-gray-500 mb-1">Total Balance</div>
-            <div className="text-lg font-bold text-gray-900">{fmtCurrency(totals.nesteggTotal, hideValues)}</div>
+            <div className="text-xs text-gray-500 mb-1 font-medium">NestEgg Total</div>
+            <div className="text-xl font-bold text-gray-900">{fmtCurrency(totals.nesteggTotal, hideValues)}</div>
             {totals.allInputted && Math.abs(totals.diff) >= 0.01 && (
-              <div className={`text-sm font-medium ${totals.diff > 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+              <div className={`text-sm font-semibold mt-1 ${totals.diff > 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
                 {totals.diff > 0 ? '+' : ''}{fmtCurrency(totals.diff, hideValues)}
               </div>
             )}
@@ -510,65 +499,63 @@ const InstitutionCard = ({
 
       {/* Expanded Content */}
       {expanded && (
-        <div className="px-6 pb-4 border-t border-gray-100">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50/80">
-                <tr className="text-xs uppercase text-gray-600 border-b-2 border-gray-200">
-                  <th className="text-left py-3.5 px-3 font-semibold">Account</th>
-                  <th className="text-right py-3.5 px-3 font-semibold">NestEgg Balance</th>
-                  <th className="text-center py-3.5 px-3 font-semibold">Statement Balance</th>
-                  <th className="text-right py-3.5 px-3 font-semibold">Difference</th>
-                  <th className="text-center py-3.5 px-3 font-semibold">Status</th>
-                  <th className="text-center py-3.5 px-3 font-semibold">Actions</th>
+        <div className="px-6 pb-4 border-t border-gray-200 bg-gray-50">
+          <div className="overflow-x-auto -mx-6 px-6">
+            <table className="w-full min-w-[900px]">
+              <thead>
+                <tr className="text-xs uppercase text-gray-600 border-b border-gray-300">
+                  <th className="text-left py-4 px-4 font-bold">Account</th>
+                  <th className="text-right py-4 px-4 font-bold">NestEgg Balance</th>
+                  <th className="text-center py-4 px-4 font-bold">Statement Balance</th>
+                  <th className="text-right py-4 px-4 font-bold">Difference</th>
+                  <th className="text-center py-4 px-4 font-bold">Status</th>
+                  <th className="text-center py-4 px-4 font-bold">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody>
                 {accounts.map((account, idx) => {
-                  const nesteggVal = account.currentValue || 0;
+                  const nesteggVal = account.currentValue || account.current_value || 0;
                   const statementVal = statementBalances[account.id];
-                  const diff = (statementVal != null) ? statementVal - nesteggVal : 0;
+                  const diff = (statementVal != null && statementVal !== 0) ? statementVal - nesteggVal : 0;
                   const status = getDiffStatus(diff);
                   const colors = getDiffColor(status);
                   const isReconciled = reconciledAccounts.has(account.id);
-                  const hasInput = statementVal != null;
+                  const hasInput = statementVal != null && statementVal !== 0;
 
                   return (
                     <tr
                       key={account.id}
                       className={`
-                        group transition-colors border-b border-gray-100 last:border-b-0
-                        ${isReconciled ? 'bg-emerald-50/30' : 'hover:bg-gray-50/80'}
+                        group transition-colors border-b border-gray-200 last:border-b-0
+                        ${isReconciled ? 'bg-emerald-50/50' : 'hover:bg-white'}
                       `}
                     >
-                      <td className="py-3.5 px-3">
+                      <td className="py-4 px-4">
                         <div>
-                          <div className="font-semibold text-gray-900 text-sm">{account.name}</div>
-                          <div className="text-xs text-gray-500 mt-0.5">{account.type}</div>
+                          <div className="font-bold text-gray-900 text-sm">{account.name}</div>
+                          <div className="text-xs text-gray-600 mt-0.5">{account.type}</div>
                         </div>
                       </td>
-                      <td className="py-3.5 px-3 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <span className="text-sm font-bold text-gray-900 tabular-nums">
-                            {fmtCurrency(nesteggVal, hideValues)}
-                          </span>
-                        </div>
+                      <td className="py-4 px-4 text-right">
+                        <span className="text-sm font-bold text-gray-900 tabular-nums">
+                          {fmtCurrency(nesteggVal, hideValues)}
+                        </span>
                       </td>
-                      <td className="py-3.5 px-3 text-center">
+                      <td className="py-4 px-4 text-center">
                         <div className="flex justify-center">
                           <CurrencyInput
                             id={`stmt-${account.id}`}
                             value={statementVal}
                             onChange={(val) => onStatementChange(account.id, val)}
                             autoFocus={idx === 0 && !hasInput}
-                            className={hasInput ? 'bg-blue-50 border-blue-400 ring-1 ring-blue-200' : ''}
+                            placeholder="Enter amount"
                           />
                         </div>
                       </td>
-                      <td className="py-3.5 px-3 text-right">
+                      <td className="py-4 px-4 text-right">
                         {hasInput ? (
                           <span className={`
-                            inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-sm font-bold tabular-nums
+                            inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-bold tabular-nums
                             ${colors.bg} ${colors.text} ${colors.border} border
                           `}>
                             {diff > 0 ? '+' : diff < 0 ? '−' : ''}
@@ -578,31 +565,31 @@ const InstitutionCard = ({
                           <span className="text-sm text-gray-400 font-medium">—</span>
                         )}
                       </td>
-                      <td className="py-3.5 px-3 text-center">
+                      <td className="py-4 px-4 text-center">
                         {isReconciled ? (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold bg-emerald-100 text-emerald-700 border border-emerald-200">
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-100 text-emerald-700 border border-emerald-300">
                             <CheckCircle className="w-3.5 h-3.5" />
                             Reconciled
                           </span>
                         ) : hasInput && status === 'match' ? (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold bg-emerald-100 text-emerald-700 border border-emerald-200">
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-100 text-emerald-700 border border-emerald-300">
                             <Check className="w-3.5 h-3.5" />
                             Match
                           </span>
                         ) : hasInput ? (
-                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold ${colors.bg} ${colors.text} ${colors.border} border`}>
+                          <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold ${colors.bg} ${colors.text} ${colors.border} border`}>
                             <AlertCircle className="w-3.5 h-3.5" />
                             {status === 'minor' ? 'Minor' : 'Major'}
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-gray-100 text-gray-500 border border-gray-200">
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-gray-100 text-gray-500 border border-gray-300">
                             <Clock className="w-3 h-3" />
                             Pending
                           </span>
                         )}
                       </td>
-                      <td className="py-3.5 px-3 text-center">
-                        <div className="flex items-center justify-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <td className="py-4 px-4 text-center">
+                        <div className="flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                           {hasInput && status !== 'match' && (
                             <button
                               onClick={() => onInvestigate(account)}
@@ -667,6 +654,14 @@ const QuickStatementValidationModal = ({ isOpen, onClose }) => {
 
   const loading = accountsLoading || summaryLoading || positionsLoading;
 
+  // Debug: Log accounts to verify data
+  useEffect(() => {
+    if (accounts && accounts.length > 0) {
+      console.log('Accounts loaded:', accounts.length);
+      console.log('Sample account:', accounts[0]);
+    }
+  }, [accounts]);
+
   // Group accounts by institution
   const accountsByInstitution = useMemo(() => {
     const grouped = new Map();
@@ -681,8 +676,8 @@ const QuickStatementValidationModal = ({ isOpen, onClose }) => {
 
     // Sort by total value
     const sorted = Array.from(grouped.entries()).sort((a, b) => {
-      const totalA = a[1].reduce((sum, acc) => sum + (acc.currentValue || 0), 0);
-      const totalB = b[1].reduce((sum, acc) => sum + (acc.currentValue || 0), 0);
+      const totalA = a[1].reduce((sum, acc) => sum + (acc.currentValue || acc.current_value || 0), 0);
+      const totalB = b[1].reduce((sum, acc) => sum + (acc.currentValue || acc.current_value || 0), 0);
       return totalB - totalA;
     });
 
@@ -711,14 +706,15 @@ const QuickStatementValidationModal = ({ isOpen, onClose }) => {
     accountsByInstitution.forEach(accts => {
       accts.forEach(acc => {
         totalAccounts++;
-        totalNestegg += acc.currentValue || 0;
+        const nestegg = acc.currentValue || acc.current_value || 0;
+        totalNestegg += nestegg;
 
         const stmt = statementBalances[acc.id];
-        if (stmt != null) {
+        if (stmt != null && stmt !== 0) {
           accountsWithInput++;
           totalStatement += stmt;
 
-          const diff = stmt - (acc.currentValue || 0);
+          const diff = stmt - nestegg;
           totalDiff += diff;
 
           if (Math.abs(diff) < 1) {
@@ -803,7 +799,7 @@ const QuickStatementValidationModal = ({ isOpen, onClose }) => {
 
     accountsByInstitution.forEach((accts, institution) => {
       accts.forEach(acc => {
-        const nestegg = acc.currentValue || 0;
+        const nestegg = acc.currentValue || acc.current_value || 0;
         const statement = statementBalances[acc.id] || '';
         const diff = statement ? statement - nestegg : '';
         const status = reconciledAccounts.has(acc.id) ? 'Reconciled' :
@@ -813,7 +809,7 @@ const QuickStatementValidationModal = ({ isOpen, onClose }) => {
         rows.push([
           institution,
           acc.name,
-          acc.id, // Include account ID for import matching
+          acc.id,
           acc.type,
           nestegg.toFixed(2),
           statement !== '' ? statement.toFixed(2) : '',
@@ -923,77 +919,70 @@ const QuickStatementValidationModal = ({ isOpen, onClose }) => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, investigatingAccount, handleExportCSV, onClose]);
 
-  // Auto-expand all on first open
-  useEffect(() => {
-    if (isOpen && expandedInstitutions.size === 0) {
-      handleExpandAll();
-    }
-  }, [isOpen]);
-
   if (!isOpen) return null;
 
   return (
     <>
-      <div className="fixed inset-0 z-[9999] flex items-start justify-center p-4 overflow-y-auto bg-black/50 backdrop-blur-sm">
+      <div className="fixed inset-0 z-[9999] flex items-start justify-center p-4 sm:p-6 overflow-y-auto bg-black/50 backdrop-blur-sm">
         <div className="relative w-full max-w-7xl my-8 animate-in slide-in-from-bottom-4 duration-300">
-          <div className="bg-white rounded-2xl shadow-2xl overflow-hidden border border-gray-200">
+          <div className="bg-white rounded-2xl shadow-2xl overflow-hidden border border-gray-300">
             {/* Header */}
-            <div className="sticky top-0 z-10 px-6 py-4 bg-gradient-to-r from-blue-50 to-purple-50 border-b border-gray-200">
+            <div className="sticky top-0 z-10 px-6 py-5 bg-gradient-to-r from-blue-600 to-purple-600 border-b border-blue-700">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-3">
-                  <div className="p-3 bg-white rounded-xl shadow-sm">
+                  <div className="p-3 bg-white rounded-xl shadow-md">
                     <Target className="w-6 h-6 text-blue-600" />
                   </div>
                   <div>
-                    <h2 className="text-2xl font-bold text-gray-900">Statement Validation</h2>
-                    <p className="text-sm text-gray-600">Reconcile your accounts with confidence</p>
+                    <h2 className="text-2xl font-bold text-white">Statement Validation</h2>
+                    <p className="text-sm text-blue-100">Reconcile your accounts with confidence</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
                   <button
                     onClick={() => setHideValues(!hideValues)}
-                    className="p-2 hover:bg-white rounded-lg transition-colors"
+                    className="p-2 hover:bg-white/20 rounded-lg transition-colors"
                     title={hideValues ? 'Show values' : 'Hide values'}
                   >
-                    {hideValues ? <EyeOff className="w-5 h-5 text-gray-600" /> : <Eye className="w-5 h-5 text-gray-600" />}
+                    {hideValues ? <EyeOff className="w-5 h-5 text-white" /> : <Eye className="w-5 h-5 text-white" />}
                   </button>
                   <button
                     onClick={onClose}
-                    className="p-2 hover:bg-white rounded-lg transition-colors"
+                    className="p-2 hover:bg-white/20 rounded-lg transition-colors"
                   >
-                    <X className="w-5 h-5 text-gray-600" />
+                    <X className="w-5 h-5 text-white" />
                   </button>
                 </div>
               </div>
 
               {/* Stats Bar */}
               <div className="grid grid-cols-5 gap-3">
-                <div className="bg-white rounded-lg p-3 shadow-sm border border-gray-200">
-                  <div className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-1">Total Accounts</div>
+                <div className="bg-white/95 rounded-xl p-3 shadow-md border border-white/20">
+                  <div className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Accounts</div>
                   <div className="text-2xl font-bold text-gray-900">
                     <AnimatedStat value={summaryStats.totalAccounts} />
                   </div>
                 </div>
-                <div className="bg-white rounded-lg p-3 shadow-sm border border-gray-200">
-                  <div className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-1">Reconciled</div>
+                <div className="bg-white/95 rounded-xl p-3 shadow-md border border-white/20">
+                  <div className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Reconciled</div>
                   <div className="text-2xl font-bold text-emerald-600">
                     <AnimatedStat value={summaryStats.reconciledCount} />
                   </div>
                 </div>
-                <div className="bg-white rounded-lg p-3 shadow-sm border border-gray-200">
-                  <div className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-1">Matches</div>
+                <div className="bg-white/95 rounded-xl p-3 shadow-md border border-white/20">
+                  <div className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Matches</div>
                   <div className="text-2xl font-bold text-emerald-600">
                     <AnimatedStat value={summaryStats.matchingAccounts} />
                   </div>
                 </div>
-                <div className="bg-white rounded-lg p-3 shadow-sm border border-gray-200">
-                  <div className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-1">Discrepancies</div>
+                <div className="bg-white/95 rounded-xl p-3 shadow-md border border-white/20">
+                  <div className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Discrepancies</div>
                   <div className="text-2xl font-bold text-amber-600">
                     <AnimatedStat value={summaryStats.discrepancyCount} />
                   </div>
                 </div>
-                <div className="bg-white rounded-lg p-3 shadow-sm border border-gray-200">
-                  <div className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-1">Total Diff</div>
+                <div className="bg-white/95 rounded-xl p-3 shadow-md border border-white/20">
+                  <div className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Total Diff</div>
                   <div className={`text-2xl font-bold tabular-nums ${summaryStats.totalDiff >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
                     {summaryStats.totalDiff > 0 ? '+' : ''}{fmtCurrency(summaryStats.totalDiff, hideValues).replace('$', '$')}
                   </div>
@@ -1002,7 +991,7 @@ const QuickStatementValidationModal = ({ isOpen, onClose }) => {
             </div>
 
             {/* Toolbar */}
-            <div className="px-6 py-4 bg-white border-b border-gray-200">
+            <div className="px-6 py-4 bg-white border-b border-gray-300">
               <div className="flex items-center justify-between gap-4 mb-3">
                 <div className="flex items-center gap-3 flex-1">
                   <div className="relative flex-1 max-w-md">
@@ -1013,19 +1002,19 @@ const QuickStatementValidationModal = ({ isOpen, onClose }) => {
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       placeholder="Search institutions... (⌘K)"
-                      className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                      className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
                     />
                   </div>
                   <button
                     onClick={handleExpandAll}
-                    className="px-3 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors flex items-center gap-2 whitespace-nowrap"
+                    className="px-3 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-100 rounded-lg transition-colors flex items-center gap-2 whitespace-nowrap border border-gray-300"
                   >
                     <ChevronDown className="w-4 h-4" />
                     Expand All
                   </button>
                   <button
                     onClick={handleCollapseAll}
-                    className="px-3 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors flex items-center gap-2 whitespace-nowrap"
+                    className="px-3 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-100 rounded-lg transition-colors flex items-center gap-2 whitespace-nowrap border border-gray-300"
                   >
                     <ChevronRight className="w-4 h-4" />
                     Collapse All
@@ -1044,7 +1033,7 @@ const QuickStatementValidationModal = ({ isOpen, onClose }) => {
                   <button
                     onClick={() => fileInputRef.current?.click()}
                     disabled={isImporting}
-                    className="px-4 py-2.5 text-sm font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="px-4 py-2.5 text-sm font-semibold text-emerald-700 bg-emerald-50 border border-emerald-300 hover:bg-emerald-100 rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {isImporting ? (
                       <>
@@ -1060,14 +1049,14 @@ const QuickStatementValidationModal = ({ isOpen, onClose }) => {
                   </button>
                   <button
                     onClick={handleExportCSV}
-                    className="px-4 py-2.5 text-sm font-semibold text-blue-700 bg-blue-50 border border-blue-200 hover:bg-blue-100 rounded-lg transition-colors flex items-center gap-2"
+                    className="px-4 py-2.5 text-sm font-semibold text-blue-700 bg-blue-50 border border-blue-300 hover:bg-blue-100 rounded-lg transition-colors flex items-center gap-2"
                   >
                     <Download className="w-4 h-4" />
                     Export (⌘E)
                   </button>
                   <button
                     onClick={refreshAccounts}
-                    className="px-4 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 rounded-lg transition-colors flex items-center gap-2"
+                    className="px-4 py-2.5 text-sm font-semibold text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 rounded-lg transition-colors flex items-center gap-2"
                     disabled={loading}
                   >
                     <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
@@ -1077,10 +1066,10 @@ const QuickStatementValidationModal = ({ isOpen, onClose }) => {
               </div>
 
               {/* Workflow instructions */}
-              <div className="flex items-start gap-2 p-3 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border border-blue-100">
+              <div className="flex items-start gap-2 p-3 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border border-blue-200">
                 <Info className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
                 <div className="flex-1">
-                  <p className="text-xs font-medium text-blue-900 mb-1">Quick Workflow</p>
+                  <p className="text-xs font-bold text-blue-900 mb-1">Quick Workflow</p>
                   <p className="text-xs text-blue-700">
                     Export → Fill in Excel → Import back to populate all statement balances instantly
                   </p>
@@ -1089,7 +1078,7 @@ const QuickStatementValidationModal = ({ isOpen, onClose }) => {
             </div>
 
             {/* Content */}
-            <div className="p-6 bg-gray-50 min-h-[500px] max-h-[calc(100vh-400px)] overflow-y-auto">
+            <div className="p-6 bg-gradient-to-br from-gray-50 to-gray-100 min-h-[500px] max-h-[calc(100vh-400px)] overflow-y-auto">
               {loading ? (
                 <div className="flex items-center justify-center py-12">
                   <div className="text-center">
@@ -1132,16 +1121,16 @@ const QuickStatementValidationModal = ({ isOpen, onClose }) => {
 
               {/* Help Text */}
               {!loading && filteredInstitutions.length > 0 && (
-                <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-xl">
+                <div className="mt-6 p-4 bg-white rounded-xl border border-blue-200 shadow-sm">
                   <div className="flex items-start gap-3">
                     <Info className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
                     <div className="flex-1">
-                      <h4 className="text-sm font-semibold text-blue-900 mb-1">Pro Tips</h4>
+                      <h4 className="text-sm font-bold text-blue-900 mb-1">Pro Tips</h4>
                       <ul className="text-xs text-blue-800 space-y-1">
-                        <li>• Enter your statement balance for each account to see differences</li>
-                        <li>• Click the search icon to investigate discrepancies</li>
-                        <li>• Mark accounts as reconciled to track your progress</li>
-                        <li>• Export your reconciliation report with ⌘E</li>
+                        <li>• Click an institution card to expand and enter statement balances</li>
+                        <li>• Green = Perfect match, Yellow = Small difference, Red = Large difference</li>
+                        <li>• Click the search icon to investigate why balances don't match</li>
+                        <li>• Use Export → Import workflow to fill in all balances quickly</li>
                       </ul>
                     </div>
                   </div>
@@ -1150,13 +1139,13 @@ const QuickStatementValidationModal = ({ isOpen, onClose }) => {
             </div>
 
             {/* Footer */}
-            <div className="px-6 py-4 bg-white border-t border-gray-200">
+            <div className="px-6 py-4 bg-white border-t border-gray-300">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4 text-sm text-gray-600">
                   <span>
-                    Progress: <span className="font-semibold text-gray-900">{summaryStats.completionRate.toFixed(0)}%</span>
+                    Progress: <span className="font-bold text-gray-900">{summaryStats.completionRate.toFixed(0)}%</span>
                   </span>
-                  <div className="w-48 h-2 bg-gray-200 rounded-full overflow-hidden">
+                  <div className="w-48 h-2.5 bg-gray-200 rounded-full overflow-hidden border border-gray-300">
                     <div
                       className="h-full bg-gradient-to-r from-blue-500 to-emerald-500 transition-all duration-500"
                       style={{ width: `${summaryStats.completionRate}%` }}
@@ -1165,7 +1154,7 @@ const QuickStatementValidationModal = ({ isOpen, onClose }) => {
                 </div>
                 <button
                   onClick={onClose}
-                  className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white font-semibold rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all duration-200 shadow-md hover:shadow-lg flex items-center gap-2"
+                  className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white font-bold rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all duration-200 shadow-md hover:shadow-lg flex items-center gap-2"
                 >
                   <CheckCircle className="w-5 h-5" />
                   Done
@@ -1180,7 +1169,7 @@ const QuickStatementValidationModal = ({ isOpen, onClose }) => {
       {investigatingAccount && (
         <InvestigationModal
           account={investigatingAccount}
-          nesteggBalance={investigatingAccount.currentValue || 0}
+          nesteggBalance={investigatingAccount.currentValue || investigatingAccount.current_value || 0}
           statementBalance={statementBalances[investigatingAccount.id] || 0}
           positions={investigatingAccount.positions || []}
           onClose={() => setInvestigatingAccount(null)}
