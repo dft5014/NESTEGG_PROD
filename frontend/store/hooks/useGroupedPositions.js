@@ -14,13 +14,14 @@ export const useGroupedPositions = () => {
   //   }
   // }, []);
 
-  // Auto-refresh when stale
+  // Fallback: Retry if data is stale or in error state
+  // (DataStore handles initial fetch in Phase 1, this is recovery only)
   useEffect(() => {
-    if (groupedPositions.isStale && !groupedPositions.loading) {
-      console.log('[useGroupedPositions] Refreshing stale grouped positions');
+    if ((groupedPositions.isStale || groupedPositions.error) && !groupedPositions.loading) {
+      console.log('[useGroupedPositions] Refetching due to stale/error state');
       actions.fetchGroupedPositionsData();
     }
-  }, [groupedPositions.isStale, groupedPositions.loading]);
+  }, [groupedPositions.isStale, groupedPositions.error, groupedPositions.loading, actions]);
 
   // Process positions data
   const positions = useMemo(() => {

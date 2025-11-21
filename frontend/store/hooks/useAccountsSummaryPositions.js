@@ -10,13 +10,14 @@ export const useAccountsSummaryPositions = (accountId = null, assetType = null) 
   const { accountsSummaryPositions } = state;
   const { fetchAccountsSummaryPositionsData, markAccountsSummaryPositionsStale } = actions;
 
-  // Auto-fetch when filters change or when stale
+  // Fallback: Retry if data is stale or in error state
+  // (DataStore handles initial fetch in Phase 1, this is recovery only)
   useEffect(() => {
-    if (accountsSummaryPositions.isStale && !accountsSummaryPositions.loading) {
-      console.log('[useAccountsSummaryPositions] Refreshing stale accounts summary positions');
+    if ((accountsSummaryPositions.isStale || accountsSummaryPositions.error) && !accountsSummaryPositions.loading) {
+      console.log('[useAccountsSummaryPositions] Refetching due to stale/error state');
       fetchAccountsSummaryPositionsData(accountId, assetType);
     }
-  }, [accountsSummaryPositions.isStale, accountsSummaryPositions.loading, accountId, assetType, fetchAccountsSummaryPositionsData]);
+  }, [accountsSummaryPositions.isStale, accountsSummaryPositions.error, accountsSummaryPositions.loading, accountId, assetType, fetchAccountsSummaryPositionsData]);
 
   // DISABLED - DataStore handles initial fetch in Phase 1
   // useEffect(() => {

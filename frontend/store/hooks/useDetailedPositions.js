@@ -5,13 +5,14 @@ export const useDetailedPositions = () => {
   const { state, actions } = useDataStore();
   const { detailedPositions } = state;
 
-  // DISABLED - DataStore handles initial fetch in Phase 3
-  // useEffect(() => {
-  //   if ((!detailedPositions.data || detailedPositions.data.length === 0) && !detailedPositions.lastFetched && !detailedPositions.loading) {
-  //     console.log('[useDetailedPositions] Auto-fetching detailed positions data');
-  //     actions.fetchDetailedPositionsData();
-  //   }
-  // }, []);
+  // Fallback: Retry if data is stale or in error state
+  // (DataStore handles initial fetch in Phase 3, this is recovery only)
+  useEffect(() => {
+    if ((detailedPositions.isStale || detailedPositions.error) && !detailedPositions.loading) {
+      console.log('[useDetailedPositions] Refetching due to stale/error state');
+      actions.fetchDetailedPositionsData();
+    }
+  }, [detailedPositions.isStale, detailedPositions.error, detailedPositions.loading, actions]);
 
   // Process positions data
     const processedPositions = useMemo(() => {
