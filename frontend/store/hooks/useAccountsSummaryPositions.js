@@ -10,21 +10,14 @@ export const useAccountsSummaryPositions = (accountId = null, assetType = null) 
   const { accountsSummaryPositions } = state;
   const { fetchAccountsSummaryPositionsData, markAccountsSummaryPositionsStale } = actions;
 
-  // Auto-fetch when filters change or when stale
+  // Fallback: Retry if data is stale or in error state
+  // (DataStore handles initial fetch in Phase 2, this is recovery only)
   useEffect(() => {
-    if (accountsSummaryPositions.isStale && !accountsSummaryPositions.loading) {
-      console.log('[useAccountsSummaryPositions] Refreshing stale accounts summary positions');
+    if ((accountsSummaryPositions.isStale || accountsSummaryPositions.error) && !accountsSummaryPositions.loading) {
+      console.log('[useAccountsSummaryPositions] Refetching due to stale/error state');
       fetchAccountsSummaryPositionsData(accountId, assetType);
     }
-  }, [accountsSummaryPositions.isStale, accountsSummaryPositions.loading, accountId, assetType, fetchAccountsSummaryPositionsData]);
-
-  // Auto-fetch ALL data on mount (like other hooks)
-  useEffect(() => {
-    if (!accountsSummaryPositions.loading && !accountsSummaryPositions.lastFetched) {
-      console.log('[useAccountsSummaryPositions] Initial fetch for all accounts summary positions');
-      fetchAccountsSummaryPositionsData(null, null); // Fetch all data
-    }
-  }, []); // Run once on mount
+  }, [accountsSummaryPositions.isStale, accountsSummaryPositions.error, accountsSummaryPositions.loading, accountId, assetType, fetchAccountsSummaryPositionsData]);
 
   // Process positions data with proper field mapping to camelCase
   const positions = useMemo(() => {
@@ -340,6 +333,7 @@ export const useAccountsSummaryPositions = (accountId = null, assetType = null) 
     error: accountsSummaryPositions.error,
     lastFetched: accountsSummaryPositions.lastFetched,
     isStale: accountsSummaryPositions.isStale,
+    fetchDuration: accountsSummaryPositions.fetchDuration, // Time in ms for last fetch
     refresh: (accId = null, assetType = null) => fetchAccountsSummaryPositionsData(accId || accountId, assetType, true),
     markStale: () => markAccountsSummaryPositionsStale()
   };

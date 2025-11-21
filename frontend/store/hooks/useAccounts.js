@@ -5,16 +5,14 @@ export const useAccounts = () => {
   const { state, actions } = useDataStore();
   const { accounts } = state;
 
-  // Auto-fetch once on first mount if we truly have nothing (StrictMode safe)
+  // Fallback: Retry if data is stale or in error state
+  // (DataStore handles initial fetch in Phase 1, this is recovery only)
   useEffect(() => {
-    if (!accounts?.lastFetched && !accounts?.loading) {
-      console.log('[useAccounts] Auto-fetching accounts data (first mount)');
+    if ((accounts?.isStale || accounts?.error) && !accounts?.loading) {
+      console.log('[useAccounts] Refetching due to stale/error state');
       actions.fetchAccountsData();
     }
-    // Simplified: only check lastFetched to ensure one-time fetch
-    // Omit actions from deps to prevent re-render loops
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [accounts?.lastFetched, accounts?.loading]);
+  }, [accounts?.isStale, accounts?.error, accounts?.loading, actions]);
 
   // Process accounts data
   const processedAccounts = useMemo(() => {

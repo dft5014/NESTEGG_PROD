@@ -6,6 +6,7 @@ import { useAccounts } from '@/store/hooks/useAccounts';
 import { useGroupedPositions } from '@/store/hooks/useGroupedPositions';
 import { useDetailedPositions } from '@/store/hooks/useDetailedPositions';
 import { usePortfolioTrends } from '@/store/hooks/usePortfolioTrends';
+import { useAccountTrends } from '@/store/hooks/useAccountTrends';
 import { useAccountsSummaryPositions } from '@/store/hooks/useAccountsSummaryPositions';
 // Utils
 import { popularBrokerages } from '@/utils/constants';
@@ -71,17 +72,158 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
         const [positionSort, setPositionSort] = useState({ field: 'value', direction: 'desc' });
         const [performanceRange, setPerformanceRange] = useState('1M'); // 1D, 1W, 1M, 3M, YTD, 1Y, ALL
         const [expandedPositions, setExpandedPositions] = useState(new Set());
-        
+
+        // TEST: State for test table sorting and expansion
+        const [testPositionSort, setTestPositionSort] = useState({ field: 'value', direction: 'desc' });
+        const [expandedTestPositions, setExpandedTestPositions] = useState(new Set());
+
         // Get position data from DataStore hooks
         const { positions: groupedPositions } = useGroupedPositions();
         const { positions: detailedPositions } = useDetailedPositions();
 
-        // Filter positions for this account
+        // NEW: Get positions from useAccountsSummaryPositions for testing
+        const { positions: summaryPositions, loading: summaryLoading } = useAccountsSummaryPositions();
+
+        // DEBUG: Log when modal opens and data state
+        useEffect(() => {
+            if (isOpen && account) {
+                console.log('[AccountDetailModal] Modal opened for account:', account.id, account.name);
+                console.log('[AccountDetailModal] summaryPositions count:', summaryPositions?.length || 0);
+                console.log('[AccountDetailModal] summaryLoading:', summaryLoading);
+                if (summaryPositions?.length > 0) {
+                    console.log('[AccountDetailModal] First position accountId:', summaryPositions[0]?.accountId);
+                    console.log('[AccountDetailModal] Account IDs in data:', [...new Set(summaryPositions.map(p => p.accountId))]);
+                }
+            }
+        }, [isOpen, account, summaryPositions, summaryLoading]);
+
+        // NEW: Filter positions from useAccountsSummaryPositions for this account
+        const testPositions = useMemo(() => {
+            if (!account || !summaryPositions || summaryPositions.length === 0) {
+                console.log('[AccountDetailModal] testPositions: returning empty - account:', !!account, 'summaryPositions:', summaryPositions?.length || 0);
+                return [];
+            }
+
+            const filtered = summaryPositions
+                .filter(pos => pos.accountId === account.id)
+                .map(pos => {
+                    const costPerShare = pos.weightedAvgCost || (pos.totalCostBasis / pos.totalQuantity) || 0;
+                    const gainLossPerShare = (pos.latestPricePerUnit || 0) - costPerShare;
+
+                    return {
+                        symbol: pos.identifier,
+                        name: pos.name,
+                        asset_type: pos.assetType,
+                        sector: pos.sector,
+                        quantity: pos.totalQuantity || 0,
+                        currentPrice: pos.latestPricePerUnit || 0,
+                        currentValue: pos.totalCurrentValue || 0,
+                        costPerShare: costPerShare,
+                        costBasis: pos.totalCostBasis || 0,
+                        gainLossPerShare: gainLossPerShare,
+                        gainLoss: pos.totalGainLossAmt || 0,
+                        gainLossPercent: pos.totalGainLossPct || 0,
+                        annualIncome: pos.totalAnnualIncome || 0,
+                        dividendYield: pos.dividendYield || 0,
+                        priceChange1d: pos.value1dChangePct || null
+                    };
+                });
+
+            console.log('[AccountDetailModal] testPositions filtered:', filtered.length, 'for account.id:', account.id);
+            return filtered;
+        }, [account, summaryPositions]);
+
+        // TEST: Get tax lots for expanded test positions
+        const getTestPositionTaxLots = (symbol) => {
+            if (!detailedPositions) return [];
+            return detailedPositions.filter(p =>
+                p.identifier === symbol && p.accountId === account?.id
+            ).sort((a, b) => new Date(a.purchaseDate) - new Date(b.purchaseDate));
+        };
+
+        // TEST: Toggle tax lot expansion for test table
+        const toggleTestTaxLots = (symbol) => {
+            setExpandedTestPositions(prev => {
+                const newSet = new Set(prev);
+                if (newSet.has(symbol)) {
+                    newSet.delete(symbol);
+                } else {
+                    newSet.add(symbol);
+                }
+                return newSet;
+            });
+        };
+
+        // TEST: Sort test positions
+        const sortedTestPositions = useMemo(() => {
+            if (!testPositions) return [];
+
+            const sorted = [...testPositions].sort((a, b) => {
+                let aVal, bVal;
+
+                switch(testPositionSort.field) {
+                    case 'symbol':
+                        aVal = a.symbol || '';
+                        bVal = b.symbol || '';
+                        break;
+                    case 'quantity':
+                        aVal = a.quantity || 0;
+                        bVal = b.quantity || 0;
+                        break;
+                    case 'price':
+                        aVal = a.currentPrice || 0;
+                        bVal = b.currentPrice || 0;
+                        break;
+                    case 'value':
+                        aVal = a.currentValue || 0;
+                        bVal = b.currentValue || 0;
+                        break;
+                    case 'costPerShare':
+                        aVal = a.costPerShare || 0;
+                        bVal = b.costPerShare || 0;
+                        break;
+                    case 'costBasis':
+                        aVal = a.costBasis || 0;
+                        bVal = b.costBasis || 0;
+                        break;
+                    case 'gainLossPerShare':
+                        aVal = a.gainLossPerShare || 0;
+                        bVal = b.gainLossPerShare || 0;
+                        break;
+                    case 'gain':
+                        aVal = a.gainLoss || 0;
+                        bVal = b.gainLoss || 0;
+                        break;
+                    case 'gainPct':
+                        aVal = a.gainLossPercent || 0;
+                        bVal = b.gainLossPercent || 0;
+                        break;
+                    case 'allocation':
+                        aVal = (a.currentValue / account.totalValue) * 100;
+                        bVal = (b.currentValue / account.totalValue) * 100;
+                        break;
+                    default:
+                        return 0;
+                }
+
+                if (typeof aVal === 'string') {
+                    return testPositionSort.direction === 'desc'
+                        ? bVal.localeCompare(aVal)
+                        : aVal.localeCompare(bVal);
+                } else {
+                    return testPositionSort.direction === 'desc' ? bVal - aVal : aVal - bVal;
+                }
+            });
+
+            return sorted;
+        }, [testPositions, testPositionSort, account]);
+
+        // Filter positions for this account (ORIGINAL)
         const accountPositions = useMemo(() => {
             if (!account || !groupedPositions) return [];
-            
+
             // Get positions that have this account in their account_details
-            return groupedPositions.filter(pos => 
+            return groupedPositions.filter(pos =>
                 pos.account_details?.some(detail => detail.account_id === account.id)
             ).map(pos => {
                 // Find the specific account detail for this account
@@ -130,7 +272,7 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
             
             const sorted = [...accountPositions].sort((a, b) => {
                 let comparison = 0;
-                switch (positionSort.field) {
+                switch (testPositionSort.field) {
                     case 'symbol':
                         comparison = (a.symbol || '').localeCompare(b.symbol || '');
                         break;
@@ -159,20 +301,20 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                         comparison = (a.currentValue || 0) - (b.currentValue || 0);
                 }
                 
-                return positionSort.direction === 'asc' ? comparison : -comparison;
+                return testPositionSort.direction === 'asc' ? comparison : -comparison;
             });
             
             return sorted;
         }, [accountPositions, account?.totalValue, positionSort]);
 
-        // Get trend data
-        const { trends } = usePortfolioTrends();
+        // Get account-specific trend data
+        const { trends: accountTrends, metrics: trendMetrics, loading: trendsLoading } = useAccountTrends(account?.id);
 
         const chartData = useMemo(() => {
             if (!account) return [];
-            
-            // Try to use real trend data if available
-            if (trends && trends.length > 0) {
+
+            // Use real account trend data if available
+            if (accountTrends && accountTrends.length > 0) {
                 const periods = {
                     '1D': 1,
                     '1W': 7,
@@ -182,19 +324,21 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                     '1Y': 365,
                     'ALL': 9999
                 };
-                
+
                 const daysToShow = periods[performanceRange] || 30;
                 const cutoffDate = new Date(Date.now() - (daysToShow * 24 * 60 * 60 * 1000));
-                
-                // Filter trends to date range
-                const filteredTrends = trends
+
+                // Filter trends to date range and format for chart
+                const filteredTrends = accountTrends
                     .filter(t => new Date(t.date) >= cutoffDate)
                     .map(t => ({
                         date: t.date,
-                        value: account.totalValue || t.total_value,
-                        percentChange: ((account.totalValue - account.totalCostBasis) / account.totalCostBasis) * 100
+                        value: t.value,
+                        costBasis: t.costBasis,
+                        gainLoss: t.gainLoss,
+                        gainLossPercent: t.gainLossPercent
                     }));
-                
+
                 if (filteredTrends.length > 0) return filteredTrends;
             }
             
@@ -234,9 +378,9 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
             // Ensure last point matches current value
             data[data.length - 1].value = account.totalValue;
             data[data.length - 1].percentChange = account.totalGainLossPercent || 0;
-            
+
             return data;
-        }, [account, performanceRange]);
+        }, [account, performanceRange, accountTrends]);
         
         // Early returns after ALL hooks
         if (!isOpen || !account) return null;
@@ -309,10 +453,9 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
             return <Briefcase className="w-5 h-5 text-blue-400" />;
         };
 
-        // Chart colors
-        const chartColor = chartData.length > 0 && chartData[chartData.length - 1].percentChange >= 0 
-            ? '#10b981' // green
-            : '#ef4444'; // red
+        // Chart color - use neutral blue instead of conditional red/green
+        // Red/green line can be misleading when just looking at trend shape
+        const chartColor = '#3b82f6'; // blue-500
 
         return (
             <div className="fixed inset-0 z-50 overflow-hidden">
@@ -376,7 +519,7 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                                     <div className="text-xs text-gray-400">Total Value</div>
                                     <div className="text-xl font-semibold">{formatCurrency(account.totalValue)}</div>
                                     <div className="text-xs text-gray-500 mt-1">
-                                        {formatPercentage((account.totalValue / (account.portfolioValue || 1)) * 100)} of portfolio
+                                        {formatPercentage(account.totalValue / (account.portfolioValue || 1))} of portfolio
                                     </div>
                                 </div>
                                 <div className="bg-gray-800/50 p-4 rounded">
@@ -408,6 +551,25 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                                 </div>
                             </div>
 
+                            {/* Performance Metrics Grid - Moved above chart */}
+                            <div className="grid grid-cols-6 gap-2 mb-6">
+                                {performanceMetrics.map((metric) => (
+                                    <div key={metric.key} className="bg-gray-800/50 p-3 rounded text-center">
+                                        <div className="text-xs text-gray-400 mb-1">{metric.label}</div>
+                                        <div className={`text-sm font-semibold ${
+                                            metric.value >= 0 ? 'text-green-400' : 'text-red-400'
+                                        }`}>
+                                            {metric.value >= 0 ? '+' : ''}{metric.value.toFixed(2)}%
+                                        </div>
+                                        <div className={`text-xs mt-1 ${
+                                            metric.change >= 0 ? 'text-green-400' : 'text-red-400'
+                                        }`}>
+                                            {metric.change >= 0 ? '+' : ''}{formatCurrency(metric.change, { compact: true })}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+
                             {/* Performance Chart Section */}
                             <div className="bg-gray-800/30 rounded p-4 mb-6">
                                 <div className="flex items-center justify-between mb-4">
@@ -428,72 +590,66 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                                         ))}
                                     </div>
                                 </div>
-                                
-                                {/* Chart */}
+
+                                {/* Chart with loading state */}
                                 <div className="h-64">
-                                    <ResponsiveContainer width="100%" height="100%">
-                                        <LineChart data={chartData} margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
-                                            <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                                            <XAxis 
-                                                dataKey="date" 
-                                                stroke="#6B7280"
-                                                tick={{ fontSize: 10 }}
-                                                tickFormatter={(date) => {
-                                                    const d = new Date(date);
-                                                    return performanceRange === '1D' 
-                                                        ? d.toLocaleTimeString('en-US', { hour: '2-digit' })
-                                                        : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                                                }}
-                                            />
-                                            <YAxis 
-                                                stroke="#6B7280"
-                                                tick={{ fontSize: 10 }}
-                                                tickFormatter={(value) => formatCurrency(value, { compact: true })}
-                                            />
-                                            <Tooltip
-                                                contentStyle={{ backgroundColor: '#1F2937', border: 'none', borderRadius: '0.375rem' }}
-                                                labelStyle={{ color: '#9CA3AF' }}
-                                                formatter={(value, name) => [formatCurrency(value), 'Value']}
-                                                labelFormatter={(label) => `Date: ${label}`}
-                                            />
-                                            <Line 
-                                                type="monotone" 
-                                                dataKey="value" 
-                                                stroke={chartColor}
-                                                strokeWidth={2}
-                                                dot={false}
-                                                activeDot={{ r: 4 }}
-                                            />
-                                        </LineChart>
-                                    </ResponsiveContainer>
+                                    {trendsLoading ? (
+                                        <div className="h-full flex items-center justify-center">
+                                            <Loader className="w-8 h-8 animate-spin text-blue-400" />
+                                        </div>
+                                    ) : (
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <LineChart data={chartData} margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
+                                                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                                                <XAxis
+                                                    dataKey="date"
+                                                    stroke="#6B7280"
+                                                    tick={{ fontSize: 10 }}
+                                                    tickFormatter={(date) => {
+                                                        const d = new Date(date);
+                                                        return performanceRange === '1D'
+                                                            ? d.toLocaleTimeString('en-US', { hour: '2-digit' })
+                                                            : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                                                    }}
+                                                />
+                                                <YAxis
+                                                    stroke="#6B7280"
+                                                    tick={{ fontSize: 10 }}
+                                                    tickFormatter={(value) => formatCurrency(value, { compact: true })}
+                                                />
+                                                <Tooltip
+                                                    contentStyle={{ backgroundColor: '#1F2937', border: 'none', borderRadius: '0.375rem' }}
+                                                    labelStyle={{ color: '#9CA3AF' }}
+                                                    formatter={(value, name) => [formatCurrency(value), 'Value']}
+                                                    labelFormatter={(label) => `Date: ${label}`}
+                                                />
+                                                <Line
+                                                    type="monotone"
+                                                    dataKey="value"
+                                                    stroke={chartColor}
+                                                    strokeWidth={2}
+                                                    dot={false}
+                                                    activeDot={{ r: 4 }}
+                                                />
+                                            </LineChart>
+                                        </ResponsiveContainer>
+                                    )}
                                 </div>
                             </div>
 
-                            {/* Performance Metrics Grid */}
-                            <div className="grid grid-cols-6 gap-2 mb-6">
-                                {performanceMetrics.map((metric) => (
-                                    <div key={metric.key} className="bg-gray-800/50 p-3 rounded text-center">
-                                        <div className="text-xs text-gray-400 mb-1">{metric.label}</div>
-                                        <div className={`text-sm font-semibold ${
-                                            metric.value >= 0 ? 'text-green-400' : 'text-red-400'
-                                        }`}>
-                                            {metric.value >= 0 ? '+' : ''}{metric.value.toFixed(2)}%
-                                        </div>
-                                        <div className={`text-xs mt-1 ${
-                                            metric.change >= 0 ? 'text-green-400' : 'text-red-400'
-                                        }`}>
-                                            {metric.change >= 0 ? '+' : ''}{formatCurrency(metric.change, { compact: true })}
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-
                             {/* Positions Table */}
-                            {accountPositions.length > 0 && (
+                            {summaryLoading ? (
+                                <div className="bg-gray-800/30 rounded p-12 mb-6">
+                                    <div className="flex flex-col items-center justify-center space-y-4">
+                                        <Loader className="w-12 h-12 animate-spin text-blue-400" />
+                                        <p className="text-gray-400 text-sm">Loading position details...</p>
+                                    </div>
+                                </div>
+                            ) : testPositions.length > 0 && (
                                 <div className="bg-gray-800/30 rounded">
                                     <div className="px-4 py-3 border-b border-gray-700">
                                         <h4 className="text-sm font-semibold text-gray-300">
-                                            Position Details ({accountPositions.length} holdings)
+                                            Position Details ({testPositions.length} holdings)
                                         </h4>
                                     </div>
                                     <div className="overflow-x-auto">
@@ -503,100 +659,141 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                                                     <th className="px-2 py-2 text-center text-xs font-medium text-gray-400 w-8">#</th>
                                                     <th className="px-3 py-2 text-left text-xs font-medium text-gray-400">
                                                         <button
-                                                            onClick={() => setPositionSort({
+                                                            onClick={() => setTestPositionSort({
                                                                 field: 'symbol',
-                                                                direction: positionSort.field === 'symbol' && positionSort.direction === 'desc' ? 'asc' : 'desc'
+                                                                direction: testPositionSort.field === 'symbol' && testPositionSort.direction === 'desc' ? 'asc' : 'desc'
                                                             })}
                                                             className="flex items-center space-x-1 hover:text-white"
                                                         >
                                                             <span>Symbol</span>
-                                                            {positionSort.field === 'symbol' && (
-                                                                positionSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
+                                                            {testPositionSort.field === 'symbol' && (
+                                                                testPositionSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
                                                             )}
                                                         </button>
                                                     </th>
                                                     <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">
                                                         <button
-                                                            onClick={() => setPositionSort({
+                                                            onClick={() => setTestPositionSort({
                                                                 field: 'quantity',
-                                                                direction: positionSort.field === 'quantity' && positionSort.direction === 'desc' ? 'asc' : 'desc'
+                                                                direction: testPositionSort.field === 'quantity' && testPositionSort.direction === 'desc' ? 'asc' : 'desc'
                                                             })}
                                                             className="flex items-center space-x-1 hover:text-white ml-auto"
                                                         >
                                                             <span>Shares</span>
-                                                            {positionSort.field === 'quantity' && (
-                                                                positionSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
+                                                            {testPositionSort.field === 'quantity' && (
+                                                                testPositionSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
                                                             )}
                                                         </button>
                                                     </th>
                                                     <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">
                                                         <button
-                                                            onClick={() => setPositionSort({
+                                                            onClick={() => setTestPositionSort({
                                                                 field: 'price',
-                                                                direction: positionSort.field === 'price' && positionSort.direction === 'desc' ? 'asc' : 'desc'
+                                                                direction: testPositionSort.field === 'price' && testPositionSort.direction === 'desc' ? 'asc' : 'desc'
                                                             })}
                                                             className="flex items-center space-x-1 hover:text-white ml-auto"
                                                         >
-                                                            <span>Price</span>
-                                                            {positionSort.field === 'price' && (
-                                                                positionSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
+                                                            <span>Current Price</span>
+                                                            {testPositionSort.field === 'price' && (
+                                                                testPositionSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
                                                             )}
                                                         </button>
                                                     </th>
                                                     <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">
                                                         <button
-                                                            onClick={() => setPositionSort({
+                                                            onClick={() => setTestPositionSort({
                                                                 field: 'value',
-                                                                direction: positionSort.field === 'value' && positionSort.direction === 'desc' ? 'asc' : 'desc'
+                                                                direction: testPositionSort.field === 'value' && testPositionSort.direction === 'desc' ? 'asc' : 'desc'
                                                             })}
                                                             className="flex items-center space-x-1 hover:text-white ml-auto"
                                                         >
-                                                            <span>Value</span>
-                                                            {positionSort.field === 'value' && (
-                                                                positionSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
+                                                            <span>Market Value</span>
+                                                            {testPositionSort.field === 'value' && (
+                                                                testPositionSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
                                                             )}
                                                         </button>
                                                     </th>
-                                                    <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">Cost/Share</th>
                                                     <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">
                                                         <button
-                                                            onClick={() => setPositionSort({
+                                                            onClick={() => setTestPositionSort({
+                                                                field: 'costPerShare',
+                                                                direction: testPositionSort.field === 'costPerShare' && testPositionSort.direction === 'desc' ? 'asc' : 'desc'
+                                                            })}
+                                                            className="flex items-center space-x-1 hover:text-white ml-auto"
+                                                        >
+                                                            <span>Cost per Share</span>
+                                                            {testPositionSort.field === 'costPerShare' && (
+                                                                testPositionSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
+                                                            )}
+                                                        </button>
+                                                    </th>
+                                                    <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">
+                                                        <button
+                                                            onClick={() => setTestPositionSort({
+                                                                field: 'costBasis',
+                                                                direction: testPositionSort.field === 'costBasis' && testPositionSort.direction === 'desc' ? 'asc' : 'desc'
+                                                            })}
+                                                            className="flex items-center space-x-1 hover:text-white ml-auto"
+                                                        >
+                                                            <span>Total Cost</span>
+                                                            {testPositionSort.field === 'costBasis' && (
+                                                                testPositionSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
+                                                            )}
+                                                        </button>
+                                                    </th>
+                                                    <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">
+                                                        <button
+                                                            onClick={() => setTestPositionSort({
+                                                                field: 'gainLossPerShare',
+                                                                direction: testPositionSort.field === 'gainLossPerShare' && testPositionSort.direction === 'desc' ? 'asc' : 'desc'
+                                                            })}
+                                                            className="flex items-center space-x-1 hover:text-white ml-auto"
+                                                        >
+                                                            <span>Gain (Loss) Per Share</span>
+                                                            {testPositionSort.field === 'gainLossPerShare' && (
+                                                                testPositionSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
+                                                            )}
+                                                        </button>
+                                                    </th>
+                                                    <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">
+                                                        <button
+                                                            onClick={() => setTestPositionSort({
                                                                 field: 'gain',
-                                                                direction: positionSort.field === 'gain' && positionSort.direction === 'desc' ? 'asc' : 'desc'
+                                                                direction: testPositionSort.field === 'gain' && testPositionSort.direction === 'desc' ? 'asc' : 'desc'
                                                             })}
                                                             className="flex items-center space-x-1 hover:text-white ml-auto"
                                                         >
-                                                            <span>Gain/Loss</span>
-                                                            {positionSort.field === 'gain' && (
-                                                                positionSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
+                                                            <span>Total Gain / (Loss)</span>
+                                                            {testPositionSort.field === 'gain' && (
+                                                                testPositionSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
                                                             )}
                                                         </button>
                                                     </th>
                                                     <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">
                                                         <button
-                                                            onClick={() => setPositionSort({
+                                                            onClick={() => setTestPositionSort({
                                                                 field: 'gainPct',
-                                                                direction: positionSort.field === 'gainPct' && positionSort.direction === 'desc' ? 'asc' : 'desc'
+                                                                direction: testPositionSort.field === 'gainPct' && testPositionSort.direction === 'desc' ? 'asc' : 'desc'
                                                             })}
                                                             className="flex items-center space-x-1 hover:text-white ml-auto"
                                                         >
                                                             <span>%</span>
-                                                            {positionSort.field === 'gainPct' && (
-                                                                positionSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
+                                                            {testPositionSort.field === 'gainPct' && (
+                                                                testPositionSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
                                                             )}
                                                         </button>
                                                     </th>
                                                     <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">
                                                         <button
-                                                            onClick={() => setPositionSort({
+                                                            onClick={() => setTestPositionSort({
                                                                 field: 'allocation',
-                                                                direction: positionSort.field === 'allocation' && positionSort.direction === 'desc' ? 'asc' : 'desc'
+                                                                direction: testPositionSort.field === 'allocation' && testPositionSort.direction === 'desc' ? 'asc' : 'desc'
                                                             })}
                                                             className="flex items-center space-x-1 hover:text-white ml-auto"
                                                         >
                                                             <span>Allocation</span>
-                                                            {positionSort.field === 'allocation' && (
-                                                                positionSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
+                                                            {testPositionSort.field === 'allocation' && (
+                                                                testPositionSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
                                                             )}
                                                         </button>
                                                     </th>
@@ -613,37 +810,39 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                                                     <td className="px-3 py-2 text-xs text-right">-</td>
                                                     <td className="px-3 py-2 text-xs text-right">-</td>
                                                     <td className="px-3 py-2 text-xs text-right font-bold text-white">
-                                                        {formatCurrency(accountPositions.reduce((sum, p) => sum + p.currentValue, 0))}
+                                                        {formatCurrency(sortedTestPositions.reduce((sum, p) => sum + p.currentValue, 0))}
                                                     </td>
+                                                    <td className="px-3 py-2 text-xs text-right text-gray-400">-</td>
                                                     <td className="px-3 py-2 text-xs text-right text-gray-400">
-                                                        {formatCurrency(accountPositions.reduce((sum, p) => sum + p.costBasis, 0))}
+                                                        {formatCurrency(sortedTestPositions.reduce((sum, p) => sum + p.costBasis, 0))}
                                                     </td>
+                                                    <td className="px-3 py-2 text-xs text-right text-gray-400">-</td>
                                                     <td className="px-3 py-2 text-xs text-right">
                                                         <span className={`font-bold ${
-                                                            accountPositions.reduce((sum, p) => sum + p.gainLoss, 0) >= 0 
+                                                            sortedTestPositions.reduce((sum, p) => sum + p.gainLoss, 0) >= 0
                                                                 ? 'text-green-400' : 'text-red-400'
                                                         }`}>
-                                                            {accountPositions.reduce((sum, p) => sum + p.gainLoss, 0) >= 0 && '+'}
-                                                            {formatCurrency(accountPositions.reduce((sum, p) => sum + p.gainLoss, 0))}
+                                                            {sortedTestPositions.reduce((sum, p) => sum + p.gainLoss, 0) >= 0 && '+'}
+                                                            {formatCurrency(sortedTestPositions.reduce((sum, p) => sum + p.gainLoss, 0))}
                                                         </span>
                                                     </td>
                                                     <td className="px-3 py-2 text-xs text-right">
                                                         <span className={`font-bold ${
-                                                            ((accountPositions.reduce((sum, p) => sum + p.gainLoss, 0) / 
-                                                            accountPositions.reduce((sum, p) => sum + p.costBasis, 0)) * 100) >= 0 
+                                                            ((sortedTestPositions.reduce((sum, p) => sum + p.gainLoss, 0) /
+                                                            sortedTestPositions.reduce((sum, p) => sum + p.costBasis, 0)) * 100) >= 0
                                                                 ? 'text-green-400' : 'text-red-400'
                                                         }`}>
-                                                            {((accountPositions.reduce((sum, p) => sum + p.gainLoss, 0) / 
-                                                            accountPositions.reduce((sum, p) => sum + p.costBasis, 0)) * 100).toFixed(2)}%
+                                                            {((sortedTestPositions.reduce((sum, p) => sum + p.gainLoss, 0) /
+                                                            sortedTestPositions.reduce((sum, p) => sum + p.costBasis, 0)) * 100).toFixed(2)}%
                                                         </span>
                                                     </td>
                                                     <td className="px-3 py-2 text-xs text-right">100.00%</td>
                                                 </tr>
                                                 
                                                 {/* Individual Position Rows */}
-                                                {sortedPositions.map((position, idx) => {
-                                                    const taxLots = getPositionTaxLots(position.symbol);
-                                                    const isExpanded = expandedPositions.has(position.symbol);
+                                                {sortedTestPositions.map((position, idx) => {
+                                                    const taxLots = getTestPositionTaxLots(position.symbol);
+                                                    const isExpanded = expandedTestPositions.has(position.symbol);
                                                     const hasMultipleLots = taxLots.length > 1;
                                                     
                                                     return (
@@ -658,7 +857,7 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                                                                             <button
                                                                                 onClick={(e) => {
                                                                                     e.stopPropagation();
-                                                                                    toggleTaxLots(position.symbol);
+                                                                                    toggleTestTaxLots(position.symbol);
                                                                                 }}
                                                                                 className="mr-2 text-gray-400 hover:text-white transition-colors"
                                                                             >
@@ -700,7 +899,15 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                                                             {formatCurrency(position.currentValue || 0)}
                                                         </td>
                                                         <td className="px-3 py-2 text-xs text-right text-gray-400">
-                                                            {formatCurrency((position.costBasis || 0) / (position.quantity || 1))}
+                                                            {formatCurrency(position.costPerShare || 0)}
+                                                        </td>
+                                                        <td className="px-3 py-2 text-xs text-right text-gray-400">
+                                                            {formatCurrency(position.costBasis || 0)}
+                                                        </td>
+                                                        <td className="px-3 py-2 text-xs text-right">
+                                                            <span className={`font-medium ${position.gainLossPerShare >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                                                {position.gainLossPerShare >= 0 && '+'}{formatCurrency(position.gainLossPerShare || 0)}
+                                                            </span>
                                                         </td>
                                                         <td className="px-3 py-2 text-xs text-right">
                                                             <span className={`font-medium ${position.gainLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
@@ -724,7 +931,7 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                                                                     <>
                                                                         <tr className="bg-gray-800/50 border-b border-gray-700">
                                                                             <td></td>
-                                                                            <td colSpan="8" className="px-3 py-1">
+                                                                            <td colSpan="10" className="px-3 py-1">
                                                                                 <div className="text-xs text-gray-400 font-medium">Tax Lot Details</div>
                                                                             </td>
                                                                         </tr>
@@ -757,13 +964,22 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                                                                                         {formatNumber(lot.quantity, { maximumFractionDigits: 4 })}
                                                                                     </td>
                                                                                     <td className="px-3 py-1 text-right text-gray-400">
-                                                                                        {formatCurrency(lot.costBasis / lot.quantity)}
+                                                                                        {formatCurrency(position.currentPrice)}
                                                                                     </td>
                                                                                     <td className="px-3 py-1 text-right text-gray-300">
                                                                                         {formatCurrency(lot.quantity * position.currentPrice)}
                                                                                     </td>
                                                                                     <td className="px-3 py-1 text-right text-gray-400">
+                                                                                        {formatCurrency(lot.costBasis / lot.quantity)}
+                                                                                    </td>
+                                                                                    <td className="px-3 py-1 text-right text-gray-400">
                                                                                         {formatCurrency(lot.costBasis)}
+                                                                                    </td>
+                                                                                    <td className="px-3 py-1 text-right">
+                                                                                        <span className={`${(position.currentPrice - (lot.costBasis / lot.quantity)) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                                                                            {(position.currentPrice - (lot.costBasis / lot.quantity)) >= 0 && '+'}
+                                                                                            {formatCurrency(position.currentPrice - (lot.costBasis / lot.quantity))}
+                                                                                        </span>
                                                                                     </td>
                                                                                     <td className="px-3 py-1 text-right">
                                                                                         <span className={lotGain >= 0 ? 'text-green-400' : 'text-red-400'}>
@@ -775,6 +991,7 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                                                                                             {lotGainPct >= 0 && '+'}{lotGainPct.toFixed(2)}%
                                                                                         </span>
                                                                                     </td>
+                                                                                    <td className="px-3 py-1 text-right text-gray-600">-</td>
                                                                                 </tr>
                                                                             );
                                                                         })}
@@ -870,7 +1087,7 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
 
             const sorted = [...accountPositions].sort((a, b) => {
                 let comparison = 0;
-                switch (positionSort.field) {
+                switch (testPositionSort.field) {
                     case 'symbol':
                         comparison = (a.symbol || '').localeCompare(b.symbol || '');
                         break;
@@ -899,7 +1116,7 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                         comparison = (a.currentValue || 0) - (b.currentValue || 0);
                 }
 
-                return positionSort.direction === 'asc' ? comparison : -comparison;
+                return testPositionSort.direction === 'asc' ? comparison : -comparison;
             });
 
             return sorted;
@@ -1229,11 +1446,11 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                             </div>
 
                             {/* Positions Table */}
-                            {accountPositions.length > 0 && (
+                            {testPositions.length > 0 && (
                                 <div className="bg-gray-800/30 rounded">
                                     <div className="px-4 py-3 border-b border-gray-700">
                                         <h4 className="text-sm font-semibold text-gray-300">
-                                            Position Details ({accountPositions.length} holdings)
+                                            Position Details ({testPositions.length} holdings)
                                         </h4>
                                     </div>
                                     <div className="overflow-x-auto">
@@ -1243,100 +1460,141 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                                                     <th className="px-2 py-2 text-center text-xs font-medium text-gray-400 w-8">#</th>
                                                     <th className="px-3 py-2 text-left text-xs font-medium text-gray-400">
                                                         <button
-                                                            onClick={() => setPositionSort({
+                                                            onClick={() => setTestPositionSort({
                                                                 field: 'symbol',
-                                                                direction: positionSort.field === 'symbol' && positionSort.direction === 'desc' ? 'asc' : 'desc'
+                                                                direction: testPositionSort.field === 'symbol' && testPositionSort.direction === 'desc' ? 'asc' : 'desc'
                                                             })}
                                                             className="flex items-center space-x-1 hover:text-white"
                                                         >
                                                             <span>Symbol</span>
-                                                            {positionSort.field === 'symbol' && (
-                                                                positionSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
+                                                            {testPositionSort.field === 'symbol' && (
+                                                                testPositionSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
                                                             )}
                                                         </button>
                                                     </th>
                                                     <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">
                                                         <button
-                                                            onClick={() => setPositionSort({
+                                                            onClick={() => setTestPositionSort({
                                                                 field: 'quantity',
-                                                                direction: positionSort.field === 'quantity' && positionSort.direction === 'desc' ? 'asc' : 'desc'
+                                                                direction: testPositionSort.field === 'quantity' && testPositionSort.direction === 'desc' ? 'asc' : 'desc'
                                                             })}
                                                             className="flex items-center space-x-1 hover:text-white ml-auto"
                                                         >
                                                             <span>Shares</span>
-                                                            {positionSort.field === 'quantity' && (
-                                                                positionSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
+                                                            {testPositionSort.field === 'quantity' && (
+                                                                testPositionSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
                                                             )}
                                                         </button>
                                                     </th>
                                                     <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">
                                                         <button
-                                                            onClick={() => setPositionSort({
+                                                            onClick={() => setTestPositionSort({
                                                                 field: 'price',
-                                                                direction: positionSort.field === 'price' && positionSort.direction === 'desc' ? 'asc' : 'desc'
+                                                                direction: testPositionSort.field === 'price' && testPositionSort.direction === 'desc' ? 'asc' : 'desc'
                                                             })}
                                                             className="flex items-center space-x-1 hover:text-white ml-auto"
                                                         >
-                                                            <span>Price</span>
-                                                            {positionSort.field === 'price' && (
-                                                                positionSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
+                                                            <span>Current Price</span>
+                                                            {testPositionSort.field === 'price' && (
+                                                                testPositionSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
                                                             )}
                                                         </button>
                                                     </th>
                                                     <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">
                                                         <button
-                                                            onClick={() => setPositionSort({
+                                                            onClick={() => setTestPositionSort({
                                                                 field: 'value',
-                                                                direction: positionSort.field === 'value' && positionSort.direction === 'desc' ? 'asc' : 'desc'
+                                                                direction: testPositionSort.field === 'value' && testPositionSort.direction === 'desc' ? 'asc' : 'desc'
                                                             })}
                                                             className="flex items-center space-x-1 hover:text-white ml-auto"
                                                         >
-                                                            <span>Value</span>
-                                                            {positionSort.field === 'value' && (
-                                                                positionSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
+                                                            <span>Market Value</span>
+                                                            {testPositionSort.field === 'value' && (
+                                                                testPositionSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
                                                             )}
                                                         </button>
                                                     </th>
-                                                    <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">Cost/Share</th>
                                                     <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">
                                                         <button
-                                                            onClick={() => setPositionSort({
+                                                            onClick={() => setTestPositionSort({
+                                                                field: 'costPerShare',
+                                                                direction: testPositionSort.field === 'costPerShare' && testPositionSort.direction === 'desc' ? 'asc' : 'desc'
+                                                            })}
+                                                            className="flex items-center space-x-1 hover:text-white ml-auto"
+                                                        >
+                                                            <span>Cost per Share</span>
+                                                            {testPositionSort.field === 'costPerShare' && (
+                                                                testPositionSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
+                                                            )}
+                                                        </button>
+                                                    </th>
+                                                    <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">
+                                                        <button
+                                                            onClick={() => setTestPositionSort({
+                                                                field: 'costBasis',
+                                                                direction: testPositionSort.field === 'costBasis' && testPositionSort.direction === 'desc' ? 'asc' : 'desc'
+                                                            })}
+                                                            className="flex items-center space-x-1 hover:text-white ml-auto"
+                                                        >
+                                                            <span>Total Cost</span>
+                                                            {testPositionSort.field === 'costBasis' && (
+                                                                testPositionSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
+                                                            )}
+                                                        </button>
+                                                    </th>
+                                                    <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">
+                                                        <button
+                                                            onClick={() => setTestPositionSort({
+                                                                field: 'gainLossPerShare',
+                                                                direction: testPositionSort.field === 'gainLossPerShare' && testPositionSort.direction === 'desc' ? 'asc' : 'desc'
+                                                            })}
+                                                            className="flex items-center space-x-1 hover:text-white ml-auto"
+                                                        >
+                                                            <span>Gain (Loss) Per Share</span>
+                                                            {testPositionSort.field === 'gainLossPerShare' && (
+                                                                testPositionSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
+                                                            )}
+                                                        </button>
+                                                    </th>
+                                                    <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">
+                                                        <button
+                                                            onClick={() => setTestPositionSort({
                                                                 field: 'gain',
-                                                                direction: positionSort.field === 'gain' && positionSort.direction === 'desc' ? 'asc' : 'desc'
+                                                                direction: testPositionSort.field === 'gain' && testPositionSort.direction === 'desc' ? 'asc' : 'desc'
                                                             })}
                                                             className="flex items-center space-x-1 hover:text-white ml-auto"
                                                         >
-                                                            <span>Gain/Loss</span>
-                                                            {positionSort.field === 'gain' && (
-                                                                positionSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
+                                                            <span>Total Gain / (Loss)</span>
+                                                            {testPositionSort.field === 'gain' && (
+                                                                testPositionSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
                                                             )}
                                                         </button>
                                                     </th>
                                                     <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">
                                                         <button
-                                                            onClick={() => setPositionSort({
+                                                            onClick={() => setTestPositionSort({
                                                                 field: 'gainPct',
-                                                                direction: positionSort.field === 'gainPct' && positionSort.direction === 'desc' ? 'asc' : 'desc'
+                                                                direction: testPositionSort.field === 'gainPct' && testPositionSort.direction === 'desc' ? 'asc' : 'desc'
                                                             })}
                                                             className="flex items-center space-x-1 hover:text-white ml-auto"
                                                         >
                                                             <span>%</span>
-                                                            {positionSort.field === 'gainPct' && (
-                                                                positionSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
+                                                            {testPositionSort.field === 'gainPct' && (
+                                                                testPositionSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
                                                             )}
                                                         </button>
                                                     </th>
                                                     <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">
                                                         <button
-                                                            onClick={() => setPositionSort({
+                                                            onClick={() => setTestPositionSort({
                                                                 field: 'allocation',
-                                                                direction: positionSort.field === 'allocation' && positionSort.direction === 'desc' ? 'asc' : 'desc'
+                                                                direction: testPositionSort.field === 'allocation' && testPositionSort.direction === 'desc' ? 'asc' : 'desc'
                                                             })}
                                                             className="flex items-center space-x-1 hover:text-white ml-auto"
                                                         >
                                                             <span>Allocation</span>
-                                                            {positionSort.field === 'allocation' && (
-                                                                positionSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
+                                                            {testPositionSort.field === 'allocation' && (
+                                                                testPositionSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
                                                             )}
                                                         </button>
                                                     </th>
@@ -1353,37 +1611,37 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                                                     <td className="px-3 py-2 text-xs text-right">-</td>
                                                     <td className="px-3 py-2 text-xs text-right">-</td>
                                                     <td className="px-3 py-2 text-xs text-right font-bold text-white">
-                                                        {formatCurrency(accountPositions.reduce((sum, p) => sum + p.currentValue, 0))}
+                                                        {formatCurrency(sortedTestPositions.reduce((sum, p) => sum + p.currentValue, 0))}
                                                     </td>
                                                     <td className="px-3 py-2 text-xs text-right text-gray-400">
-                                                        {formatCurrency(accountPositions.reduce((sum, p) => sum + p.costBasis, 0))}
+                                                        {formatCurrency(sortedTestPositions.reduce((sum, p) => sum + p.costBasis, 0))}
                                                     </td>
                                                     <td className="px-3 py-2 text-xs text-right">
                                                         <span className={`font-bold ${
-                                                            accountPositions.reduce((sum, p) => sum + p.gainLoss, 0) >= 0
+                                                            sortedTestPositions.reduce((sum, p) => sum + p.gainLoss, 0) >= 0
                                                                 ? 'text-green-400' : 'text-red-400'
                                                         }`}>
-                                                            {accountPositions.reduce((sum, p) => sum + p.gainLoss, 0) >= 0 && '+'}
-                                                            {formatCurrency(accountPositions.reduce((sum, p) => sum + p.gainLoss, 0))}
+                                                            {sortedTestPositions.reduce((sum, p) => sum + p.gainLoss, 0) >= 0 && '+'}
+                                                            {formatCurrency(sortedTestPositions.reduce((sum, p) => sum + p.gainLoss, 0))}
                                                         </span>
                                                     </td>
                                                     <td className="px-3 py-2 text-xs text-right">
                                                         <span className={`font-bold ${
-                                                            ((accountPositions.reduce((sum, p) => sum + p.gainLoss, 0) /
-                                                            accountPositions.reduce((sum, p) => sum + p.costBasis, 0)) * 100) >= 0
+                                                            ((sortedTestPositions.reduce((sum, p) => sum + p.gainLoss, 0) /
+                                                            sortedTestPositions.reduce((sum, p) => sum + p.costBasis, 0)) * 100) >= 0
                                                                 ? 'text-green-400' : 'text-red-400'
                                                         }`}>
-                                                            {((accountPositions.reduce((sum, p) => sum + p.gainLoss, 0) /
-                                                            accountPositions.reduce((sum, p) => sum + p.costBasis, 0)) * 100).toFixed(2)}%
+                                                            {((sortedTestPositions.reduce((sum, p) => sum + p.gainLoss, 0) /
+                                                            sortedTestPositions.reduce((sum, p) => sum + p.costBasis, 0)) * 100).toFixed(2)}%
                                                         </span>
                                                     </td>
                                                     <td className="px-3 py-2 text-xs text-right">100.00%</td>
                                                 </tr>
 
                                                 {/* Individual Position Rows */}
-                                                {sortedPositions.map((position, idx) => {
-                                                    const taxLots = getPositionTaxLots(position.symbol);
-                                                    const isExpanded = expandedPositions.has(position.symbol);
+                                                {sortedTestPositions.map((position, idx) => {
+                                                    const taxLots = getTestPositionTaxLots(position.symbol);
+                                                    const isExpanded = expandedTestPositions.has(position.symbol);
                                                     const hasMultipleLots = taxLots.length > 1;
 
                                                     return (
@@ -1398,7 +1656,7 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                                                                             <button
                                                                                 onClick={(e) => {
                                                                                     e.stopPropagation();
-                                                                                    toggleTaxLots(position.symbol);
+                                                                                    toggleTestTaxLots(position.symbol);
                                                                                 }}
                                                                                 className="mr-2 text-gray-400 hover:text-white transition-colors"
                                                                             >
@@ -1440,7 +1698,15 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                                                             {formatCurrency(position.currentValue || 0)}
                                                         </td>
                                                         <td className="px-3 py-2 text-xs text-right text-gray-400">
-                                                            {formatCurrency((position.costBasis || 0) / (position.quantity || 1))}
+                                                            {formatCurrency(position.costPerShare || 0)}
+                                                        </td>
+                                                        <td className="px-3 py-2 text-xs text-right text-gray-400">
+                                                            {formatCurrency(position.costBasis || 0)}
+                                                        </td>
+                                                        <td className="px-3 py-2 text-xs text-right">
+                                                            <span className={`font-medium ${position.gainLossPerShare >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                                                {position.gainLossPerShare >= 0 && '+'}{formatCurrency(position.gainLossPerShare || 0)}
+                                                            </span>
                                                         </td>
                                                         <td className="px-3 py-2 text-xs text-right">
                                                             <span className={`font-medium ${position.gainLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
@@ -1464,7 +1730,7 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                                                                     <>
                                                                         <tr className="bg-gray-800/50 border-b border-gray-700">
                                                                             <td></td>
-                                                                            <td colSpan="8" className="px-3 py-1">
+                                                                            <td colSpan="10" className="px-3 py-1">
                                                                                 <div className="text-xs text-gray-400 font-medium">Tax Lot Details</div>
                                                                             </td>
                                                                         </tr>
@@ -1497,13 +1763,22 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                                                                                         {formatNumber(lot.quantity, { maximumFractionDigits: 4 })}
                                                                                     </td>
                                                                                     <td className="px-3 py-1 text-right text-gray-400">
-                                                                                        {formatCurrency(lot.costBasis / lot.quantity)}
+                                                                                        {formatCurrency(position.currentPrice)}
                                                                                     </td>
                                                                                     <td className="px-3 py-1 text-right text-gray-300">
                                                                                         {formatCurrency(lot.quantity * position.currentPrice)}
                                                                                     </td>
                                                                                     <td className="px-3 py-1 text-right text-gray-400">
+                                                                                        {formatCurrency(lot.costBasis / lot.quantity)}
+                                                                                    </td>
+                                                                                    <td className="px-3 py-1 text-right text-gray-400">
                                                                                         {formatCurrency(lot.costBasis)}
+                                                                                    </td>
+                                                                                    <td className="px-3 py-1 text-right">
+                                                                                        <span className={`${(position.currentPrice - (lot.costBasis / lot.quantity)) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                                                                            {(position.currentPrice - (lot.costBasis / lot.quantity)) >= 0 && '+'}
+                                                                                            {formatCurrency(position.currentPrice - (lot.costBasis / lot.quantity))}
+                                                                                        </span>
                                                                                     </td>
                                                                                     <td className="px-3 py-1 text-right">
                                                                                         <span className={lotGain >= 0 ? 'text-green-400' : 'text-red-400'}>
@@ -1515,6 +1790,7 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                                                                                             {lotGainPct >= 0 && '+'}{lotGainPct.toFixed(2)}%
                                                                                         </span>
                                                                                     </td>
+                                                                                    <td className="px-3 py-1 text-right text-gray-600">-</td>
                                                                                 </tr>
                                                                             );
                                                                         })}
@@ -2244,18 +2520,8 @@ const UnifiedAccountTable = ({
                 )}
             </div>
 
-            {/* Detail Modal - Using SecondaryAccountDetailModal for testing */}
-            <SecondaryAccountDetailModal
-                isOpen={isDetailModalOpen}
-                onClose={() => {
-                    setIsDetailModalOpen(false);
-                    setSelectedAccount(null);
-                }}
-                account={selectedAccount}
-            />
-
-            {/* Secondary Detail Modal */}
-            <SecondaryAccountDetailModal
+            {/* Detail Modal */}
+            <AccountDetailModal
                 isOpen={isDetailModalOpen}
                 onClose={() => {
                     setIsDetailModalOpen(false);
