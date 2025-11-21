@@ -58,6 +58,38 @@ const FinancialPlanning = () => {
     return summary?.netWorth || 0;
   }, [summary]);
 
+  // PHASE 1: Calculate historical return from trends
+  const calculateHistoricalReturn = useMemo(() => {
+    if (!trends?.chartData || trends.chartData.length < 2) return 8;
+    const recent = trends.chartData.slice(-12);
+    if (recent.length < 2) return 8;
+    const startValue = recent[0].netWorth;
+    const endValue = recent[recent.length - 1].netWorth;
+    if (!startValue || startValue <= 0) return 8;
+    const totalReturn = ((endValue - startValue) / startValue);
+    const periods = recent.length - 1;
+    const annualReturn = (Math.pow(1 + totalReturn, 12 / periods) - 1) * 100;
+    return Math.max(0, Math.min(20, annualReturn));
+  }, [trends]);
+
+  // PHASE 1: Infer monthly contribution from net worth growth
+  const inferredContribution = useMemo(() => {
+    if (!trends?.chartData || trends.chartData.length < 3) return 2000;
+    const data = trends.chartData.slice(-6);
+    if (data.length < 2) return 2000;
+    let totalChange = 0;
+    for (let i = 1; i < data.length; i++) {
+      const change = data[i].netWorth - data[i - 1].netWorth;
+      const marketGain = data[i - 1].netWorth * (calculateHistoricalReturn / 100 / 12);
+      const contribution = change - marketGain;
+      if (contribution > 0 && contribution < 50000) {
+        totalChange += contribution;
+      }
+    }
+    const avgMonthly = totalChange / (data.length - 1);
+    return Math.max(0, Math.round(avgMonthly / 100) * 100);
+  }, [trends, calculateHistoricalReturn]);
+
   // Asset classes with configurations
   const [assetClasses, setAssetClasses] = useState([
     { id: 1, name: 'US Stocks', color: '#3B82F6', growthRate: 10, volatility: 16, risk: 'High', allocation: 50, visible: true },
@@ -115,6 +147,95 @@ const FinancialPlanning = () => {
     return formatCurrency(num);
   };
 
+  // PHASE 1: Initialize from real portfolio
+  useEffect(() => {
+    if (!summary || isInitialized || portfolioLoading) return;
+    const allocation = summary.assetAllocation;
+    if (!allocation) return;
+
+    const newAssetClasses = [];
+    let id = 1;
+
+    if (allocation.securities?.value > 0) {
+      newAssetClasses.push({
+        id: id++,
+        name: 'Securities',
+        color: '#3B82F6',
+        growthRate: calculateHistoricalReturn || 10,
+        volatility: 16,
+        risk: 'High',
+        allocation: allocation.securities.percentage || 0,
+        visible: true,
+      });
+    }
+
+    if (allocation.cash?.value > 0) {
+      newAssetClasses.push({
+        id: id++,
+        name: 'Cash',
+        color: '#10B981',
+        growthRate: 3,
+        volatility: 1,
+        risk: 'Low',
+        allocation: allocation.cash.percentage || 0,
+        visible: true,
+      });
+    }
+
+    if (allocation.crypto?.value > 0) {
+      newAssetClasses.push({
+        id: id++,
+        name: 'Crypto',
+        color: '#F59E0B',
+        growthRate: 15,
+        volatility: 60,
+        risk: 'Very High',
+        allocation: allocation.crypto.percentage || 0,
+        visible: true,
+      });
+    }
+
+    if (allocation.metals?.value > 0) {
+      newAssetClasses.push({
+        id: id++,
+        name: 'Precious Metals',
+        color: '#EAB308',
+        growthRate: 6,
+        volatility: 15,
+        risk: 'Medium',
+        allocation: allocation.metals.percentage || 0,
+        visible: true,
+      });
+    }
+
+    if (allocation.realEstate?.value > 0) {
+      newAssetClasses.push({
+        id: id++,
+        name: 'Real Estate',
+        color: '#8B5CF6',
+        growthRate: 7,
+        volatility: 12,
+        risk: 'Medium',
+        allocation: allocation.realEstate.percentage || 0,
+        visible: true,
+      });
+    }
+
+    if (newAssetClasses.length > 0) {
+      setAssetClasses(newAssetClasses);
+      setIsInitialized(true);
+    }
+  }, [summary, isInitialized, portfolioLoading, calculateHistoricalReturn]);
+
+  // PHASE 1: Update cash flows with inferred contribution
+  useEffect(() => {
+    if (inferredContribution > 0 && cashFlows.length > 0 && cashFlows[0].amount === 2000) {
+      setCashFlows(prev => prev.map((flow, idx) =>
+        idx === 0 ? { ...flow, amount: inferredContribution } : flow
+      ));
+    }
+  }, [inferredContribution]);
+
   // Allocation utilities
   const totalAllocation = useMemo(
     () => assetClasses.reduce((sum, a) => sum + toNum(a.allocation), 0),
@@ -165,6 +286,25 @@ const FinancialPlanning = () => {
         }
       }
 
+      // PHASE 3: Apply life events for this year
+      for (const event of lifeEvents) {
+        if (event.year === year) {
+          if (event.type === 'windfall' || event.type === 'gift') {
+            yearlyContribution += Math.abs(toNum(event.amount));
+          } else if (event.type === 'purchase' || event.type === 'expense') {
+            yearlyContribution -= Math.abs(toNum(event.amount));
+          }
+        }
+        // Recurring events (e.g., college tuition)
+        if (event.type === 'recurring' && event.startYear && event.duration) {
+          const eventStartYear = currentYear + toNum(event.startYear);
+          const eventEndYear = eventStartYear + toNum(event.duration);
+          if (year >= eventStartYear && year < eventEndYear) {
+            yearlyContribution += toNum(event.annualAmount || 0);
+          }
+        }
+      }
+
       // Calculate portfolio growth
       if (yearIndex > 0) {
         const returnRate = portfolioMetrics.expectedReturn / 100;
@@ -202,7 +342,7 @@ const FinancialPlanning = () => {
     }
 
     return data;
-  }, [currentYear, selectedYears, cashFlows, assetClasses, portfolioMetrics, startingNetWorth, showRealDollars, inflationRate]);
+  }, [currentYear, selectedYears, cashFlows, assetClasses, portfolioMetrics, startingNetWorth, showRealDollars, inflationRate, lifeEvents]);
 
   // Summary statistics
   const summaryStats = useMemo(() => {
@@ -240,6 +380,196 @@ const FinancialPlanning = () => {
       goalAchievements,
     };
   }, [yearlyData, fireSettings, goals, portfolioMetrics]);
+
+  // PHASE 2: Generate AI insights based on portfolio data
+  const aiInsights = useMemo(() => {
+    if (!summary || !yearlyData.length || !summaryStats.finalValue) return [];
+
+    const insights = [];
+    const finalData = yearlyData[yearlyData.length - 1];
+
+    // Insight 1: Track to FIRE
+    if (summaryStats.yearsToFire !== null && summaryStats.yearsToFire < fireSettings.retirementAge - fireSettings.currentAge) {
+      const yearsAhead = fireSettings.retirementAge - fireSettings.currentAge - summaryStats.yearsToFire;
+      insights.push({
+        id: 1,
+        type: 'success',
+        icon: 'target',
+        title: 'On Track for Early Retirement',
+        message: `You're projected to reach FI in ${summaryStats.yearsToFire} years, ${yearsAhead} years ahead of schedule at age ${summaryStats.fireAge}!`,
+        action: 'Maintain current savings rate'
+      });
+    }
+
+    // Insight 2: Concentration risk
+    const maxAllocation = Math.max(...assetClasses.map(a => a.allocation));
+    if (maxAllocation > 60) {
+      const concentrated = assetClasses.find(a => a.allocation === maxAllocation);
+      insights.push({
+        id: 2,
+        type: 'warning',
+        icon: 'alert',
+        title: 'High Concentration Risk',
+        message: `${maxAllocation.toFixed(0)}% in ${concentrated.name}. Consider diversifying to reduce risk and volatility.`,
+        action: 'Rebalance portfolio'
+      });
+    }
+
+    // Insight 3: Contribution optimization
+    const optimalContribution = (summaryStats.fireNumber - startingNetWorth) / (fireSettings.retirementAge - fireSettings.currentAge) / 12 / 1.5;
+    const currentMonthly = cashFlows.reduce((sum, f) => sum + (f.type === 'monthly' ? f.amount : f.amount / 12), 0);
+    if (optimalContribution > currentMonthly * 1.1) {
+      const additional = Math.round((optimalContribution - currentMonthly) / 100) * 100;
+      insights.push({
+        id: 3,
+        type: 'info',
+        icon: 'lightbulb',
+        title: 'Increase Contributions for Faster FIRE',
+        message: `Adding $${additional}/mo could help you retire ${Math.max(1, Math.round((summaryStats.yearsToFire || 20) * 0.2))} years earlier.`,
+        action: 'Adjust savings plan'
+      });
+    }
+
+    // Insight 4: Performance vs benchmark
+    if (calculateHistoricalReturn > 0 && calculateHistoricalReturn < 7) {
+      insights.push({
+        id: 4,
+        type: 'warning',
+        icon: 'trending-down',
+        title: 'Underperforming Market',
+        message: `Your ${calculateHistoricalReturn.toFixed(1)}% return is below the S&P 500 average of ~10%. Review your allocation.`,
+        action: 'Review investment strategy'
+      });
+    } else if (calculateHistoricalReturn > 12) {
+      insights.push({
+        id: 4,
+        type: 'success',
+        icon: 'trending-up',
+        title: 'Outperforming Market',
+        message: `Your ${calculateHistoricalReturn.toFixed(1)}% return exceeds the market average. Great portfolio performance!`,
+        action: 'Stay the course'
+      });
+    }
+
+    // Insight 5: Emergency fund check (if goals exist)
+    const emergencyFundGoal = goals.find(g => g.name.toLowerCase().includes('emergency'));
+    if (emergencyFundGoal && summary.assetAllocation?.cash) {
+      const cashValue = summary.assetAllocation.cash.value;
+      if (cashValue < emergencyFundGoal.targetAmount * 0.5) {
+        insights.push({
+          id: 5,
+          type: 'warning',
+          icon: 'shield',
+          title: 'Low Emergency Fund',
+          message: `You have ${formatCompact(cashValue)} in cash. Target: ${formatCompact(emergencyFundGoal.targetAmount)}. Build reserves first.`,
+          action: 'Build emergency reserves'
+        });
+      }
+    }
+
+    // Insight 6: Growth trajectory
+    if (summaryStats.growthMultiplier > 2) {
+      insights.push({
+        id: 6,
+        type: 'success',
+        icon: 'flame',
+        title: 'Excellent Growth Trajectory',
+        message: `Your portfolio is projected to grow to ${summaryStats.growthMultiplier.toFixed(1)}x your contributions. Compound interest working!`,
+        action: 'Keep compounding'
+      });
+    }
+
+    return insights.slice(0, 5); // Max 5 insights
+  }, [summary, yearlyData, summaryStats, assetClasses, cashFlows, goals, calculateHistoricalReturn, fireSettings, startingNetWorth]);
+
+  // PHASE 4: Withdrawal phase projection
+  const withdrawalData = useMemo(() => {
+    if (!withdrawalSettings || selectedYears < withdrawalSettings.startYear) return [];
+
+    const data = [];
+    const startValue = yearlyData[withdrawalSettings.startYear]?.portfolioValue || startingNetWorth;
+    let portfolioValue = startValue;
+
+    for (let yearIndex = 0; yearIndex <= withdrawalSettings.duration; yearIndex++) {
+      const year = currentYear + withdrawalSettings.startYear + yearIndex;
+      const age = fireSettings.currentAge + withdrawalSettings.startYear + yearIndex;
+
+      // Calculate withdrawal
+      let withdrawal = 0;
+      if (withdrawalSettings.strategy === 'fixed-percentage') {
+        withdrawal = portfolioValue * (fireSettings.safeWithdrawalRate / 100);
+      } else if (withdrawalSettings.strategy === 'fixed-dollar') {
+        const inflationFactor = withdrawalSettings.inflationAdjusted
+          ? Math.pow(1 + inflationRate / 100, yearIndex)
+          : 1;
+        withdrawal = withdrawalSettings.annualWithdrawal * inflationFactor;
+      } else if (withdrawalSettings.strategy === 'dynamic') {
+        // Dynamic: adjust based on portfolio performance
+        const targetValue = startValue * Math.pow(1 + (portfolioMetrics.expectedReturn / 100), yearIndex);
+        const adjustmentFactor = portfolioValue / (targetValue || 1);
+        withdrawal = (portfolioValue * 0.04) * Math.min(1.2, Math.max(0.8, adjustmentFactor));
+      }
+
+      // Add Social Security if age qualifies
+      let socialSecurity = 0;
+      if (age >= withdrawalSettings.socialSecurityAge) {
+        const yearsCollecting = age - withdrawalSettings.socialSecurityAge;
+        socialSecurity = withdrawalSettings.socialSecurityAmount * Math.pow(1 + 0.02, yearsCollecting); // 2% COLA
+      }
+
+      // Net withdrawal from portfolio
+      const netWithdrawal = Math.max(0, withdrawal - socialSecurity);
+
+      // Calculate portfolio growth
+      if (yearIndex > 0) {
+        const returnRate = portfolioMetrics.expectedReturn / 100;
+        portfolioValue = (portfolioValue - netWithdrawal) * (1 + returnRate);
+      }
+
+      data.push({
+        year,
+        age,
+        portfolioValue: Math.max(0, portfolioValue),
+        withdrawal,
+        socialSecurity,
+        netWithdrawal,
+        totalIncome: withdrawal + socialSecurity,
+      });
+    }
+
+    return data;
+  }, [withdrawalSettings, yearlyData, portfolioMetrics, fireSettings, currentYear, selectedYears, inflationRate, startingNetWorth]);
+
+  // PHASE 4: Withdrawal success probability
+  const withdrawalSuccessProbability = useMemo(() => {
+    if (!withdrawalData.length) return null;
+
+    const finalValue = withdrawalData[withdrawalData.length - 1].portfolioValue;
+    const startValue = withdrawalData[0].portfolioValue;
+
+    if (finalValue <= 0) return 0;
+    if (finalValue > startValue * 0.75) return 95;
+    if (finalValue > startValue * 0.5) return 85;
+    if (finalValue > startValue * 0.25) return 70;
+    return 50;
+  }, [withdrawalData]);
+
+  // PHASE 5: Waterfall chart data
+  const waterfallData = useMemo(() => {
+    if (!yearlyData.length) return [];
+
+    const finalData = yearlyData[yearlyData.length - 1];
+    const startValue = startingNetWorth;
+    const contributions = finalData.totalContributions - startingNetWorth;
+    const growth = finalData.portfolioValue - finalData.totalContributions;
+
+    return [
+      { name: 'Starting', value: startValue, fill: '#6B7280', cumulativeValue: startValue },
+      { name: 'Contributions', value: contributions, fill: '#10B981', cumulativeValue: startValue + contributions },
+      { name: 'Market Growth', value: growth, fill: '#3B82F6', cumulativeValue: finalData.portfolioValue },
+      { name: 'Final Value', value: 0, fill: 'transparent', cumulativeValue: finalData.portfolioValue, label: formatCompact(finalData.portfolioValue) },
+    ];
+  }, [yearlyData, startingNetWorth]);
 
   // Monte Carlo simulation
   const runMonteCarlo = () => {
@@ -558,6 +888,8 @@ const FinancialPlanning = () => {
                 { id: 'goals', label: 'Goals', icon: Target },
                 { id: 'projections', label: 'Projections', icon: TrendingUp },
                 { id: 'monte-carlo', label: 'Monte Carlo', icon: Sparkles },
+                { id: 'withdrawal', label: 'Withdrawal', icon: Wallet },
+                { id: 'insights', label: 'Insights', icon: Lightbulb },
               ].map(tab => (
                 <button
                   key={tab.id}
@@ -737,6 +1069,173 @@ const FinancialPlanning = () => {
                       </p>
                     </div>
                   </div>
+                </div>
+
+                {/* PHASE 9: Waterfall Chart - Growth Breakdown */}
+                <div className="bg-gray-900 rounded-2xl border border-gray-800 p-6">
+                  <h3 className="text-lg font-semibold text-white mb-4">Wealth Building Breakdown</h3>
+                  <div className="h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <ComposedChart data={waterfallData}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                        <XAxis dataKey="name" stroke="#9CA3AF" fontSize={12} />
+                        <YAxis
+                          stroke="#9CA3AF"
+                          fontSize={12}
+                          tickFormatter={(value) => formatCompact(value)}
+                        />
+                        <Tooltip
+                          formatter={(value) => formatCurrency(value)}
+                          contentStyle={{ backgroundColor: '#1F2937', border: '1px solid #374151', borderRadius: '8px' }}
+                        />
+                        <Bar dataKey="value">
+                          {waterfallData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.fill} />
+                          ))}
+                        </Bar>
+                      </ComposedChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="mt-4 grid grid-cols-3 gap-4 text-center">
+                    <div>
+                      <p className="text-gray-400 text-xs uppercase">Starting</p>
+                      <p className="text-lg font-bold text-gray-300">{formatCompact(startingNetWorth)}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-400 text-xs uppercase">Contributed</p>
+                      <p className="text-lg font-bold text-green-400">
+                        {summaryStats.totalContributions && formatCompact(summaryStats.totalContributions - startingNetWorth)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-gray-400 text-xs uppercase">Market Gains</p>
+                      <p className="text-lg font-bold text-blue-400">{summaryStats.totalGrowth && formatCompact(summaryStats.totalGrowth)}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* PHASE 10: Life Events Timeline */}
+                <div className="bg-gray-900 rounded-2xl border border-gray-800 p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold text-white">Life Events</h3>
+                    <button
+                      onClick={() => {
+                        const newEvent = {
+                          id: Date.now(),
+                          type: 'purchase',
+                          name: 'New Event',
+                          year: currentYear + 5,
+                          amount: -10000,
+                        };
+                        setLifeEvents([...lifeEvents, newEvent]);
+                      }}
+                      className="px-3 py-1.5 bg-purple-500/20 text-purple-400 rounded-lg hover:bg-purple-500/30 text-sm flex items-center gap-1"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Add Event
+                    </button>
+                  </div>
+
+                  {lifeEvents.length > 0 ? (
+                    <div className="relative">
+                      <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-gray-700" />
+
+                      <div className="space-y-4">
+                        {lifeEvents.sort((a, b) => a.year - b.year).map((event) => (
+                          <div key={event.id} className="relative pl-12">
+                            <div className="absolute left-0 w-8 h-8 rounded-full bg-gray-800 border-2 border-purple-500 flex items-center justify-center">
+                              {event.type === 'windfall' && <Gift className="w-4 h-4 text-purple-400" />}
+                              {event.type === 'purchase' && <Home className="w-4 h-4 text-purple-400" />}
+                              {event.type === 'gift' && <Gift className="w-4 h-4 text-purple-400" />}
+                              {event.type === 'expense' && <ShoppingCart className="w-4 h-4 text-purple-400" />}
+                              {event.type === 'baby' && <Baby className="w-4 h-4 text-purple-400" />}
+                              {event.type === 'education' && <GraduationCap className="w-4 h-4 text-purple-400" />}
+                            </div>
+
+                            <div className="bg-gray-800/50 rounded-xl p-4 border border-gray-700">
+                              <div className="flex items-start justify-between mb-2">
+                                <input
+                                  type="text"
+                                  value={event.name}
+                                  onChange={(e) => {
+                                    setLifeEvents(prev => prev.map(ev =>
+                                      ev.id === event.id ? { ...ev, name: e.target.value } : ev
+                                    ));
+                                  }}
+                                  className="font-medium bg-transparent border-b border-transparent hover:border-gray-600 focus:border-purple-500 outline-none text-white"
+                                />
+                                <button
+                                  onClick={() => setLifeEvents(prev => prev.filter(ev => ev.id !== event.id))}
+                                  className="text-red-400 hover:text-red-300 p-1"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+
+                              <div className="grid grid-cols-3 gap-3">
+                                <div>
+                                  <label className="text-xs text-gray-500">Type</label>
+                                  <select
+                                    value={event.type}
+                                    onChange={(e) => {
+                                      setLifeEvents(prev => prev.map(ev =>
+                                        ev.id === event.id ? { ...ev, type: e.target.value } : ev
+                                      ));
+                                    }}
+                                    className="w-full mt-1 px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-white"
+                                  >
+                                    <option value="windfall">Windfall</option>
+                                    <option value="gift">Gift</option>
+                                    <option value="purchase">Purchase</option>
+                                    <option value="expense">Expense</option>
+                                    <option value="baby">Baby</option>
+                                    <option value="education">Education</option>
+                                  </select>
+                                </div>
+
+                                <div>
+                                  <label className="text-xs text-gray-500">Year</label>
+                                  <input
+                                    type="number"
+                                    value={event.year}
+                                    onChange={(e) => {
+                                      setLifeEvents(prev => prev.map(ev =>
+                                        ev.id === event.id ? { ...ev, year: parseInt(e.target.value) } : ev
+                                      ));
+                                    }}
+                                    className="w-full mt-1 px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-white"
+                                  />
+                                </div>
+
+                                <div>
+                                  <label className="text-xs text-gray-500">Amount</label>
+                                  <input
+                                    type="number"
+                                    value={event.amount}
+                                    onChange={(e) => {
+                                      setLifeEvents(prev => prev.map(ev =>
+                                        ev.id === event.id ? { ...ev, amount: toNum(e.target.value) } : ev
+                                      ));
+                                    }}
+                                    className="w-full mt-1 px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-white"
+                                  />
+                                </div>
+                              </div>
+
+                              <div className="mt-2 text-xs text-gray-400">
+                                Impact: {event.amount > 0 ? '+' : ''}{formatCurrency(event.amount)}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-gray-500">
+                      <Calendar className="w-12 h-12 mx-auto mb-2 text-gray-600" />
+                      <p>No life events planned. Add events to see their impact on your plan.</p>
+                    </div>
+                  )}
                 </div>
               </motion.div>
             )}
@@ -1428,6 +1927,231 @@ const FinancialPlanning = () => {
                       </p>
                     </div>
                   )}
+                </div>
+              </motion.div>
+            )}
+
+            {/* PHASE 7: Withdrawal Tab */}
+            {activeTab === 'withdrawal' && (
+              <motion.div
+                key="withdrawal"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="space-y-6"
+              >
+                {/* Strategy Selector */}
+                <div className="bg-gray-900 rounded-2xl border border-gray-800 p-6">
+                  <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                    <Wallet className="w-5 h-5 text-blue-400" />
+                    Withdrawal Strategy
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {['fixed-percentage', 'fixed-dollar', 'dynamic'].map(strategy => (
+                      <button
+                        key={strategy}
+                        onClick={() => setWithdrawalSettings(prev => ({ ...prev, strategy }))}
+                        className={`p-4 rounded-xl border-2 transition-all ${
+                          withdrawalSettings.strategy === strategy
+                            ? 'border-blue-500 bg-blue-500/10'
+                            : 'border-gray-700 hover:border-gray-600'
+                        }`}
+                      >
+                        <h4 className="font-semibold text-white capitalize">
+                          {strategy.replace('-', ' ')}
+                        </h4>
+                        <p className="text-sm text-gray-400 mt-1">
+                          {strategy === 'fixed-percentage' && '4% rule - withdraw fixed % annually'}
+                          {strategy === 'fixed-dollar' && 'Fixed amount adjusted for inflation'}
+                          {strategy === 'dynamic' && 'Adjust based on portfolio performance'}
+                        </p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Settings */}
+                <div className="bg-gray-900 rounded-2xl border border-gray-800 p-6">
+                  <h3 className="text-lg font-semibold text-white mb-4">Retirement Settings</h3>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div>
+                      <label className="text-sm text-gray-400">Start Year</label>
+                      <input
+                        type="number"
+                        value={withdrawalSettings.startYear}
+                        onChange={(e) => setWithdrawalSettings(prev => ({ ...prev, startYear: toNum(e.target.value) }))}
+                        className="w-full mt-1 px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm text-gray-400">Duration (years)</label>
+                      <input
+                        type="number"
+                        value={withdrawalSettings.duration}
+                        onChange={(e) => setWithdrawalSettings(prev => ({ ...prev, duration: toNum(e.target.value) }))}
+                        className="w-full mt-1 px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm text-gray-400">Annual Withdrawal</label>
+                      <input
+                        type="number"
+                        value={withdrawalSettings.annualWithdrawal}
+                        onChange={(e) => setWithdrawalSettings(prev => ({ ...prev, annualWithdrawal: toNum(e.target.value) }))}
+                        className="w-full mt-1 px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm text-gray-400">Social Security</label>
+                      <input
+                        type="number"
+                        value={withdrawalSettings.socialSecurityAmount}
+                        onChange={(e) => setWithdrawalSettings(prev => ({ ...prev, socialSecurityAmount: toNum(e.target.value) }))}
+                        className="w-full mt-1 px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-white"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Drawdown Chart */}
+                <div className="bg-gray-900 rounded-2xl border border-gray-800 p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold text-white">Portfolio Drawdown</h3>
+                    {withdrawalSuccessProbability !== null && (
+                      <div className={`px-3 py-1 rounded-full text-sm font-medium ${
+                        withdrawalSuccessProbability >= 90 ? 'bg-green-500/20 text-green-400' :
+                        withdrawalSuccessProbability >= 70 ? 'bg-yellow-500/20 text-yellow-400' :
+                        'bg-red-500/20 text-red-400'
+                      }`}>
+                        {withdrawalSuccessProbability}% Success Rate
+                      </div>
+                    )}
+                  </div>
+                  <div className="h-80">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <ComposedChart data={withdrawalData}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                        <XAxis dataKey="year" stroke="#9CA3AF" fontSize={12} />
+                        <YAxis
+                          stroke="#9CA3AF"
+                          fontSize={12}
+                          tickFormatter={(value) => formatCompact(value)}
+                        />
+                        <Tooltip content={<CustomTooltip />} />
+                        <Legend />
+                        <Area
+                          type="monotone"
+                          dataKey="portfolioValue"
+                          stroke="#3B82F6"
+                          fill="#3B82F6"
+                          fillOpacity={0.2}
+                          name="Portfolio Value"
+                        />
+                        <Bar
+                          dataKey="withdrawal"
+                          fill="#EF4444"
+                          name="Annual Withdrawal"
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="socialSecurity"
+                          stroke="#10B981"
+                          strokeWidth={2}
+                          name="Social Security"
+                        />
+                      </ComposedChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            {/* PHASE 8: Insights Tab */}
+            {activeTab === 'insights' && (
+              <motion.div
+                key="insights"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="space-y-6"
+              >
+                <div className="bg-gradient-to-r from-purple-500/10 to-pink-500/10 rounded-2xl border border-purple-500/30 p-6">
+                  <div className="flex items-center gap-3 mb-4">
+                    <Lightbulb className="w-6 h-6 text-purple-400" />
+                    <h3 className="text-lg font-semibold text-white">AI-Powered Insights</h3>
+                  </div>
+                  <p className="text-gray-300 text-sm mb-6">
+                    Personalized recommendations based on your portfolio, goals, and financial trajectory.
+                  </p>
+
+                  {aiInsights.length === 0 ? (
+                    <div className="text-center py-8">
+                      <Info className="w-12 h-12 text-gray-600 mx-auto mb-3" />
+                      <p className="text-gray-400">No insights available yet. Complete your inputs to get personalized recommendations.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {aiInsights.map((insight) => (
+                        <div
+                          key={insight.id}
+                          className={`p-4 rounded-xl border ${
+                            insight.type === 'success' ? 'bg-green-500/10 border-green-500/30' :
+                            insight.type === 'warning' ? 'bg-yellow-500/10 border-yellow-500/30' :
+                            'bg-blue-500/10 border-blue-500/30'
+                          }`}
+                        >
+                          <div className="flex items-start gap-3">
+                            <div className={`p-2 rounded-lg ${
+                              insight.type === 'success' ? 'bg-green-500/20' :
+                              insight.type === 'warning' ? 'bg-yellow-500/20' :
+                              'bg-blue-500/20'
+                            }`}>
+                              {insight.icon === 'target' && <Target className="w-5 h-5" />}
+                              {insight.icon === 'alert' && <AlertCircle className="w-5 h-5" />}
+                              {insight.icon === 'lightbulb' && <Lightbulb className="w-5 h-5" />}
+                              {insight.icon === 'trending-down' && <TrendingDown className="w-5 h-5" />}
+                              {insight.icon === 'trending-up' && <TrendingUp className="w-5 h-5" />}
+                              {insight.icon === 'shield' && <Shield className="w-5 h-5" />}
+                              {insight.icon === 'flame' && <Flame className="w-5 h-5" />}
+                            </div>
+                            <div className="flex-1">
+                              <h4 className="font-semibold text-white mb-1">{insight.title}</h4>
+                              <p className="text-sm text-gray-300 mb-2">{insight.message}</p>
+                              <button className="text-sm font-medium text-blue-400 hover:text-blue-300 flex items-center gap-1">
+                                {insight.action}
+                                <ArrowRight className="w-3 h-3" />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Portfolio Health Score */}
+                <div className="bg-gray-900 rounded-2xl border border-gray-800 p-6">
+                  <h3 className="text-lg font-semibold text-white mb-4">Portfolio Health Score</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="text-center p-4 bg-gray-800/50 rounded-xl">
+                      <div className="text-4xl font-bold text-green-400 mb-2">
+                        {Math.min(100, Math.round((100 - Math.abs(totalAllocation - 100)) * 0.85))}
+                      </div>
+                      <p className="text-sm text-gray-400">Diversification</p>
+                    </div>
+                    <div className="text-center p-4 bg-gray-800/50 rounded-xl">
+                      <div className="text-4xl font-bold text-yellow-400 mb-2">
+                        {Math.round(Math.min(100, (portfolioMetrics.expectedReturn / 10) * 85))}
+                      </div>
+                      <p className="text-sm text-gray-400">Risk-Adjusted Returns</p>
+                    </div>
+                    <div className="text-center p-4 bg-gray-800/50 rounded-xl">
+                      <div className="text-4xl font-bold text-blue-400 mb-2">
+                        {summaryStats.fireAge ? Math.min(100, Math.round((1 - (summaryStats.yearsToFire / 30)) * 100)) : 50}
+                      </div>
+                      <p className="text-sm text-gray-400">Goal Progress</p>
+                    </div>
+                  </div>
                 </div>
               </motion.div>
             )}
