@@ -14,13 +14,14 @@ export const useGroupedLiabilities = () => {
   //   }
   // }, []);
 
-  // Auto-refresh when stale
+  // Fallback: Retry if data is stale or in error state
+  // (DataStore handles initial fetch in Phase 2, this is recovery only)
   useEffect(() => {
-    if (groupedLiabilities.isStale && !groupedLiabilities.loading) {
-      console.log('[useGroupedLiabilities] Refreshing stale grouped liabilities');
+    if ((groupedLiabilities.isStale || groupedLiabilities.error) && !groupedLiabilities.loading) {
+      console.log('[useGroupedLiabilities] Refetching due to stale/error state');
       actions.fetchGroupedLiabilitiesData();
     }
-  }, [groupedLiabilities.isStale, groupedLiabilities.loading]);
+  }, [groupedLiabilities.isStale, groupedLiabilities.error, groupedLiabilities.loading, actions]);
 
   // Process liabilities data
   const liabilities = useMemo(() => {

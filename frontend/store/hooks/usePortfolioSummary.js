@@ -1,10 +1,19 @@
 // store/hooks/usePortfolioSummary.js
-import { useMemo } from 'react';
+import { useMemo, useEffect } from 'react';
 import { useDataStore } from '../DataStore';
 
 export const usePortfolioSummary = () => {
   const { state, actions } = useDataStore();
   const { portfolioSummary } = state;
+
+  // Fallback: Retry if data is stale or in error state
+  // (DataStore handles initial fetch in Phase 1, this is recovery only)
+  useEffect(() => {
+    if ((portfolioSummary.isStale || portfolioSummary.error) && !portfolioSummary.loading) {
+      console.log('[usePortfolioSummary] Refetching due to stale/error state');
+      actions.fetchPortfolioData();
+    }
+  }, [portfolioSummary.isStale, portfolioSummary.error, portfolioSummary.loading, actions]);
 
   // Process and return all summary data
   const summaryData = useMemo(() => {
