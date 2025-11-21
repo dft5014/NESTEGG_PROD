@@ -14,7 +14,8 @@ import {
   DollarSign, Percent, Award, AlertTriangle, Eye, EyeOff, Maximize2,
   Grid, List, Settings, Search, X, ChevronDown, ChevronUp, ArrowUpRight,
   ArrowDownRight, Sparkles, Gauge, Droplets, Flame, Wind, Building2,
-  Wallet, Gift, Package, Home, Coins, Banknote, MinusCircle
+  Wallet, Gift, Package, Home, Coins, Banknote, MinusCircle, Info,
+  Calculator, TrendingUpDown, PiggyBank, Receipt, Repeat
 } from 'lucide-react';
 
 import { useDataStore } from '@/store/DataStore';
@@ -202,9 +203,11 @@ const PremiumMetricCard = ({
   gradient,
   subtitle,
   sparklineData,
-  onClick
+  onClick,
+  infoText
 }) => {
   const [isHovered, setIsHovered] = useState(false);
+  const [showTooltip, setShowTooltip] = useState(false);
   const isPositive = (change || 0) >= 0;
 
   return (
@@ -238,6 +241,34 @@ const PremiumMetricCard = ({
               <p className="text-gray-400 text-sm font-semibold uppercase tracking-wider">
                 {title}
               </p>
+              {infoText && (
+                <div className="relative">
+                  <button
+                    onMouseEnter={() => setShowTooltip(true)}
+                    onMouseLeave={() => setShowTooltip(false)}
+                    className="p-0.5 rounded-full hover:bg-gray-700/50 transition-colors"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowTooltip(!showTooltip);
+                    }}
+                  >
+                    <Info className="w-3.5 h-3.5 text-gray-500 hover:text-indigo-400 transition-colors" />
+                  </button>
+                  <AnimatePresence>
+                    {showTooltip && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -5, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: -5, scale: 0.95 }}
+                        transition={{ duration: 0.15 }}
+                        className="absolute left-0 top-6 z-50 w-64 p-3 bg-gray-950 border border-gray-700 rounded-xl shadow-2xl"
+                      >
+                        <p className="text-xs text-gray-300 leading-relaxed">{infoText}</p>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              )}
               {change !== undefined && change !== null && !isNaN(change) && (
                 <motion.span
                   initial={{ scale: 0 }}
@@ -750,6 +781,7 @@ export default function Analytics() {
             { id: 'performance', label: 'Performance', icon: TrendingUp },
             { id: 'allocation', label: 'Allocation', icon: PieChartIcon },
             { id: 'risk', label: 'Risk Analysis', icon: Shield },
+            { id: 'planning', label: 'Financial Planning', icon: Calculator },
             { id: 'holdings', label: 'Top Holdings', icon: Award },
             { id: 'builder', label: 'Chart Builder', icon: Settings }
           ].map((tab) => {
@@ -824,6 +856,14 @@ export default function Analytics() {
             />
           )}
 
+          {/* FINANCIAL PLANNING TAB */}
+          {activeTab === 'planning' && (
+            <PlanningTab
+              summary={summary}
+              chartData={chartData}
+            />
+          )}
+
           {/* TOP HOLDINGS TAB */}
           {activeTab === 'holdings' && (
             <TopHoldingsTab
@@ -885,6 +925,7 @@ const OverviewTab = ({
           icon={DollarSign}
           gradient={THEME_COLORS.gradient.primary}
           sparklineData={chartData.map((d) => ({ date: d.date, value: d.netWorth }))}
+          infoText="Your net worth is the total value of all your assets minus all liabilities. It's the most important number for tracking your overall financial health and progress toward financial independence. A growing net worth indicates you're building wealth over time."
         />
         <PremiumMetricCard
           title="Total Assets"
@@ -894,6 +935,7 @@ const OverviewTab = ({
           icon={Layers}
           gradient={THEME_COLORS.gradient.success}
           sparklineData={chartData.map((d) => ({ date: d.date, value: d.totalAssets }))}
+          infoText="Total Assets represents the sum of everything you own: investments, real estate, cash, cryptocurrencies, and other valuable holdings. Monitoring asset growth helps you understand how your portfolio is expanding before considering debts."
         />
         <PremiumMetricCard
           title="Unrealized Gain/Loss"
@@ -912,6 +954,7 @@ const OverviewTab = ({
             date: d.date,
             value: d.unrealizedGain || 0
           }))}
+          infoText="Unrealized Gain/Loss shows how much profit or loss you have on your investments that you haven't sold yet. This helps you understand your investment performance and whether your strategy is working. Positive gains mean your investments are performing well."
         />
         <PremiumMetricCard
           title="Annual Income"
@@ -919,6 +962,7 @@ const OverviewTab = ({
           value={summary?.income?.annual || 0}
           icon={Droplets}
           gradient={THEME_COLORS.gradient.warning}
+          infoText="Annual Income is the total dividends and interest you receive from your investments each year. This passive income is crucial for financial independence - it's money you earn without active work. Higher annual income accelerates your path to FIRE (Financial Independence, Retire Early)."
         />
       </div>
 
@@ -2285,6 +2329,418 @@ const ChartBuilderTab = ({
             <strong>Tip:</strong> Select up to 4 metrics to compare, and choose between area,
             line, or bar chart types. Click on a metric to add/remove it from the chart.
           </p>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+};
+
+// ============================================================================
+// TAB COMPONENTS - FINANCIAL PLANNING
+// ============================================================================
+
+const PlanningTab = ({ summary, chartData }) => {
+  // Personal Information State
+  const [age, setAge] = useState(30);
+  const [retirementAge, setRetirementAge] = useState(65);
+  const [lifeExpectancy, setLifeExpectancy] = useState(90);
+
+  // Income & Expenses State
+  const [annualIncome, setAnnualIncome] = useState(100000);
+  const [annualExpenses, setAnnualExpenses] = useState(60000);
+  const [annualIncomeGrowth, setAnnualIncomeGrowth] = useState(3);
+  const [maxIncome, setMaxIncome] = useState(200000);
+  const [cashFlowToMarket, setCashFlowToMarket] = useState(70);
+  const [emergencyFund, setEmergencyFund] = useState(10000);
+  const [emergencyFundGrowth, setEmergencyFundGrowth] = useState(3);
+
+  // Calculate derived values
+  const cashFlow = useMemo(() => annualIncome - annualExpenses, [annualIncome, annualExpenses]);
+  const marketInvestment = useMemo(() => (cashFlow * cashFlowToMarket) / 100, [cashFlow, cashFlowToMarket]);
+  const cashSavings = useMemo(() => cashFlow - marketInvestment, [cashFlow, marketInvestment]);
+  const yearsToRetirement = useMemo(() => retirementAge - age, [retirementAge, age]);
+  const retirementYears = useMemo(() => lifeExpectancy - retirementAge, [lifeExpectancy, retirementAge]);
+
+  // FIRE calculation
+  const fireNumber = useMemo(() => annualExpenses * 25, [annualExpenses]);
+  const currentNetWorth = summary?.netWorth || 0;
+  const percentToFire = useMemo(() =>
+    fireNumber > 0 ? (currentNetWorth / fireNumber) * 100 : 0,
+    [currentNetWorth, fireNumber]
+  );
+
+  // Emergency Fund Projection
+  const emergencyFundProjection = useMemo(() => {
+    const projection = [];
+    let currentFund = emergencyFund;
+    for (let i = 0; i <= 10; i++) {
+      projection.push({
+        year: new Date().getFullYear() + i,
+        value: currentFund
+      });
+      currentFund = currentFund * (1 + emergencyFundGrowth / 100);
+    }
+    return projection;
+  }, [emergencyFund, emergencyFundGrowth]);
+
+  return (
+    <motion.div
+      key="planning"
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -20 }}
+      className="space-y-6"
+    >
+      {/* Personal Information Section */}
+      <motion.div
+        variants={cardVariants}
+        className="bg-gradient-to-br from-gray-800/60 to-gray-900/60 backdrop-blur-xl rounded-3xl border border-gray-700/50 p-6"
+      >
+        <div className="flex items-center gap-3 mb-6">
+          <div className="p-2 rounded-xl bg-indigo-500/20">
+            <Calculator className="w-5 h-5 text-indigo-400" />
+          </div>
+          <div>
+            <h3 className="text-lg font-bold text-white">Personal Information</h3>
+            <p className="text-sm text-gray-400">Configure your personal details for financial planning</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div>
+            <label className="text-sm font-medium text-gray-400 mb-2 block">Current Age</label>
+            <input
+              type="number"
+              value={age}
+              onChange={(e) => setAge(Number(e.target.value))}
+              className="w-full px-4 py-3 bg-gray-900/60 border border-gray-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
+          <div>
+            <label className="text-sm font-medium text-gray-400 mb-2 block">Target Retirement Age</label>
+            <input
+              type="number"
+              value={retirementAge}
+              onChange={(e) => setRetirementAge(Number(e.target.value))}
+              className="w-full px-4 py-3 bg-gray-900/60 border border-gray-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
+          <div>
+            <label className="text-sm font-medium text-gray-400 mb-2 block">Life Expectancy</label>
+            <input
+              type="number"
+              value={lifeExpectancy}
+              onChange={(e) => setLifeExpectancy(Number(e.target.value))}
+              className="w-full px-4 py-3 bg-gray-900/60 border border-gray-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
+        </div>
+      </motion.div>
+
+      {/* FIRE Explanation & Progress */}
+      <motion.div
+        variants={cardVariants}
+        className="bg-gradient-to-br from-emerald-900/20 to-green-900/20 backdrop-blur-xl rounded-3xl border border-emerald-500/20 p-6"
+      >
+        <div className="flex items-center gap-3 mb-6">
+          <div className="p-2 rounded-xl bg-emerald-500/20">
+            <Flame className="w-5 h-5 text-emerald-400" />
+          </div>
+          <div>
+            <h3 className="text-lg font-bold text-white">FIRE Progress</h3>
+            <p className="text-sm text-gray-400">Financial Independence, Retire Early</p>
+          </div>
+        </div>
+
+        <div className="mb-6 p-4 bg-gray-900/40 rounded-xl border border-emerald-500/10">
+          <p className="text-sm text-gray-300 leading-relaxed">
+            <strong className="text-emerald-400">What is FIRE?</strong> FIRE (Financial Independence, Retire Early) is achieved when your investment portfolio generates enough passive income to cover your living expenses. The most common rule is the <strong className="text-white">4% Safe Withdrawal Rate</strong>, which means you need approximately <strong className="text-white">25 times your annual expenses</strong> invested to maintain your lifestyle indefinitely without working.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+          <div className="p-4 bg-gray-900/40 rounded-2xl border border-gray-700/30">
+            <p className="text-sm text-gray-400 mb-2">Your FIRE Number</p>
+            <p className="text-3xl font-bold text-emerald-400">{formatCurrency(fireNumber)}</p>
+            <p className="text-xs text-gray-500 mt-1">25x annual expenses</p>
+          </div>
+          <div className="p-4 bg-gray-900/40 rounded-2xl border border-gray-700/30">
+            <p className="text-sm text-gray-400 mb-2">Current Net Worth</p>
+            <p className="text-3xl font-bold text-white">{formatCurrency(currentNetWorth)}</p>
+            <p className="text-xs text-gray-500 mt-1">Total portfolio value</p>
+          </div>
+          <div className="p-4 bg-gray-900/40 rounded-2xl border border-gray-700/30">
+            <p className="text-sm text-gray-400 mb-2">Progress to FIRE</p>
+            <p className="text-3xl font-bold text-indigo-400">{percentToFire.toFixed(1)}%</p>
+            <p className="text-xs text-gray-500 mt-1">{formatCurrency(fireNumber - currentNetWorth)} to go</p>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-gray-400">FIRE Progress</span>
+            <span className="text-white font-semibold">{percentToFire.toFixed(1)}%</span>
+          </div>
+          <div className="w-full bg-gray-700/50 rounded-full h-4 overflow-hidden">
+            <motion.div
+              initial={{ width: 0 }}
+              animate={{ width: `${Math.min(percentToFire, 100)}%` }}
+              transition={{ duration: 1.5, ease: 'easeOut' }}
+              className="h-full bg-gradient-to-r from-emerald-500 to-green-400 rounded-full"
+            />
+          </div>
+        </div>
+      </motion.div>
+
+      {/* Income & Expenses Planning */}
+      <motion.div
+        variants={cardVariants}
+        className="bg-gradient-to-br from-gray-800/60 to-gray-900/60 backdrop-blur-xl rounded-3xl border border-gray-700/50 p-6"
+      >
+        <div className="flex items-center gap-3 mb-6">
+          <div className="p-2 rounded-xl bg-cyan-500/20">
+            <Receipt className="w-5 h-5 text-cyan-400" />
+          </div>
+          <div>
+            <h3 className="text-lg font-bold text-white">Income & Expenses</h3>
+            <p className="text-sm text-gray-400">Track your cash flow and investment allocation</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+          <div>
+            <label className="text-sm font-medium text-gray-400 mb-2 flex items-center gap-2">
+              Annual Income
+              <div className="relative group">
+                <Info className="w-3.5 h-3.5 text-gray-500 cursor-help" />
+                <div className="absolute left-0 top-6 hidden group-hover:block w-64 p-3 bg-gray-950 border border-gray-700 rounded-xl shadow-2xl z-50">
+                  <p className="text-xs text-gray-300">Your total yearly income from all sources before taxes</p>
+                </div>
+              </div>
+            </label>
+            <input
+              type="number"
+              value={annualIncome}
+              onChange={(e) => setAnnualIncome(Number(e.target.value))}
+              className="w-full px-4 py-3 bg-gray-900/60 border border-gray-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
+            />
+          </div>
+          <div>
+            <label className="text-sm font-medium text-gray-400 mb-2 flex items-center gap-2">
+              Annual Expenses
+              <div className="relative group">
+                <Info className="w-3.5 h-3.5 text-gray-500 cursor-help" />
+                <div className="absolute left-0 top-6 hidden group-hover:block w-64 p-3 bg-gray-950 border border-gray-700 rounded-xl shadow-2xl z-50">
+                  <p className="text-xs text-gray-300">Your total yearly spending on all living expenses</p>
+                </div>
+              </div>
+            </label>
+            <input
+              type="number"
+              value={annualExpenses}
+              onChange={(e) => setAnnualExpenses(Number(e.target.value))}
+              className="w-full px-4 py-3 bg-gray-900/60 border border-gray-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
+            />
+          </div>
+          <div>
+            <label className="text-sm font-medium text-gray-400 mb-2 flex items-center gap-2">
+              Annual Income Growth Rate (%)
+              <div className="relative group">
+                <Info className="w-3.5 h-3.5 text-gray-500 cursor-help" />
+                <div className="absolute left-0 top-6 hidden group-hover:block w-64 p-3 bg-gray-950 border border-gray-700 rounded-xl shadow-2xl z-50">
+                  <p className="text-xs text-gray-300">Expected yearly increase in your income (raises, promotions, etc.)</p>
+                </div>
+              </div>
+            </label>
+            <input
+              type="number"
+              step="0.1"
+              value={annualIncomeGrowth}
+              onChange={(e) => setAnnualIncomeGrowth(Number(e.target.value))}
+              className="w-full px-4 py-3 bg-gray-900/60 border border-gray-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
+            />
+          </div>
+          <div>
+            <label className="text-sm font-medium text-gray-400 mb-2 flex items-center gap-2">
+              Maximum Expected Income
+              <div className="relative group">
+                <Info className="w-3.5 h-3.5 text-gray-500 cursor-help" />
+                <div className="absolute left-0 top-6 hidden group-hover:block w-64 p-3 bg-gray-950 border border-gray-700 rounded-xl shadow-2xl z-50">
+                  <p className="text-xs text-gray-300">The highest income you realistically expect to reach in your career</p>
+                </div>
+              </div>
+            </label>
+            <input
+              type="number"
+              value={maxIncome}
+              onChange={(e) => setMaxIncome(Number(e.target.value))}
+              className="w-full px-4 py-3 bg-gray-900/60 border border-gray-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
+            />
+          </div>
+        </div>
+
+        {/* Cash Flow Summary */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <div className="p-4 bg-gradient-to-br from-emerald-900/20 to-green-900/20 rounded-2xl border border-emerald-500/20">
+            <p className="text-sm text-gray-400 mb-2">Annual Cash Flow</p>
+            <p className={`text-2xl font-bold ${cashFlow >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+              {formatCurrency(cashFlow)}
+            </p>
+            <p className="text-xs text-gray-500 mt-1">Income - Expenses</p>
+          </div>
+          <div className="p-4 bg-gradient-to-br from-indigo-900/20 to-purple-900/20 rounded-2xl border border-indigo-500/20">
+            <p className="text-sm text-gray-400 mb-2">Savings Rate</p>
+            <p className="text-2xl font-bold text-indigo-400">
+              {annualIncome > 0 ? ((cashFlow / annualIncome) * 100).toFixed(1) : 0}%
+            </p>
+            <p className="text-xs text-gray-500 mt-1">Cash flow / Income</p>
+          </div>
+          <div className="p-4 bg-gradient-to-br from-amber-900/20 to-orange-900/20 rounded-2xl border border-amber-500/20">
+            <p className="text-sm text-gray-400 mb-2">Years to FIRE</p>
+            <p className="text-2xl font-bold text-amber-400">
+              {marketInvestment > 0 && fireNumber > currentNetWorth
+                ? Math.ceil((fireNumber - currentNetWorth) / marketInvestment)
+                : '∞'}
+            </p>
+            <p className="text-xs text-gray-500 mt-1">At current rate</p>
+          </div>
+        </div>
+
+        {/* Investment Allocation */}
+        <div className="mb-6">
+          <label className="text-sm font-medium text-gray-400 mb-2 block">
+            Cash Flow to Market (%) - Remaining goes to Cash Savings
+          </label>
+          <div className="flex items-center gap-4">
+            <input
+              type="range"
+              min="0"
+              max="100"
+              value={cashFlowToMarket}
+              onChange={(e) => setCashFlowToMarket(Number(e.target.value))}
+              className="flex-1 h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+            />
+            <span className="text-white font-semibold w-16">{cashFlowToMarket}%</span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="p-4 bg-gray-900/40 rounded-2xl border border-gray-700/30">
+            <p className="text-sm text-gray-400 mb-2">Annual Market Investment</p>
+            <p className="text-2xl font-bold text-indigo-400">{formatCurrency(marketInvestment)}</p>
+            <p className="text-xs text-gray-500 mt-1">{cashFlowToMarket}% of cash flow</p>
+          </div>
+          <div className="p-4 bg-gray-900/40 rounded-2xl border border-gray-700/30">
+            <p className="text-sm text-gray-400 mb-2">Annual Cash Savings</p>
+            <p className="text-2xl font-bold text-emerald-400">{formatCurrency(cashSavings)}</p>
+            <p className="text-xs text-gray-500 mt-1">{100 - cashFlowToMarket}% of cash flow</p>
+          </div>
+        </div>
+      </motion.div>
+
+      {/* Emergency Fund Planning */}
+      <motion.div
+        variants={cardVariants}
+        className="bg-gradient-to-br from-gray-800/60 to-gray-900/60 backdrop-blur-xl rounded-3xl border border-gray-700/50 p-6"
+      >
+        <div className="flex items-center gap-3 mb-6">
+          <div className="p-2 rounded-xl bg-orange-500/20">
+            <PiggyBank className="w-5 h-5 text-orange-400" />
+          </div>
+          <div>
+            <h3 className="text-lg font-bold text-white">Emergency Fund</h3>
+            <p className="text-sm text-gray-400">Build and track your financial safety net</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+          <div>
+            <label className="text-sm font-medium text-gray-400 mb-2 flex items-center gap-2">
+              Current Emergency Fund
+              <div className="relative group">
+                <Info className="w-3.5 h-3.5 text-gray-500 cursor-help" />
+                <div className="absolute left-0 top-6 hidden group-hover:block w-64 p-3 bg-gray-950 border border-gray-700 rounded-xl shadow-2xl z-50">
+                  <p className="text-xs text-gray-300">Cash reserves for unexpected expenses. Experts recommend 3-6 months of expenses.</p>
+                </div>
+              </div>
+            </label>
+            <input
+              type="number"
+              value={emergencyFund}
+              onChange={(e) => setEmergencyFund(Number(e.target.value))}
+              className="w-full px-4 py-3 bg-gray-900/60 border border-gray-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
+            />
+          </div>
+          <div>
+            <label className="text-sm font-medium text-gray-400 mb-2 flex items-center gap-2">
+              Annual Growth Rate (%)
+              <div className="relative group">
+                <Info className="w-3.5 h-3.5 text-gray-500 cursor-help" />
+                <div className="absolute left-0 top-6 hidden group-hover:block w-64 p-3 bg-gray-950 border border-gray-700 rounded-xl shadow-2xl z-50">
+                  <p className="text-xs text-gray-300">Expected growth from high-yield savings account. Defaults to inflation rate (3%).</p>
+                </div>
+              </div>
+            </label>
+            <input
+              type="number"
+              step="0.1"
+              value={emergencyFundGrowth}
+              onChange={(e) => setEmergencyFundGrowth(Number(e.target.value))}
+              className="w-full px-4 py-3 bg-gray-900/60 border border-gray-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
+            />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          <div className="p-4 bg-gradient-to-br from-orange-900/20 to-amber-900/20 rounded-2xl border border-orange-500/20">
+            <p className="text-sm text-gray-400 mb-2">Months of Expenses Covered</p>
+            <p className="text-3xl font-bold text-orange-400">
+              {annualExpenses > 0 ? ((emergencyFund / (annualExpenses / 12))).toFixed(1) : 0}
+            </p>
+            <p className="text-xs text-gray-500 mt-1">
+              Target: 3-6 months ({formatCurrency((annualExpenses / 12) * 6)})
+            </p>
+          </div>
+          <div className="p-4 bg-gradient-to-br from-emerald-900/20 to-green-900/20 rounded-2xl border border-emerald-500/20">
+            <p className="text-sm text-gray-400 mb-2">Fund Status</p>
+            <p className="text-3xl font-bold text-emerald-400">
+              {emergencyFund >= (annualExpenses / 12) * 6 ? 'Secure' :
+               emergencyFund >= (annualExpenses / 12) * 3 ? 'Good' : 'Build'}
+            </p>
+            <p className="text-xs text-gray-500 mt-1">Financial safety level</p>
+          </div>
+        </div>
+
+        {/* Emergency Fund Growth Projection */}
+        <div className="h-64 bg-gray-900/40 rounded-2xl p-4">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={emergencyFundProjection}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+              <XAxis
+                dataKey="year"
+                tick={{ fill: '#9ca3af', fontSize: 12 }}
+              />
+              <YAxis
+                tick={{ fill: '#9ca3af', fontSize: 12 }}
+                tickFormatter={(v) => formatCurrency(v, true)}
+              />
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: '#111827',
+                  border: '1px solid #374151',
+                  borderRadius: '12px'
+                }}
+                formatter={(value) => [formatCurrency(value), 'Emergency Fund']}
+              />
+              <Line
+                type="monotone"
+                dataKey="value"
+                stroke="#f97316"
+                strokeWidth={3}
+                dot={{ r: 4, fill: '#f97316' }}
+              />
+            </LineChart>
+          </ResponsiveContainer>
         </div>
       </motion.div>
     </motion.div>
