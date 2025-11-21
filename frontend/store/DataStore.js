@@ -939,6 +939,7 @@ export const DataStoreProvider = ({ children }) => {
       if (!state.portfolioSummary.data && !state.portfolioSummary.loading) fetchPortfolioData();
       if ((!state.groupedPositions.data || state.groupedPositions.data.length === 0) && !state.groupedPositions.loading) fetchGroupedPositionsData();
       if ((!state.accounts.data || state.accounts.data.length === 0) && !state.accounts.loading) fetchAccountsData();
+      if ((!state.accountsSummaryPositions.data || state.accountsSummaryPositions.data.length === 0) && !state.accountsSummaryPositions.loading) fetchAccountsSummaryPositionsData();
     }, 0);
 
     // Phase 2
