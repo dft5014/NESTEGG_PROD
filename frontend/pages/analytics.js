@@ -15,7 +15,7 @@ import {
   Grid, List, Settings, Search, X, ChevronDown, ChevronUp, ArrowUpRight,
   ArrowDownRight, Sparkles, Gauge, Droplets, Flame, Wind, Building2,
   Wallet, Gift, Package, Home, Coins, Banknote, MinusCircle, Info,
-  Calculator, TrendingUpDown, PiggyBank, Receipt, Repeat
+  Calculator, TrendingUpDown, PiggyBank, Receipt, Repeat, Loader2
 } from 'lucide-react';
 
 import { useDataStore } from '@/store/DataStore';
@@ -493,7 +493,7 @@ export default function Analytics() {
     isStale
   } = usePortfolioSummary();
 
-  const { trends } = usePortfolioTrends();
+  const { trends, loading: trendsLoading } = usePortfolioTrends();
   const {
     positions: groupedPositions,
     summary: positionsSummary,
@@ -503,8 +503,25 @@ export default function Analytics() {
   const { positions: detailedPositions } = useDetailedPositions();
   const { accounts } = useAccounts();
 
+  // Debug logging
+  useEffect(() => {
+    console.log('=== ANALYTICS DEBUG ===');
+    console.log('Summary Loading:', summaryLoading, 'Summary:', summary);
+    console.log('Trends Loading:', trendsLoading, 'Trends:', trends);
+    console.log('Positions Loading:', positionsLoading, 'Positions:', groupedPositions);
+    console.log('Top Positions:', topPositions);
+    console.log('Sector Allocation:', rawSectorAllocation);
+    console.log('Institution Allocation:', institutionAllocation);
+    console.log('=====================');
+  }, [summaryLoading, trendsLoading, positionsLoading, summary, trends, groupedPositions, topPositions, rawSectorAllocation, institutionAllocation]);
+
   // State
   const [activeTab, setActiveTab] = useState('overview');
+
+  // Log tab changes
+  useEffect(() => {
+    console.log('Active Tab Changed:', activeTab);
+  }, [activeTab]);
   const [filters, setFilters] = useState({
     timeframe: '1m',
     selectedAssetTypes: new Set(['security', 'crypto', 'cash', 'metal'])
@@ -522,11 +539,18 @@ export default function Analytics() {
     return Array.from(types);
   }, [groupedPositions]);
 
+  // Combined loading state
+  const isLoading = summaryLoading || trendsLoading || positionsLoading;
+
   // Process chart data based on timeframe
   const chartData = useMemo(() => {
-    if (!trends?.chartData) return [];
+    if (!trends?.chartData) {
+      console.log('Chart Data: No trends data available');
+      return [];
+    }
 
     let data = [...trends.chartData];
+    console.log('Chart Data: Processing', data.length, 'data points for timeframe:', filters.timeframe);
 
     // Apply timeframe filter
     if (filters.timeframe !== 'all') {
@@ -559,6 +583,7 @@ export default function Analytics() {
       data = data.filter((d) => new Date(d.date) >= cutoff);
     }
 
+    console.log('Chart Data: Filtered to', data.length, 'points');
     return data;
   }, [trends, filters.timeframe]);
 
@@ -576,8 +601,11 @@ export default function Analytics() {
 
   // Process sector allocation
   const sectorData = useMemo(() => {
-    if (!rawSectorAllocation) return [];
-    return Object.entries(rawSectorAllocation)
+    if (!rawSectorAllocation) {
+      console.log('Sector Data: No raw sector allocation');
+      return [];
+    }
+    const sectors = Object.entries(rawSectorAllocation)
       .filter(([, d]) => d?.value > 0)
       .map(([name, d]) => ({
         name,
@@ -586,11 +614,17 @@ export default function Analytics() {
         positionCount: d.position_count || 0
       }))
       .sort((a, b) => b.value - a.value);
+    console.log('Sector Data: Processed', sectors.length, 'sectors');
+    return sectors;
   }, [rawSectorAllocation]);
 
   // Calculate comprehensive risk metrics
   const enhancedRiskMetrics = useMemo(() => {
-    if (!chartData || chartData.length < 2) return null;
+    if (!chartData || chartData.length < 2) {
+      console.log('Risk Metrics: Insufficient chart data');
+      return null;
+    }
+    console.log('Risk Metrics: Calculating from', chartData.length, 'data points');
 
     const returns = [];
     for (let i = 1; i < chartData.length; i++) {
@@ -630,8 +664,11 @@ export default function Analytics() {
 
   // Process asset allocation data
   const assetAllocationData = useMemo(() => {
-    if (!summary?.assetAllocation) return [];
-    return Object.entries(summary.assetAllocation)
+    if (!summary?.assetAllocation) {
+      console.log('Asset Allocation: No summary asset allocation');
+      return [];
+    }
+    const allocation = Object.entries(summary.assetAllocation)
       .filter(([, d]) => d.value > 0)
       .map(([type, d]) => ({
         name: type.charAt(0).toUpperCase() + type.slice(1),
@@ -643,10 +680,13 @@ export default function Analytics() {
         count: d.count || 0
       }))
       .sort((a, b) => b.value - a.value);
+    console.log('Asset Allocation: Processed', allocation.length, 'asset classes');
+    return allocation;
   }, [summary]);
 
-  // Loading state
-  if (summaryLoading && !summary) {
+  // Loading state - show loading if ANY data source is still loading
+  if (isLoading && !summary) {
+    console.log('RENDERING: Initial loading state');
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-950 via-gray-900 to-black">
         <motion.div
@@ -697,6 +737,8 @@ export default function Analytics() {
   }
 
   // Main render
+  console.log('RENDERING: Main analytics component, activeTab:', activeTab);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-black text-white">
       <Head>
@@ -907,6 +949,31 @@ const OverviewTab = ({
   dividendMetrics,
   timeframe
 }) => {
+  console.log('OverviewTab: Rendering with data:', {
+    hasSummary: !!summary,
+    chartDataLength: chartData?.length,
+    sectorDataLength: sectorData?.length,
+    assetAllocationLength: assetAllocationData?.length
+  });
+
+  // Show loading if critical data is missing
+  if (!summary || !chartData || chartData.length === 0) {
+    return (
+      <motion.div
+        key="overview"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -20 }}
+        className="flex items-center justify-center min-h-[400px]"
+      >
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 text-indigo-400 animate-spin mx-auto mb-4" />
+          <p className="text-gray-400">Loading overview data...</p>
+        </div>
+      </motion.div>
+    );
+  }
+
   return (
     <motion.div
       key="overview"
@@ -1211,6 +1278,30 @@ const PerformanceTab = ({
   assetPerformance,
   timeframe
 }) => {
+  console.log('PerformanceTab: Rendering with data:', {
+    hasSummary: !!summary,
+    chartDataLength: chartData?.length,
+    hasTopPerformersAmount: !!topPerformersAmount,
+    hasTopPerformersPercent: !!topPerformersPercent
+  });
+
+  if (!summary || !chartData || chartData.length === 0) {
+    return (
+      <motion.div
+        key="performance"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -20 }}
+        className="flex items-center justify-center min-h-[400px]"
+      >
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 text-emerald-400 animate-spin mx-auto mb-4" />
+          <p className="text-gray-400">Loading performance data...</p>
+        </div>
+      </motion.div>
+    );
+  }
+
   return (
     <motion.div
       key="performance"
@@ -1464,6 +1555,30 @@ const AllocationTab = ({
   assetAllocationData,
   institutionAllocation
 }) => {
+  console.log('AllocationTab: Rendering with data:', {
+    hasSummary: !!summary,
+    sectorDataLength: sectorData?.length,
+    assetAllocationLength: assetAllocationData?.length,
+    institutionAllocationLength: institutionAllocation?.length
+  });
+
+  if (!summary || !assetAllocationData || assetAllocationData.length === 0) {
+    return (
+      <motion.div
+        key="allocation"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -20 }}
+        className="flex items-center justify-center min-h-[400px]"
+      >
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 text-indigo-400 animate-spin mx-auto mb-4" />
+          <p className="text-gray-400">Loading allocation data...</p>
+        </div>
+      </motion.div>
+    );
+  }
+
   return (
     <motion.div
       key="allocation"
@@ -1712,6 +1827,30 @@ const RiskAnalysisTab = ({
   taxEfficiencyMetrics,
   summary
 }) => {
+  console.log('RiskAnalysisTab: Rendering with data:', {
+    hasEnhancedRiskMetrics: !!enhancedRiskMetrics,
+    hasConcentrationMetrics: !!concentrationMetrics,
+    hasTaxEfficiencyMetrics: !!taxEfficiencyMetrics,
+    hasSummary: !!summary
+  });
+
+  if (!summary) {
+    return (
+      <motion.div
+        key="risk"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -20 }}
+        className="flex items-center justify-center min-h-[400px]"
+      >
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 text-red-400 animate-spin mx-auto mb-4" />
+          <p className="text-gray-400">Loading risk analysis data...</p>
+        </div>
+      </motion.div>
+    );
+  }
+
   return (
     <motion.div
       key="risk"
@@ -1923,6 +2062,12 @@ const RiskAnalysisTab = ({
 // ============================================================================
 
 const TopHoldingsTab = ({ topPositions, groupedPositions, summary, filters }) => {
+  console.log('TopHoldingsTab: Rendering with data:', {
+    topPositionsLength: topPositions?.length,
+    groupedPositionsLength: groupedPositions?.length,
+    hasSummary: !!summary
+  });
+
   const [sortBy, setSortBy] = useState('value');
   const [sortDirection, setSortDirection] = useState('desc');
 
@@ -1968,6 +2113,23 @@ const TopHoldingsTab = ({ topPositions, groupedPositions, summary, filters }) =>
       setSortDirection('desc');
     }
   };
+
+  if (!topPositions || topPositions.length === 0) {
+    return (
+      <motion.div
+        key="holdings"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -20 }}
+        className="flex items-center justify-center min-h-[400px]"
+      >
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 text-amber-400 animate-spin mx-auto mb-4" />
+          <p className="text-gray-400">Loading holdings data...</p>
+        </div>
+      </motion.div>
+    );
+  }
 
   return (
     <motion.div
@@ -2105,6 +2267,30 @@ const ChartBuilderTab = ({
   selectedChartType,
   setSelectedChartType
 }) => {
+  console.log('ChartBuilderTab: Rendering with data:', {
+    chartDataLength: chartData?.length,
+    selectedMetricsCount: selectedMetrics?.length,
+    selectedChartType
+  });
+
+  // Show loading if critical data is missing
+  if (!chartData || chartData.length === 0) {
+    return (
+      <motion.div
+        key="builder"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -20 }}
+        className="flex items-center justify-center min-h-[400px]"
+      >
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 text-cyan-400 animate-spin mx-auto mb-4" />
+          <p className="text-gray-400">Loading chart data...</p>
+        </div>
+      </motion.div>
+    );
+  }
+
   const availableMetrics = [
     { id: 'netWorth', label: 'Net Worth', color: '#6366f1' },
     { id: 'totalAssets', label: 'Total Assets', color: '#10b981' },
@@ -2340,6 +2526,30 @@ const ChartBuilderTab = ({
 // ============================================================================
 
 const PlanningTab = ({ summary, chartData }) => {
+  console.log('PlanningTab: Rendering with data:', {
+    hasSummary: !!summary,
+    chartDataLength: chartData?.length,
+    currentNetWorth: summary?.netWorth
+  });
+
+  // Show loading if critical data is missing
+  if (!summary) {
+    return (
+      <motion.div
+        key="planning"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -20 }}
+        className="flex items-center justify-center min-h-[400px]"
+      >
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 text-purple-400 animate-spin mx-auto mb-4" />
+          <p className="text-gray-400">Loading planning data...</p>
+        </div>
+      </motion.div>
+    );
+  }
+
   // Personal Information State
   const [age, setAge] = useState(30);
   const [retirementAge, setRetirementAge] = useState(65);
