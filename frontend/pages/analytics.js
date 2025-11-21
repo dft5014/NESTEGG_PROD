@@ -1523,7 +1523,7 @@ const PerformanceTab = ({
                 );
               })}
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 };
