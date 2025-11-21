@@ -11,21 +11,13 @@ export const useAccountsSummaryPositions = (accountId = null, assetType = null) 
   const { fetchAccountsSummaryPositionsData, markAccountsSummaryPositionsStale } = actions;
 
   // Fallback: Retry if data is stale or in error state
-  // (DataStore handles initial fetch in Phase 1, this is recovery only)
+  // (DataStore handles initial fetch in Phase 2, this is recovery only)
   useEffect(() => {
     if ((accountsSummaryPositions.isStale || accountsSummaryPositions.error) && !accountsSummaryPositions.loading) {
       console.log('[useAccountsSummaryPositions] Refetching due to stale/error state');
       fetchAccountsSummaryPositionsData(accountId, assetType);
     }
   }, [accountsSummaryPositions.isStale, accountsSummaryPositions.error, accountsSummaryPositions.loading, accountId, assetType, fetchAccountsSummaryPositionsData]);
-
-  // DISABLED - DataStore handles initial fetch in Phase 1
-  // useEffect(() => {
-  //   if (!accountsSummaryPositions.loading && !accountsSummaryPositions.lastFetched) {
-  //     console.log('[useAccountsSummaryPositions] Initial fetch for all accounts summary positions');
-  //     fetchAccountsSummaryPositionsData(null, null); // Fetch all data
-  //   }
-  // }, []); // Run once on mount
 
   // Process positions data with proper field mapping to camelCase
   const positions = useMemo(() => {

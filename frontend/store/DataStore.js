@@ -933,19 +933,19 @@ export const DataStoreProvider = ({ children }) => {
     if (hasInitialized.current) return;
     hasInitialized.current = true;
 
-    // Phase 1: immediate
+    // Phase 1: Critical data for initial page load (immediate)
     phase1Timeout.current = setTimeout(() => {
       console.log('[DataStore] Phase 1: Loading critical data...');
       if (!state.portfolioSummary.data && !state.portfolioSummary.loading) fetchPortfolioData();
       if ((!state.groupedPositions.data || state.groupedPositions.data.length === 0) && !state.groupedPositions.loading) fetchGroupedPositionsData();
       if ((!state.accounts.data || state.accounts.data.length === 0) && !state.accounts.loading) fetchAccountsData();
-      if ((!state.accountsSummaryPositions.data || state.accountsSummaryPositions.data.length === 0) && !state.accountsSummaryPositions.loading) fetchAccountsSummaryPositionsData();
     }, 0);
 
-    // Phase 2
+    // Phase 2: Secondary data for interactions (1 second delay)
     phase2Timeout.current = setTimeout(() => {
       console.log('[DataStore] Phase 2: Pre-fetching likely needed data...');
       if ((!state.groupedLiabilities.data || state.groupedLiabilities.data.length === 0) && !state.groupedLiabilities.loading) fetchGroupedLiabilitiesData();
+      if ((!state.accountsSummaryPositions.data || state.accountsSummaryPositions.data.length === 0) && !state.accountsSummaryPositions.loading) fetchAccountsSummaryPositionsData();
     }, 1000);
 
     // Phase 3
@@ -957,7 +957,7 @@ export const DataStoreProvider = ({ children }) => {
     }, 3000);
   }, [
     state, fetchPortfolioData, fetchGroupedPositionsData, fetchAccountsData,
-    fetchGroupedLiabilitiesData, fetchDetailedPositionsData
+    fetchAccountsSummaryPositionsData, fetchGroupedLiabilitiesData, fetchDetailedPositionsData
   ]);
 
   useEffect(() => {
