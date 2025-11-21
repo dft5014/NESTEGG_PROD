@@ -8,7 +8,7 @@ import {
   Building2, CheckCircle, Clock, TrendingUp, TrendingDown,
   Search, Download, Calendar, Eye, EyeOff, RefreshCw,
   FileText, Sparkles, Target, Award, AlertCircle, HelpCircle,
-  ArrowRight, Minus, Loader2, ExternalLink, Zap, Shield
+  ArrowRight, Minus, Loader2, ExternalLink, Zap, Shield, Upload
 } from 'lucide-react';
 import { useDataStore } from '@/store/DataStore';
 import { useAccounts } from '@/store/hooks/useAccounts';
@@ -513,14 +513,14 @@ const InstitutionCard = ({
         <div className="px-6 pb-4 border-t border-gray-100">
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead>
-                <tr className="text-xs uppercase text-gray-500 border-b border-gray-200">
-                  <th className="text-left py-3 font-medium">Account</th>
-                  <th className="text-right py-3 font-medium">NestEgg</th>
-                  <th className="text-center py-3 font-medium">Statement</th>
-                  <th className="text-right py-3 font-medium">Difference</th>
-                  <th className="text-center py-3 font-medium">Status</th>
-                  <th className="text-center py-3 font-medium">Actions</th>
+              <thead className="bg-gray-50/80">
+                <tr className="text-xs uppercase text-gray-600 border-b-2 border-gray-200">
+                  <th className="text-left py-3.5 px-3 font-semibold">Account</th>
+                  <th className="text-right py-3.5 px-3 font-semibold">NestEgg Balance</th>
+                  <th className="text-center py-3.5 px-3 font-semibold">Statement Balance</th>
+                  <th className="text-right py-3.5 px-3 font-semibold">Difference</th>
+                  <th className="text-center py-3.5 px-3 font-semibold">Status</th>
+                  <th className="text-center py-3.5 px-3 font-semibold">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -537,70 +537,77 @@ const InstitutionCard = ({
                     <tr
                       key={account.id}
                       className={`
-                        group hover:bg-gray-50 transition-colors
-                        ${isReconciled ? 'bg-emerald-50/50' : ''}
+                        group transition-colors border-b border-gray-100 last:border-b-0
+                        ${isReconciled ? 'bg-emerald-50/30' : 'hover:bg-gray-50/80'}
                       `}
                     >
-                      <td className="py-3">
+                      <td className="py-3.5 px-3">
                         <div>
-                          <div className="font-medium text-gray-900">{account.name}</div>
-                          <div className="text-xs text-gray-500">{account.type}</div>
+                          <div className="font-semibold text-gray-900 text-sm">{account.name}</div>
+                          <div className="text-xs text-gray-500 mt-0.5">{account.type}</div>
                         </div>
                       </td>
-                      <td className="py-3 text-right">
-                        <span className="text-sm font-medium text-gray-900 tabular-nums">
-                          {fmtCurrency(nesteggVal, hideValues)}
-                        </span>
+                      <td className="py-3.5 px-3 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <span className="text-sm font-bold text-gray-900 tabular-nums">
+                            {fmtCurrency(nesteggVal, hideValues)}
+                          </span>
+                        </div>
                       </td>
-                      <td className="py-3 text-center">
-                        <CurrencyInput
-                          id={`stmt-${account.id}`}
-                          value={statementVal}
-                          onChange={(val) => onStatementChange(account.id, val)}
-                          autoFocus={idx === 0 && !hasInput}
-                          className={hasInput ? 'bg-blue-50 border-blue-300' : ''}
-                        />
+                      <td className="py-3.5 px-3 text-center">
+                        <div className="flex justify-center">
+                          <CurrencyInput
+                            id={`stmt-${account.id}`}
+                            value={statementVal}
+                            onChange={(val) => onStatementChange(account.id, val)}
+                            autoFocus={idx === 0 && !hasInput}
+                            className={hasInput ? 'bg-blue-50 border-blue-400 ring-1 ring-blue-200' : ''}
+                          />
+                        </div>
                       </td>
-                      <td className="py-3 text-right">
+                      <td className="py-3.5 px-3 text-right">
                         {hasInput ? (
                           <span className={`
-                            inline-flex items-center gap-1 px-2 py-1 rounded-md text-sm font-semibold tabular-nums
-                            ${colors.bg} ${colors.text}
+                            inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-sm font-bold tabular-nums
+                            ${colors.bg} ${colors.text} ${colors.border} border
                           `}>
                             {diff > 0 ? '+' : diff < 0 ? '−' : ''}
                             {fmtCurrency(Math.abs(diff), hideValues)}
                           </span>
                         ) : (
-                          <span className="text-xs text-gray-400">—</span>
+                          <span className="text-sm text-gray-400 font-medium">—</span>
                         )}
                       </td>
-                      <td className="py-3 text-center">
+                      <td className="py-3.5 px-3 text-center">
                         {isReconciled ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 border border-emerald-200">
-                            <CheckCircle className="w-3 h-3" />
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold bg-emerald-100 text-emerald-700 border border-emerald-200">
+                            <CheckCircle className="w-3.5 h-3.5" />
                             Reconciled
                           </span>
                         ) : hasInput && status === 'match' ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 border border-emerald-200">
-                            <Check className="w-3 h-3" />
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold bg-emerald-100 text-emerald-700 border border-emerald-200">
+                            <Check className="w-3.5 h-3.5" />
                             Match
                           </span>
                         ) : hasInput ? (
-                          <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${colors.bg} ${colors.text} ${colors.border} border`}>
-                            <AlertCircle className="w-3 h-3" />
-                            {status === 'minor' ? 'Small Diff' : 'Large Diff'}
+                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold ${colors.bg} ${colors.text} ${colors.border} border`}>
+                            <AlertCircle className="w-3.5 h-3.5" />
+                            {status === 'minor' ? 'Minor' : 'Major'}
                           </span>
                         ) : (
-                          <span className="text-xs text-gray-400">Pending</span>
+                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-gray-100 text-gray-500 border border-gray-200">
+                            <Clock className="w-3 h-3" />
+                            Pending
+                          </span>
                         )}
                       </td>
-                      <td className="py-3 text-center">
-                        <div className="flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <td className="py-3.5 px-3 text-center">
+                        <div className="flex items-center justify-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
                           {hasInput && status !== 'match' && (
                             <button
                               onClick={() => onInvestigate(account)}
-                              className="p-1.5 hover:bg-blue-100 rounded-lg transition-colors"
-                              title="Investigate"
+                              className="p-2 hover:bg-blue-100 rounded-lg transition-all hover:scale-110"
+                              title="Investigate Discrepancy"
                             >
                               <Search className="w-4 h-4 text-blue-600" />
                             </button>
@@ -609,13 +616,13 @@ const InstitutionCard = ({
                             <button
                               onClick={() => onToggleReconciled(account.id)}
                               className={`
-                                p-1.5 rounded-lg transition-colors
+                                p-2 rounded-lg transition-all hover:scale-110
                                 ${isReconciled
                                   ? 'bg-emerald-100 hover:bg-emerald-200'
                                   : 'hover:bg-gray-200'
                                 }
                               `}
-                              title={isReconciled ? 'Unmark' : 'Mark as Reconciled'}
+                              title={isReconciled ? 'Unmark as Reconciled' : 'Mark as Reconciled'}
                             >
                               <Shield className={`w-4 h-4 ${isReconciled ? 'text-emerald-600' : 'text-gray-400'}`} />
                             </button>
@@ -655,6 +662,8 @@ const QuickStatementValidationModal = ({ isOpen, onClose }) => {
     const d = new Date();
     return d.toISOString().split('T')[0];
   });
+  const [isImporting, setIsImporting] = useState(false);
+  const fileInputRef = useRef(null);
 
   const loading = accountsLoading || summaryLoading || positionsLoading;
 
@@ -790,24 +799,25 @@ const QuickStatementValidationModal = ({ isOpen, onClose }) => {
   }, []);
 
   const handleExportCSV = useCallback(() => {
-    const rows = [['Institution', 'Account', 'Account Type', 'NestEgg Balance', 'Statement Balance', 'Difference', 'Status']];
+    const rows = [['Institution', 'Account', 'Account ID', 'Account Type', 'NestEgg Balance', 'Statement Balance', 'Difference', 'Status']];
 
     accountsByInstitution.forEach((accts, institution) => {
       accts.forEach(acc => {
         const nestegg = acc.currentValue || 0;
-        const statement = statementBalances[acc.id] || 0;
-        const diff = statement - nestegg;
+        const statement = statementBalances[acc.id] || '';
+        const diff = statement ? statement - nestegg : '';
         const status = reconciledAccounts.has(acc.id) ? 'Reconciled' :
-                      statement === 0 ? 'Pending' :
+                      statement === '' ? 'Pending' :
                       Math.abs(diff) < 1 ? 'Match' : 'Discrepancy';
 
         rows.push([
           institution,
           acc.name,
+          acc.id, // Include account ID for import matching
           acc.type,
           nestegg.toFixed(2),
-          statement.toFixed(2),
-          diff.toFixed(2),
+          statement !== '' ? statement.toFixed(2) : '',
+          diff !== '' ? diff.toFixed(2) : '',
           status
         ]);
       });
@@ -824,6 +834,67 @@ const QuickStatementValidationModal = ({ isOpen, onClose }) => {
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
   }, [accountsByInstitution, statementBalances, reconciledAccounts, selectedDate]);
+
+  const handleImportCSV = useCallback(async (file) => {
+    setIsImporting(true);
+    try {
+      const text = await file.text();
+      const lines = text.split('\n').filter(line => line.trim());
+
+      if (lines.length < 2) {
+        alert('CSV file is empty or invalid');
+        return;
+      }
+
+      const headers = lines[0].split(',').map(h => h.replace(/"/g, '').trim());
+      const accountIdIdx = headers.indexOf('Account ID');
+      const statementBalanceIdx = headers.indexOf('Statement Balance');
+
+      if (accountIdIdx === -1 || statementBalanceIdx === -1) {
+        alert('Invalid CSV format. Make sure it has "Account ID" and "Statement Balance" columns.');
+        return;
+      }
+
+      const newBalances = {};
+      let importCount = 0;
+
+      for (let i = 1; i < lines.length; i++) {
+        const cells = lines[i].split(',').map(c => c.replace(/"/g, '').trim());
+        const accountId = cells[accountIdIdx];
+        const statementBalance = cells[statementBalanceIdx];
+
+        if (accountId && statementBalance && statementBalance !== '') {
+          const balance = parseNumber(statementBalance);
+          if (balance !== 0 || statementBalance === '0') {
+            newBalances[accountId] = balance;
+            importCount++;
+          }
+        }
+      }
+
+      setStatementBalances(prev => ({ ...prev, ...newBalances }));
+      alert(`Successfully imported ${importCount} statement balances!`);
+
+      // Auto-expand all institutions after import
+      handleExpandAll();
+    } catch (error) {
+      console.error('Import error:', error);
+      alert('Failed to import CSV. Please check the file format.');
+    } finally {
+      setIsImporting(false);
+    }
+  }, [handleExpandAll]);
+
+  const handleFileSelect = useCallback((e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      handleImportCSV(file);
+    }
+    // Reset input so same file can be selected again
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  }, [handleImportCSV]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -931,51 +1002,89 @@ const QuickStatementValidationModal = ({ isOpen, onClose }) => {
             </div>
 
             {/* Toolbar */}
-            <div className="px-6 py-4 bg-white border-b border-gray-200 flex items-center justify-between gap-4">
-              <div className="flex items-center gap-3 flex-1">
-                <div className="relative flex-1 max-w-md">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <input
-                    id="institution-search"
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search institutions... (⌘K)"
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                  />
+            <div className="px-6 py-4 bg-white border-b border-gray-200">
+              <div className="flex items-center justify-between gap-4 mb-3">
+                <div className="flex items-center gap-3 flex-1">
+                  <div className="relative flex-1 max-w-md">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input
+                      id="institution-search"
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="Search institutions... (⌘K)"
+                      className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                    />
+                  </div>
+                  <button
+                    onClick={handleExpandAll}
+                    className="px-3 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors flex items-center gap-2 whitespace-nowrap"
+                  >
+                    <ChevronDown className="w-4 h-4" />
+                    Expand All
+                  </button>
+                  <button
+                    onClick={handleCollapseAll}
+                    className="px-3 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors flex items-center gap-2 whitespace-nowrap"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                    Collapse All
+                  </button>
                 </div>
-                <button
-                  onClick={handleExpandAll}
-                  className="px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors flex items-center gap-2"
-                >
-                  <ChevronDown className="w-4 h-4" />
-                  Expand All
-                </button>
-                <button
-                  onClick={handleCollapseAll}
-                  className="px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors flex items-center gap-2"
-                >
-                  <ChevronRight className="w-4 h-4" />
-                  Collapse All
-                </button>
+
+                <div className="flex items-center gap-2">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".csv,.xlsx"
+                    onChange={handleFileSelect}
+                    className="hidden"
+                    id="csv-import"
+                  />
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isImporting}
+                    className="px-4 py-2.5 text-sm font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isImporting ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Importing...
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="w-4 h-4" />
+                        Import CSV
+                      </>
+                    )}
+                  </button>
+                  <button
+                    onClick={handleExportCSV}
+                    className="px-4 py-2.5 text-sm font-semibold text-blue-700 bg-blue-50 border border-blue-200 hover:bg-blue-100 rounded-lg transition-colors flex items-center gap-2"
+                  >
+                    <Download className="w-4 h-4" />
+                    Export (⌘E)
+                  </button>
+                  <button
+                    onClick={refreshAccounts}
+                    className="px-4 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 rounded-lg transition-colors flex items-center gap-2"
+                    disabled={loading}
+                  >
+                    <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                    Refresh
+                  </button>
+                </div>
               </div>
 
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={handleExportCSV}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 rounded-lg transition-colors flex items-center gap-2"
-                >
-                  <Download className="w-4 h-4" />
-                  Export (⌘E)
-                </button>
-                <button
-                  onClick={refreshAccounts}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 rounded-lg transition-colors flex items-center gap-2"
-                  disabled={loading}
-                >
-                  <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-                  Refresh
-                </button>
+              {/* Workflow instructions */}
+              <div className="flex items-start gap-2 p-3 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border border-blue-100">
+                <Info className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                <div className="flex-1">
+                  <p className="text-xs font-medium text-blue-900 mb-1">Quick Workflow</p>
+                  <p className="text-xs text-blue-700">
+                    Export → Fill in Excel → Import back to populate all statement balances instantly
+                  </p>
+                </div>
               </div>
             </div>
 
