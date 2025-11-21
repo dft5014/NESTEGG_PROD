@@ -18,13 +18,13 @@ export const useAccountsSummaryPositions = (accountId = null, assetType = null) 
     }
   }, [accountsSummaryPositions.isStale, accountsSummaryPositions.loading, accountId, assetType, fetchAccountsSummaryPositionsData]);
 
-  // Auto-fetch ALL data on mount (like other hooks)
-  useEffect(() => {
-    if (!accountsSummaryPositions.loading && !accountsSummaryPositions.lastFetched) {
-      console.log('[useAccountsSummaryPositions] Initial fetch for all accounts summary positions');
-      fetchAccountsSummaryPositionsData(null, null); // Fetch all data
-    }
-  }, []); // Run once on mount
+  // DISABLED - DataStore handles initial fetch in Phase 1
+  // useEffect(() => {
+  //   if (!accountsSummaryPositions.loading && !accountsSummaryPositions.lastFetched) {
+  //     console.log('[useAccountsSummaryPositions] Initial fetch for all accounts summary positions');
+  //     fetchAccountsSummaryPositionsData(null, null); // Fetch all data
+  //   }
+  // }, []); // Run once on mount
 
   // Process positions data with proper field mapping to camelCase
   const positions = useMemo(() => {
