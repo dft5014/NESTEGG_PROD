@@ -26,6 +26,7 @@ import {
   useDetailedPositions,
   useAccounts
 } from '@/store/hooks';
+import { fetchWithAuth } from '@/utils/api';
 
 // ============================================================================
 // CONSTANTS & CONFIGURATION
@@ -823,10 +824,9 @@ export default function Analytics() {
             { id: 'performance', label: 'Performance', icon: TrendingUp },
             { id: 'allocation', label: 'Allocation', icon: PieChartIcon },
             { id: 'risk', label: 'Risk Analysis', icon: Shield },
-            { id: 'planning', label: 'Financial Planning', icon: Calculator },
             { id: 'holdings', label: 'Top Holdings', icon: Award },
-            { id: 'builder', label: 'Chart Builder', icon: Settings },
             { id: 'comparison', label: 'Comparison', icon: Repeat },
+            { id: 'builder', label: 'Chart Builder', icon: Settings },
             { id: 'reports', label: 'Table Builder', icon: Grid }
           ].map((tab) => {
             const Icon = tab.icon;
@@ -904,15 +904,6 @@ export default function Analytics() {
             />
           )}
 
-          {/* FINANCIAL PLANNING TAB */}
-          {activeTab === 'planning' && (
-            <PlanningTab
-              key="planning-tab"
-              summary={summary}
-              chartData={chartData}
-            />
-          )}
-
           {/* TOP HOLDINGS TAB */}
           {activeTab === 'holdings' && (
             <TopHoldingsTab
@@ -921,6 +912,17 @@ export default function Analytics() {
               groupedPositions={groupedPositions}
               summary={summary}
               filters={filters}
+            />
+          )}
+
+          {/* COMPARISON TAB */}
+          {activeTab === 'comparison' && (
+            <ComparisonTab
+              key="comparison-tab"
+              chartData={chartData}
+              groupedPositions={groupedPositions}
+              detailedPositions={detailedPositions}
+              summary={summary}
             />
           )}
 
@@ -933,16 +935,6 @@ export default function Analytics() {
               setSelectedMetrics={setSelectedMetrics}
               selectedChartType={selectedChartType}
               setSelectedChartType={setSelectedChartType}
-            />
-          )}
-
-          {/* COMPARISON TAB */}
-          {activeTab === 'comparison' && (
-            <ComparisonTab
-              key="comparison-tab"
-              chartData={chartData}
-              groupedPositions={groupedPositions}
-              summary={summary}
             />
           )}
 
@@ -1423,7 +1415,10 @@ const PerformanceTab = ({
                 </div>
                 <div className="text-right">
                   <p className="text-emerald-400 font-bold">
-                    {formatCurrency(pos.delta || 0)}
+                    {formatCurrency(pos.gain_loss || pos.total_gain_loss || pos.gain_loss_amount || 0)}
+                  </p>
+                  <p className="text-xs text-gray-400">
+                    {formatCurrency(pos.value || pos.total_current_value || 0, true)}
                   </p>
                 </div>
               </motion.div>
@@ -1458,7 +1453,10 @@ const PerformanceTab = ({
                 </div>
                 <div className="text-right">
                   <p className="text-purple-400 font-bold">
-                    {formatPercent((pos.percent || 0) * 100, false)}
+                    {formatPercent((pos.gain_loss_pct || pos.total_gain_loss_pct || pos.gain_loss_percent || 0) * 100, false)}
+                  </p>
+                  <p className="text-xs text-gray-400">
+                    {formatCurrency(pos.gain_loss || pos.total_gain_loss || 0)}
                   </p>
                 </div>
               </motion.div>
@@ -2481,443 +2479,37 @@ const ChartBuilderTab = ({
 };
 
 // ============================================================================
-// TAB COMPONENTS - FINANCIAL PLANNING
-// ============================================================================
-
-const PlanningTab = ({ summary, chartData }) => {
-  console.log('PlanningTab: Rendering with data:', {
-    hasSummary: !!summary,
-    chartDataLength: chartData?.length,
-    currentNetWorth: summary?.netWorth
-  });
-
-  // Show loading if critical data is missing
-  if (!summary) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-center">
-          <Loader2 className="w-12 h-12 text-purple-400 animate-spin mx-auto mb-4" />
-          <p className="text-gray-400">Loading planning data...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Personal Information State
-  const [age, setAge] = useState(30);
-  const [retirementAge, setRetirementAge] = useState(65);
-  const [lifeExpectancy, setLifeExpectancy] = useState(90);
-
-  // Income & Expenses State
-  const [annualIncome, setAnnualIncome] = useState(100000);
-  const [annualExpenses, setAnnualExpenses] = useState(60000);
-  const [annualIncomeGrowth, setAnnualIncomeGrowth] = useState(3);
-  const [maxIncome, setMaxIncome] = useState(200000);
-  const [cashFlowToMarket, setCashFlowToMarket] = useState(70);
-  const [emergencyFund, setEmergencyFund] = useState(10000);
-  const [emergencyFundGrowth, setEmergencyFundGrowth] = useState(3);
-
-  // Calculate derived values
-  const cashFlow = useMemo(() => annualIncome - annualExpenses, [annualIncome, annualExpenses]);
-  const marketInvestment = useMemo(() => (cashFlow * cashFlowToMarket) / 100, [cashFlow, cashFlowToMarket]);
-  const cashSavings = useMemo(() => cashFlow - marketInvestment, [cashFlow, marketInvestment]);
-  const yearsToRetirement = useMemo(() => retirementAge - age, [retirementAge, age]);
-  const retirementYears = useMemo(() => lifeExpectancy - retirementAge, [lifeExpectancy, retirementAge]);
-
-  // FIRE calculation
-  const fireNumber = useMemo(() => annualExpenses * 25, [annualExpenses]);
-  const currentNetWorth = summary?.netWorth || 0;
-  const percentToFire = useMemo(() =>
-    fireNumber > 0 ? (currentNetWorth / fireNumber) * 100 : 0,
-    [currentNetWorth, fireNumber]
-  );
-
-  // Emergency Fund Projection
-  const emergencyFundProjection = useMemo(() => {
-    const projection = [];
-    let currentFund = emergencyFund;
-    for (let i = 0; i <= 10; i++) {
-      projection.push({
-        year: new Date().getFullYear() + i,
-        value: currentFund
-      });
-      currentFund = currentFund * (1 + emergencyFundGrowth / 100);
-    }
-    return projection;
-  }, [emergencyFund, emergencyFundGrowth]);
-
-  return (
-    <div className="space-y-6">
-      {/* Personal Information Section */}
-      <motion.div
-        variants={cardVariants}
-        className="bg-gradient-to-br from-gray-800/60 to-gray-900/60 backdrop-blur-xl rounded-3xl border border-gray-700/50 p-6"
-      >
-        <div className="flex items-center gap-3 mb-6">
-          <div className="p-2 rounded-xl bg-indigo-500/20">
-            <Calculator className="w-5 h-5 text-indigo-400" />
-          </div>
-          <div>
-            <h3 className="text-lg font-bold text-white">Personal Information</h3>
-            <p className="text-sm text-gray-400">Configure your personal details for financial planning</p>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div>
-            <label className="text-sm font-medium text-gray-400 mb-2 block">Current Age</label>
-            <input
-              type="number"
-              value={age}
-              onChange={(e) => setAge(Number(e.target.value))}
-              className="w-full px-4 py-3 bg-gray-900/60 border border-gray-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
-          </div>
-          <div>
-            <label className="text-sm font-medium text-gray-400 mb-2 block">Target Retirement Age</label>
-            <input
-              type="number"
-              value={retirementAge}
-              onChange={(e) => setRetirementAge(Number(e.target.value))}
-              className="w-full px-4 py-3 bg-gray-900/60 border border-gray-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
-          </div>
-          <div>
-            <label className="text-sm font-medium text-gray-400 mb-2 block">Life Expectancy</label>
-            <input
-              type="number"
-              value={lifeExpectancy}
-              onChange={(e) => setLifeExpectancy(Number(e.target.value))}
-              className="w-full px-4 py-3 bg-gray-900/60 border border-gray-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
-          </div>
-        </div>
-      </motion.div>
-
-      {/* FIRE Explanation & Progress */}
-      <motion.div
-        variants={cardVariants}
-        className="bg-gradient-to-br from-emerald-900/20 to-green-900/20 backdrop-blur-xl rounded-3xl border border-emerald-500/20 p-6"
-      >
-        <div className="flex items-center gap-3 mb-6">
-          <div className="p-2 rounded-xl bg-emerald-500/20">
-            <Flame className="w-5 h-5 text-emerald-400" />
-          </div>
-          <div>
-            <h3 className="text-lg font-bold text-white">FIRE Progress</h3>
-            <p className="text-sm text-gray-400">Financial Independence, Retire Early</p>
-          </div>
-        </div>
-
-        <div className="mb-6 p-4 bg-gray-900/40 rounded-xl border border-emerald-500/10">
-          <p className="text-sm text-gray-300 leading-relaxed">
-            <strong className="text-emerald-400">What is FIRE?</strong> FIRE (Financial Independence, Retire Early) is achieved when your investment portfolio generates enough passive income to cover your living expenses. The most common rule is the <strong className="text-white">4% Safe Withdrawal Rate</strong>, which means you need approximately <strong className="text-white">25 times your annual expenses</strong> invested to maintain your lifestyle indefinitely without working.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-          <div className="p-4 bg-gray-900/40 rounded-2xl border border-gray-700/30">
-            <p className="text-sm text-gray-400 mb-2">Your FIRE Number</p>
-            <p className="text-3xl font-bold text-emerald-400">{formatCurrency(fireNumber)}</p>
-            <p className="text-xs text-gray-500 mt-1">25x annual expenses</p>
-          </div>
-          <div className="p-4 bg-gray-900/40 rounded-2xl border border-gray-700/30">
-            <p className="text-sm text-gray-400 mb-2">Current Net Worth</p>
-            <p className="text-3xl font-bold text-white">{formatCurrency(currentNetWorth)}</p>
-            <p className="text-xs text-gray-500 mt-1">Total portfolio value</p>
-          </div>
-          <div className="p-4 bg-gray-900/40 rounded-2xl border border-gray-700/30">
-            <p className="text-sm text-gray-400 mb-2">Progress to FIRE</p>
-            <p className="text-3xl font-bold text-indigo-400">{percentToFire.toFixed(1)}%</p>
-            <p className="text-xs text-gray-500 mt-1">{formatCurrency(fireNumber - currentNetWorth)} to go</p>
-          </div>
-        </div>
-
-        <div className="space-y-2">
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-gray-400">FIRE Progress</span>
-            <span className="text-white font-semibold">{percentToFire.toFixed(1)}%</span>
-          </div>
-          <div className="w-full bg-gray-700/50 rounded-full h-4 overflow-hidden">
-            <motion.div
-              initial={{ width: 0 }}
-              animate={{ width: `${Math.min(percentToFire, 100)}%` }}
-              transition={{ duration: 1.5, ease: 'easeOut' }}
-              className="h-full bg-gradient-to-r from-emerald-500 to-green-400 rounded-full"
-            />
-          </div>
-        </div>
-      </motion.div>
-
-      {/* Income & Expenses Planning */}
-      <motion.div
-        variants={cardVariants}
-        className="bg-gradient-to-br from-gray-800/60 to-gray-900/60 backdrop-blur-xl rounded-3xl border border-gray-700/50 p-6"
-      >
-        <div className="flex items-center gap-3 mb-6">
-          <div className="p-2 rounded-xl bg-cyan-500/20">
-            <Receipt className="w-5 h-5 text-cyan-400" />
-          </div>
-          <div>
-            <h3 className="text-lg font-bold text-white">Income & Expenses</h3>
-            <p className="text-sm text-gray-400">Track your cash flow and investment allocation</p>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-          <div>
-            <label className="text-sm font-medium text-gray-400 mb-2 flex items-center gap-2">
-              Annual Income
-              <div className="relative group">
-                <Info className="w-3.5 h-3.5 text-gray-500 cursor-help" />
-                <div className="absolute left-0 top-6 hidden group-hover:block w-64 p-3 bg-gray-950 border border-gray-700 rounded-xl shadow-2xl z-50">
-                  <p className="text-xs text-gray-300">Your total yearly income from all sources before taxes</p>
-                </div>
-              </div>
-            </label>
-            <input
-              type="number"
-              value={annualIncome}
-              onChange={(e) => setAnnualIncome(Number(e.target.value))}
-              className="w-full px-4 py-3 bg-gray-900/60 border border-gray-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
-            />
-          </div>
-          <div>
-            <label className="text-sm font-medium text-gray-400 mb-2 flex items-center gap-2">
-              Annual Expenses
-              <div className="relative group">
-                <Info className="w-3.5 h-3.5 text-gray-500 cursor-help" />
-                <div className="absolute left-0 top-6 hidden group-hover:block w-64 p-3 bg-gray-950 border border-gray-700 rounded-xl shadow-2xl z-50">
-                  <p className="text-xs text-gray-300">Your total yearly spending on all living expenses</p>
-                </div>
-              </div>
-            </label>
-            <input
-              type="number"
-              value={annualExpenses}
-              onChange={(e) => setAnnualExpenses(Number(e.target.value))}
-              className="w-full px-4 py-3 bg-gray-900/60 border border-gray-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
-            />
-          </div>
-          <div>
-            <label className="text-sm font-medium text-gray-400 mb-2 flex items-center gap-2">
-              Annual Income Growth Rate (%)
-              <div className="relative group">
-                <Info className="w-3.5 h-3.5 text-gray-500 cursor-help" />
-                <div className="absolute left-0 top-6 hidden group-hover:block w-64 p-3 bg-gray-950 border border-gray-700 rounded-xl shadow-2xl z-50">
-                  <p className="text-xs text-gray-300">Expected yearly increase in your income (raises, promotions, etc.)</p>
-                </div>
-              </div>
-            </label>
-            <input
-              type="number"
-              step="0.1"
-              value={annualIncomeGrowth}
-              onChange={(e) => setAnnualIncomeGrowth(Number(e.target.value))}
-              className="w-full px-4 py-3 bg-gray-900/60 border border-gray-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
-            />
-          </div>
-          <div>
-            <label className="text-sm font-medium text-gray-400 mb-2 flex items-center gap-2">
-              Maximum Expected Income
-              <div className="relative group">
-                <Info className="w-3.5 h-3.5 text-gray-500 cursor-help" />
-                <div className="absolute left-0 top-6 hidden group-hover:block w-64 p-3 bg-gray-950 border border-gray-700 rounded-xl shadow-2xl z-50">
-                  <p className="text-xs text-gray-300">The highest income you realistically expect to reach in your career</p>
-                </div>
-              </div>
-            </label>
-            <input
-              type="number"
-              value={maxIncome}
-              onChange={(e) => setMaxIncome(Number(e.target.value))}
-              className="w-full px-4 py-3 bg-gray-900/60 border border-gray-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
-            />
-          </div>
-        </div>
-
-        {/* Cash Flow Summary */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <div className="p-4 bg-gradient-to-br from-emerald-900/20 to-green-900/20 rounded-2xl border border-emerald-500/20">
-            <p className="text-sm text-gray-400 mb-2">Annual Cash Flow</p>
-            <p className={`text-2xl font-bold ${cashFlow >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-              {formatCurrency(cashFlow)}
-            </p>
-            <p className="text-xs text-gray-500 mt-1">Income - Expenses</p>
-          </div>
-          <div className="p-4 bg-gradient-to-br from-indigo-900/20 to-purple-900/20 rounded-2xl border border-indigo-500/20">
-            <p className="text-sm text-gray-400 mb-2">Savings Rate</p>
-            <p className="text-2xl font-bold text-indigo-400">
-              {annualIncome > 0 ? ((cashFlow / annualIncome) * 100).toFixed(1) : 0}%
-            </p>
-            <p className="text-xs text-gray-500 mt-1">Cash flow / Income</p>
-          </div>
-          <div className="p-4 bg-gradient-to-br from-amber-900/20 to-orange-900/20 rounded-2xl border border-amber-500/20">
-            <p className="text-sm text-gray-400 mb-2">Years to FIRE</p>
-            <p className="text-2xl font-bold text-amber-400">
-              {marketInvestment > 0 && fireNumber > currentNetWorth
-                ? Math.ceil((fireNumber - currentNetWorth) / marketInvestment)
-                : '∞'}
-            </p>
-            <p className="text-xs text-gray-500 mt-1">At current rate</p>
-          </div>
-        </div>
-
-        {/* Investment Allocation */}
-        <div className="mb-6">
-          <label className="text-sm font-medium text-gray-400 mb-2 block">
-            Cash Flow to Market (%) - Remaining goes to Cash Savings
-          </label>
-          <div className="flex items-center gap-4">
-            <input
-              type="range"
-              min="0"
-              max="100"
-              value={cashFlowToMarket}
-              onChange={(e) => setCashFlowToMarket(Number(e.target.value))}
-              className="flex-1 h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-indigo-500"
-            />
-            <span className="text-white font-semibold w-16">{cashFlowToMarket}%</span>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="p-4 bg-gray-900/40 rounded-2xl border border-gray-700/30">
-            <p className="text-sm text-gray-400 mb-2">Annual Market Investment</p>
-            <p className="text-2xl font-bold text-indigo-400">{formatCurrency(marketInvestment)}</p>
-            <p className="text-xs text-gray-500 mt-1">{cashFlowToMarket}% of cash flow</p>
-          </div>
-          <div className="p-4 bg-gray-900/40 rounded-2xl border border-gray-700/30">
-            <p className="text-sm text-gray-400 mb-2">Annual Cash Savings</p>
-            <p className="text-2xl font-bold text-emerald-400">{formatCurrency(cashSavings)}</p>
-            <p className="text-xs text-gray-500 mt-1">{100 - cashFlowToMarket}% of cash flow</p>
-          </div>
-        </div>
-      </motion.div>
-
-      {/* Emergency Fund Planning */}
-      <motion.div
-        variants={cardVariants}
-        className="bg-gradient-to-br from-gray-800/60 to-gray-900/60 backdrop-blur-xl rounded-3xl border border-gray-700/50 p-6"
-      >
-        <div className="flex items-center gap-3 mb-6">
-          <div className="p-2 rounded-xl bg-orange-500/20">
-            <PiggyBank className="w-5 h-5 text-orange-400" />
-          </div>
-          <div>
-            <h3 className="text-lg font-bold text-white">Emergency Fund</h3>
-            <p className="text-sm text-gray-400">Build and track your financial safety net</p>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-          <div>
-            <label className="text-sm font-medium text-gray-400 mb-2 flex items-center gap-2">
-              Current Emergency Fund
-              <div className="relative group">
-                <Info className="w-3.5 h-3.5 text-gray-500 cursor-help" />
-                <div className="absolute left-0 top-6 hidden group-hover:block w-64 p-3 bg-gray-950 border border-gray-700 rounded-xl shadow-2xl z-50">
-                  <p className="text-xs text-gray-300">Cash reserves for unexpected expenses. Experts recommend 3-6 months of expenses.</p>
-                </div>
-              </div>
-            </label>
-            <input
-              type="number"
-              value={emergencyFund}
-              onChange={(e) => setEmergencyFund(Number(e.target.value))}
-              className="w-full px-4 py-3 bg-gray-900/60 border border-gray-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
-            />
-          </div>
-          <div>
-            <label className="text-sm font-medium text-gray-400 mb-2 flex items-center gap-2">
-              Annual Growth Rate (%)
-              <div className="relative group">
-                <Info className="w-3.5 h-3.5 text-gray-500 cursor-help" />
-                <div className="absolute left-0 top-6 hidden group-hover:block w-64 p-3 bg-gray-950 border border-gray-700 rounded-xl shadow-2xl z-50">
-                  <p className="text-xs text-gray-300">Expected growth from high-yield savings account. Defaults to inflation rate (3%).</p>
-                </div>
-              </div>
-            </label>
-            <input
-              type="number"
-              step="0.1"
-              value={emergencyFundGrowth}
-              onChange={(e) => setEmergencyFundGrowth(Number(e.target.value))}
-              className="w-full px-4 py-3 bg-gray-900/60 border border-gray-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
-            />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-          <div className="p-4 bg-gradient-to-br from-orange-900/20 to-amber-900/20 rounded-2xl border border-orange-500/20">
-            <p className="text-sm text-gray-400 mb-2">Months of Expenses Covered</p>
-            <p className="text-3xl font-bold text-orange-400">
-              {annualExpenses > 0 ? ((emergencyFund / (annualExpenses / 12))).toFixed(1) : 0}
-            </p>
-            <p className="text-xs text-gray-500 mt-1">
-              Target: 3-6 months ({formatCurrency((annualExpenses / 12) * 6)})
-            </p>
-          </div>
-          <div className="p-4 bg-gradient-to-br from-emerald-900/20 to-green-900/20 rounded-2xl border border-emerald-500/20">
-            <p className="text-sm text-gray-400 mb-2">Fund Status</p>
-            <p className="text-3xl font-bold text-emerald-400">
-              {emergencyFund >= (annualExpenses / 12) * 6 ? 'Secure' :
-               emergencyFund >= (annualExpenses / 12) * 3 ? 'Good' : 'Build'}
-            </p>
-            <p className="text-xs text-gray-500 mt-1">Financial safety level</p>
-          </div>
-        </div>
-
-        {/* Emergency Fund Growth Projection */}
-        <div className="h-64 bg-gray-900/40 rounded-2xl p-4">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={emergencyFundProjection}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-              <XAxis
-                dataKey="year"
-                tick={{ fill: '#9ca3af', fontSize: 12 }}
-              />
-              <YAxis
-                tick={{ fill: '#9ca3af', fontSize: 12 }}
-                tickFormatter={(v) => formatCurrency(v, true)}
-              />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: '#111827',
-                  border: '1px solid #374151',
-                  borderRadius: '12px'
-                }}
-                formatter={(value) => [formatCurrency(value), 'Emergency Fund']}
-              />
-              <Line
-                type="monotone"
-                dataKey="value"
-                stroke="#f97316"
-                strokeWidth={3}
-                dot={{ r: 4, fill: '#f97316' }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      </motion.div>
-    </div>
-  );
-};
-
-// ============================================================================
 // TAB COMPONENTS - COMPARISON
 // ============================================================================
 
-const ComparisonTab = ({ chartData, groupedPositions, summary }) => {
+const ComparisonTab = ({ chartData, groupedPositions, detailedPositions, summary }) => {
   const [compareDate1, setCompareDate1] = useState('');
   const [compareDate2, setCompareDate2] = useState('');
   const [showDifferences, setShowDifferences] = useState(true);
   const [expandedGroups, setExpandedGroups] = useState(new Set());
+  const [groupBy, setGroupBy] = useState('asset'); // 'asset', 'account', or 'position'
+  const [snapshotData, setSnapshotData] = useState(null);
+  const [loadingSnapshots, setLoadingSnapshots] = useState(true);
 
-  console.log('ComparisonTab: Rendering with data:', {
-    chartDataLength: chartData?.length,
-    groupedPositionsLength: groupedPositions?.length
-  });
+  // Fetch snapshot data with position details
+  useEffect(() => {
+    const fetchSnapshots = async () => {
+      try {
+        setLoadingSnapshots(true);
+        const response = await fetchWithAuth('/portfolio/snapshots/raw?days=90');
+        if (response.ok) {
+          const data = await response.json();
+          setSnapshotData(data);
+        }
+      } catch (error) {
+        console.error('Error fetching snapshot data:', error);
+      } finally {
+        setLoadingSnapshots(false);
+      }
+    };
+
+    fetchSnapshots();
+  }, []);
 
   // Get available dates from chartData
   const availableDates = useMemo(() => {
@@ -2933,7 +2525,7 @@ const ComparisonTab = ({ chartData, groupedPositions, summary }) => {
     }
   }, [availableDates, compareDate1]);
 
-  // Get snapshots for selected dates
+  // Get portfolio-level snapshots for selected dates
   const snapshot1 = useMemo(() => {
     if (!chartData || !compareDate1) return null;
     return chartData.find(d => d.date === compareDate1);
@@ -2944,7 +2536,7 @@ const ComparisonTab = ({ chartData, groupedPositions, summary }) => {
     return chartData.find(d => d.date === compareDate2);
   }, [chartData, compareDate2]);
 
-  // Calculate comparison metrics
+  // Calculate portfolio-level comparison metrics
   const comparisonMetrics = useMemo(() => {
     if (!snapshot1 || !snapshot2) return null;
 
@@ -2961,7 +2553,134 @@ const ComparisonTab = ({ chartData, groupedPositions, summary }) => {
     };
   }, [snapshot1, snapshot2]);
 
-  if (!chartData || chartData.length === 0) {
+  // Position-level comparison data
+  const comparisonData = useMemo(() => {
+    if (!snapshotData || !compareDate1 || !compareDate2) return [];
+
+    const snapshotsByDate = snapshotData.snapshots_by_date;
+    if (!snapshotsByDate) return [];
+
+    const snap1 = snapshotsByDate[compareDate1];
+    const snap2 = snapshotsByDate[compareDate2];
+
+    if (!snap1 || !snap2) return [];
+
+    const positionMap = new Map();
+
+    // Process positions from both snapshots
+    const processPositions = (snapshot, dateKey) => {
+      Object.entries(snapshot.positions || {}).forEach(([key, position]) => {
+        const originalId = position.original_id || key;
+
+        if (!positionMap.has(originalId)) {
+          positionMap.set(originalId, {
+            original_id: originalId,
+            [dateKey]: position
+          });
+        } else {
+          positionMap.get(originalId)[dateKey] = position;
+        }
+      });
+    };
+
+    processPositions(snap1, 'pos1');
+    processPositions(snap2, 'pos2');
+
+    // Process all positions and detect changes
+    const processedPositions = [];
+    positionMap.forEach((data, originalId) => {
+      const pos1 = data.pos1;
+      const pos2 = data.pos2;
+      const position = pos1 || pos2;
+
+      const processed = {
+        original_id: originalId,
+        identifier: pos2?.identifier || pos1?.identifier,
+        name: pos2?.name || pos1?.name,
+        account_name: pos2?.account_name || pos1?.account_name,
+        account_id: pos2?.account_id || pos1?.account_id,
+        institution: pos2?.institution || pos1?.institution,
+        asset_type: position.asset_type,
+        value1: pos1?.current_value || 0,
+        value2: pos2?.current_value || 0,
+        quantity1: pos1?.quantity || 0,
+        quantity2: pos2?.quantity || 0,
+        price1: pos1?.current_price || 0,
+        price2: pos2?.current_price || 0,
+        isNew: !pos1 && pos2,
+        isSold: pos1 && !pos2,
+        identifierChanged: pos1 && pos2 && pos1.identifier !== pos2.identifier,
+        accountChanged: pos1 && pos2 && pos1.account_name !== pos2.account_name,
+        previousIdentifier: pos1?.identifier,
+        previousAccountName: pos1?.account_name
+      };
+
+      processed.valueDelta = processed.value2 - processed.value1;
+      processed.valueChangePercent = processed.value1 > 0
+        ? (processed.valueDelta / processed.value1) * 100
+        : (processed.value2 > 0 ? 100 : 0);
+
+      processedPositions.push(processed);
+    });
+
+    // Group by selected grouping method
+    const grouped = {};
+    processedPositions.forEach(position => {
+      let groupKey;
+      let groupName;
+
+      if (groupBy === 'asset') {
+        groupKey = position.asset_type;
+        groupName = position.asset_type.charAt(0).toUpperCase() + position.asset_type.slice(1);
+      } else if (groupBy === 'account') {
+        groupKey = `${position.institution}|${position.account_name}`;
+        groupName = `${position.institution} - ${position.account_name}`;
+      } else {
+        // Position level - each position is its own group
+        groupKey = position.original_id;
+        groupName = position.identifier;
+      }
+
+      if (!grouped[groupKey]) {
+        grouped[groupKey] = {
+          key: groupKey,
+          name: groupName,
+          assetType: position.asset_type,
+          positions: [],
+          value1: 0,
+          value2: 0,
+          valueDelta: 0
+        };
+      }
+
+      grouped[groupKey].positions.push(position);
+      grouped[groupKey].value1 += position.value1;
+      grouped[groupKey].value2 += position.value2;
+      grouped[groupKey].valueDelta += position.valueDelta;
+    });
+
+    // Calculate percentages and sort
+    return Object.values(grouped).map(group => ({
+      ...group,
+      valueChangePercent: group.value1 > 0
+        ? (group.valueDelta / group.value1) * 100
+        : (group.value2 > 0 ? 100 : 0),
+      positions: group.positions.sort((a, b) => Math.abs(b.valueDelta) - Math.abs(a.valueDelta))
+    })).sort((a, b) => Math.abs(b.valueDelta) - Math.abs(a.valueDelta));
+  }, [snapshotData, compareDate1, compareDate2, groupBy]);
+
+  // Toggle group expansion
+  const toggleGroup = (groupKey) => {
+    const newExpanded = new Set(expandedGroups);
+    if (newExpanded.has(groupKey)) {
+      newExpanded.delete(groupKey);
+    } else {
+      newExpanded.add(groupKey);
+    }
+    setExpandedGroups(newExpanded);
+  };
+
+  if (!chartData || chartData.length === 0 || loadingSnapshots) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center">
@@ -3094,19 +2813,178 @@ const ComparisonTab = ({ chartData, groupedPositions, summary }) => {
         </div>
       )}
 
-      {/* Note about detailed position comparison */}
-      <div className="bg-blue-900/10 border border-blue-500/20 rounded-2xl p-6">
-        <div className="flex items-start gap-3">
-          <Info className="w-5 h-5 text-blue-400 mt-0.5 flex-shrink-0" />
-          <div>
-            <p className="text-white font-medium mb-2">Portfolio-Level Comparison</p>
-            <p className="text-gray-400 text-sm">
-              This comparison shows net worth changes between two dates. For detailed position-level analysis
-              including additions, removals, and price changes, use the Command Center's comparison feature.
-            </p>
+      {/* Group By Selector */}
+      {snapshotData && (
+        <div className="bg-gradient-to-br from-gray-800/60 to-gray-900/60 backdrop-blur-xl rounded-3xl border border-gray-700/50 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-bold text-white">Position-Level Analysis</h3>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setGroupBy('asset')}
+                className={`px-4 py-2 rounded-xl font-medium transition-all ${
+                  groupBy === 'asset'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-700/50 text-gray-400 hover:bg-gray-700'
+                }`}
+              >
+                <Layers className="w-4 h-4 inline mr-2" />
+                Asset Class
+              </button>
+              <button
+                onClick={() => setGroupBy('account')}
+                className={`px-4 py-2 rounded-xl font-medium transition-all ${
+                  groupBy === 'account'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-700/50 text-gray-400 hover:bg-gray-700'
+                }`}
+              >
+                <Wallet className="w-4 h-4 inline mr-2" />
+                By Account
+              </button>
+              <button
+                onClick={() => setGroupBy('position')}
+                className={`px-4 py-2 rounded-xl font-medium transition-all ${
+                  groupBy === 'position'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-700/50 text-gray-400 hover:bg-gray-700'
+                }`}
+              >
+                <List className="w-4 h-4 inline mr-2" />
+                By Position
+              </button>
+            </div>
+          </div>
+
+          {/* Position Comparison Table */}
+          <div className="space-y-2">
+            {comparisonData.length === 0 ? (
+              <div className="text-center py-12">
+                <Package className="w-12 h-12 text-gray-600 mx-auto mb-4" />
+                <p className="text-gray-400">No position data available for comparison</p>
+              </div>
+            ) : (
+              comparisonData.map((group) => (
+                <div key={group.key} className="bg-gray-900/40 rounded-xl overflow-hidden">
+                  {/* Group Header */}
+                  <button
+                    onClick={() => toggleGroup(group.key)}
+                    className="w-full px-6 py-4 flex items-center justify-between hover:bg-gray-800/40 transition-colors"
+                  >
+                    <div className="flex items-center gap-4 flex-1">
+                      <div
+                        className="w-1 h-12 rounded-full"
+                        style={{ backgroundColor: THEME_COLORS.asset[group.assetType] || '#64748b' }}
+                      />
+                      <div className="text-left">
+                        <h4 className="text-white font-semibold">{group.name}</h4>
+                        <p className="text-sm text-gray-400">{group.positions.length} position{group.positions.length !== 1 ? 's' : ''}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-6">
+                      <div className="text-right">
+                        <p className="text-sm text-gray-400">Start</p>
+                        <p className="text-white font-semibold">{formatCurrency(group.value1, true)}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm text-gray-400">End</p>
+                        <p className="text-white font-semibold">{formatCurrency(group.value2, true)}</p>
+                      </div>
+                      <div className="text-right min-w-[120px]">
+                        <p className="text-sm text-gray-400">Change</p>
+                        <p className={`font-bold ${group.valueDelta >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                          {group.valueDelta >= 0 ? '+' : ''}{formatCurrency(group.valueDelta, true)}
+                        </p>
+                        <p className={`text-xs ${group.valueChangePercent >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                          {group.valueChangePercent >= 0 ? '+' : ''}{formatPercent(group.valueChangePercent, false)}
+                        </p>
+                      </div>
+                      {expandedGroups.has(group.key) ? (
+                        <ChevronUp className="w-5 h-5 text-gray-400" />
+                      ) : (
+                        <ChevronDown className="w-5 h-5 text-gray-400" />
+                      )}
+                    </div>
+                  </button>
+
+                  {/* Expanded Position Details */}
+                  {expandedGroups.has(group.key) && (
+                    <div className="border-t border-gray-700/50">
+                      {group.positions.map((position, idx) => (
+                        <div
+                          key={position.original_id}
+                          className={`px-6 py-4 ${idx !== 0 ? 'border-t border-gray-800/50' : ''} hover:bg-gray-800/20`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-3">
+                                <p className="text-white font-medium">{position.identifier}</p>
+                                {position.isNew && (
+                                  <span className="px-2 py-1 bg-green-500/20 text-green-400 text-xs font-bold rounded-lg">
+                                    NEW
+                                  </span>
+                                )}
+                                {position.isSold && (
+                                  <span className="px-2 py-1 bg-red-500/20 text-red-400 text-xs font-bold rounded-lg">
+                                    SOLD
+                                  </span>
+                                )}
+                                {position.accountChanged && (
+                                  <span className="px-2 py-1 bg-blue-500/20 text-blue-400 text-xs font-bold rounded-lg">
+                                    MOVED
+                                  </span>
+                                )}
+                                {position.identifierChanged && (
+                                  <span className="px-2 py-1 bg-purple-500/20 text-purple-400 text-xs font-bold rounded-lg">
+                                    RENAMED
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-sm text-gray-400 mt-1">{position.name}</p>
+                              <p className="text-xs text-gray-500 mt-1">
+                                {position.account_name}
+                                {position.accountChanged && position.previousAccountName && (
+                                  <span className="text-blue-400"> (from {position.previousAccountName})</span>
+                                )}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-6">
+                              <div className="text-right">
+                                <p className="text-white font-medium">{formatCurrency(position.value1)}</p>
+                                {position.quantity1 > 0 && (
+                                  <p className="text-xs text-gray-500">
+                                    {position.quantity1.toFixed(4)} @ {formatCurrency(position.price1)}
+                                  </p>
+                                )}
+                              </div>
+                              <ArrowUpRight className="w-5 h-5 text-gray-600" />
+                              <div className="text-right">
+                                <p className="text-white font-medium">{formatCurrency(position.value2)}</p>
+                                {position.quantity2 > 0 && (
+                                  <p className="text-xs text-gray-500">
+                                    {position.quantity2.toFixed(4)} @ {formatCurrency(position.price2)}
+                                  </p>
+                                )}
+                              </div>
+                              <div className="text-right min-w-[120px]">
+                                <p className={`font-bold ${position.valueDelta >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                  {position.valueDelta >= 0 ? '+' : ''}{formatCurrency(position.valueDelta)}
+                                </p>
+                                <p className={`text-xs ${position.valueChangePercent >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                  {position.valueChangePercent >= 0 ? '+' : ''}{formatPercent(position.valueChangePercent, false)}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))
+            )}
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };
@@ -3282,7 +3160,7 @@ const TableBuilderTab = ({ groupedPositions, detailedPositions, accounts, chartD
                     <p className="text-xs text-gray-500">{account.institution}</p>
                   </div>
                   <p className="text-sm font-semibold text-white">
-                    {formatCurrency(account.currentValue || 0, true)}
+                    {formatCurrency(account.totalValue || 0, true)}
                   </p>
                 </div>
               </div>
