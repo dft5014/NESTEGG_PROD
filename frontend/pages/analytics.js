@@ -848,10 +848,11 @@ export default function Analytics() {
         </motion.div>
 
         {/* Content - Continued in next message due to length */}
-        <AnimatePresence mode="wait">
+        <div className="min-h-[600px]">
           {/* OVERVIEW TAB */}
           {activeTab === 'overview' && (
             <OverviewTab
+              key="overview-tab"
               summary={summary}
               chartData={chartData}
               periodChange={periodChange}
@@ -869,6 +870,7 @@ export default function Analytics() {
           {/* PERFORMANCE TAB */}
           {activeTab === 'performance' && (
             <PerformanceTab
+              key="performance-tab"
               summary={summary}
               chartData={chartData}
               topPerformersAmount={topPerformersAmount}
@@ -881,6 +883,7 @@ export default function Analytics() {
           {/* ALLOCATION TAB */}
           {activeTab === 'allocation' && (
             <AllocationTab
+              key="allocation-tab"
               summary={summary}
               sectorData={sectorData}
               assetAllocationData={assetAllocationData}
@@ -891,6 +894,7 @@ export default function Analytics() {
           {/* RISK ANALYSIS TAB */}
           {activeTab === 'risk' && (
             <RiskAnalysisTab
+              key="risk-tab"
               enhancedRiskMetrics={enhancedRiskMetrics}
               concentrationMetrics={concentrationMetrics}
               taxEfficiencyMetrics={taxEfficiencyMetrics}
@@ -901,6 +905,7 @@ export default function Analytics() {
           {/* FINANCIAL PLANNING TAB */}
           {activeTab === 'planning' && (
             <PlanningTab
+              key="planning-tab"
               summary={summary}
               chartData={chartData}
             />
@@ -909,6 +914,7 @@ export default function Analytics() {
           {/* TOP HOLDINGS TAB */}
           {activeTab === 'holdings' && (
             <TopHoldingsTab
+              key="holdings-tab"
               topPositions={topPositions}
               groupedPositions={groupedPositions}
               summary={summary}
@@ -919,6 +925,7 @@ export default function Analytics() {
           {/* CHART BUILDER TAB */}
           {activeTab === 'builder' && (
             <ChartBuilderTab
+              key="builder-tab"
               chartData={chartData}
               selectedMetrics={selectedMetrics}
               setSelectedMetrics={setSelectedMetrics}
@@ -926,7 +933,7 @@ export default function Analytics() {
               setSelectedChartType={setSelectedChartType}
             />
           )}
-        </AnimatePresence>
+        </div>
       </motion.main>
     </div>
   );
