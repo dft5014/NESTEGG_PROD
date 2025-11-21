@@ -5,15 +5,6 @@ export const useDetailedPositions = () => {
   const { state, actions } = useDataStore();
   const { detailedPositions } = state;
 
-  // Auto-fetch on mount only if no data exists
-  // Auto-fetch on mount only if no data exists
-  useEffect(() => {
-    if ((!detailedPositions.data || detailedPositions.data.length === 0) && !detailedPositions.lastFetched && !detailedPositions.loading) {
-      console.log('[useDetailedPositions] Auto-fetching detailed positions data');
-      actions.fetchDetailedPositionsData();
-    }
-  }, []); // Empty deps
-
   // DISABLED - DataStore handles initial fetch in Phase 3
   // useEffect(() => {
   //   if ((!detailedPositions.data || detailedPositions.data.length === 0) && !detailedPositions.lastFetched && !detailedPositions.loading) {
