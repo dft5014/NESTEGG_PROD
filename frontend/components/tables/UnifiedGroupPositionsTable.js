@@ -867,7 +867,10 @@ const UnifiedGroupPositionsTable = ({
                             {position.total_gain_loss_amt >= 0 && '+'}{formatCurrency(position.total_gain_loss_amt)}
                           </div>
                           <div className={`text-xs ${position.total_gain_loss_amt >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                            {position.total_gain_loss_amt >= 0 && '+'}{formatPercentage(position.total_gain_loss_pct)}
+                            {position.total_gain_loss_amt >= 0 && '+'}
+                            {Number.isFinite(position.total_gain_loss_pct)
+                              ? `${position.total_gain_loss_pct.toFixed(2)}%`
+                              : '0.00%'}
                           </div>
                         </>
                       ) : null}
@@ -992,7 +995,10 @@ const UnifiedGroupPositionsTable = ({
                       {selectedPosition.total_gain_loss_amt >= 0 && '+'}{formatCurrency(selectedPosition.total_gain_loss_amt)}
                     </div>
                     <div className="text-xs text-gray-500 mt-1">
-                      {selectedPosition.total_gain_loss_amt >= 0 && '+'}{formatPercentage(selectedPosition.total_gain_loss_pct)}
+                      {selectedPosition.total_gain_loss_amt >= 0 && '+'}
+                      {Number.isFinite(selectedPosition.total_gain_loss_pct)
+                        ? `${selectedPosition.total_gain_loss_pct.toFixed(2)}%`
+                        : '0.00%'}
                     </div>
                   </div>
                   <div className="bg-gray-800/50 p-4 rounded">

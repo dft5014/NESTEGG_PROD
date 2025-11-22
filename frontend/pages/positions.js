@@ -233,16 +233,29 @@ export default function PositionsPage() {
               <p className="text-3xl font-bold mb-2">
                 {showValues ? formatCurrency(safeNumber(portfolioData?.totalAssets, 0)) : '••••••'}
               </p>
-              <div className="flex items-center gap-2 text-sm">
-                <span className={`font-medium ${
-                  safeNumber(portfolioData?.periodChanges?.['1m']?.totalAssets, 0) >= 0
-                    ? 'text-green-400'
-                    : 'text-red-400'
-                }`}>
-                  {safeNumber(portfolioData?.periodChanges?.['1m']?.totalAssets, 0) >= 0 ? '+' : ''}
-                  {showValues ? formatCurrency(safeNumber(portfolioData?.periodChanges?.['1m']?.totalAssets, 0)) : '••••'}
-                </span>
-                <span className="text-gray-500">1M</span>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 text-sm">
+                  <span className={`font-medium ${
+                    safeNumber(portfolioData?.unrealizedGain, 0) >= 0
+                      ? 'text-green-400'
+                      : 'text-red-400'
+                  }`}>
+                    {safeNumber(portfolioData?.unrealizedGain, 0) >= 0 ? '+' : ''}
+                    {showValues ? formatCurrency(safeNumber(portfolioData?.unrealizedGain, 0)) : '••••'}
+                  </span>
+                  <span className="text-gray-500">gain</span>
+                </div>
+                <div className="flex items-center gap-2 text-xs">
+                  <span className={`font-medium ${
+                    safeNumber(portfolioData?.periodChanges?.['1m']?.totalAssetsPercent, 0) >= 0
+                      ? 'text-green-400'
+                      : 'text-red-400'
+                  }`}>
+                    {safeNumber(portfolioData?.periodChanges?.['1m']?.totalAssetsPercent, 0) >= 0 ? '+' : ''}
+                    {safeNumber(portfolioData?.periodChanges?.['1m']?.totalAssetsPercent, 0).toFixed(2)}%
+                  </span>
+                  <span className="text-gray-500">1M</span>
+                </div>
               </div>
             </motion.div>
 
@@ -262,13 +275,27 @@ export default function PositionsPage() {
               <p className="text-3xl font-bold mb-2">
                 {showValues ? formatCurrency(positionMetrics.totalValue) : '••••••'}
               </p>
-              <div className="flex items-center gap-2 text-sm">
-                <span className={`font-medium ${
-                  positionMetrics.totalGainLoss >= 0 ? 'text-green-400' : 'text-red-400'
-                }`}>
-                  {positionMetrics.totalGainLoss >= 0 ? '+' : ''}
-                  {positionMetrics.totalGainLossPercent.toFixed(2)}% gain
-                </span>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 text-sm">
+                  <span className={`font-medium ${
+                    positionMetrics.totalGainLoss >= 0 ? 'text-green-400' : 'text-red-400'
+                  }`}>
+                    {positionMetrics.totalGainLoss >= 0 ? '+' : ''}
+                    {showValues ? formatCurrency(positionMetrics.totalGainLoss) : '••••'}
+                  </span>
+                  <span className="text-gray-500">gain</span>
+                </div>
+                <div className="flex items-center gap-2 text-xs">
+                  <span className={`font-medium ${
+                    safeNumber(portfolioData?.periodChanges?.['1m']?.liquidAssetsPercent, 0) >= 0
+                      ? 'text-green-400'
+                      : 'text-red-400'
+                  }`}>
+                    {safeNumber(portfolioData?.periodChanges?.['1m']?.liquidAssetsPercent, 0) >= 0 ? '+' : ''}
+                    {safeNumber(portfolioData?.periodChanges?.['1m']?.liquidAssetsPercent, 0).toFixed(2)}%
+                  </span>
+                  <span className="text-gray-500">1M</span>
+                </div>
               </div>
             </motion.div>
 
@@ -288,16 +315,29 @@ export default function PositionsPage() {
               <p className="text-3xl font-bold mb-2">
                 {showValues ? formatCurrency(safeNumber(portfolioData?.altRetirementAssets, 0)) : '••••••'}
               </p>
-              <div className="flex items-center gap-2 text-sm">
-                <span className={`font-medium ${
-                  safeNumber(portfolioData?.periodChanges?.['1m']?.altRetirementAssets, 0) >= 0
-                    ? 'text-green-400'
-                    : 'text-red-400'
-                }`}>
-                  {safeNumber(portfolioData?.periodChanges?.['1m']?.altRetirementAssets, 0) >= 0 ? '+' : ''}
-                  {showValues ? formatCurrency(safeNumber(portfolioData?.periodChanges?.['1m']?.altRetirementAssets, 0)) : '••••'}
-                </span>
-                <span className="text-gray-500">1M</span>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 text-sm">
+                  <span className={`font-medium ${
+                    safeNumber(portfolioData?.periodChanges?.['1m']?.altRetirementAssets, 0) >= 0
+                      ? 'text-green-400'
+                      : 'text-red-400'
+                  }`}>
+                    {safeNumber(portfolioData?.periodChanges?.['1m']?.altRetirementAssets, 0) >= 0 ? '+' : ''}
+                    {showValues ? formatCurrency(safeNumber(portfolioData?.periodChanges?.['1m']?.altRetirementAssets, 0)) : '••••'}
+                  </span>
+                  <span className="text-gray-500">1M</span>
+                </div>
+                <div className="flex items-center gap-2 text-xs">
+                  <span className={`font-medium ${
+                    safeNumber(portfolioData?.periodChanges?.['1m']?.altRetirementAssetsPercent, 0) >= 0
+                      ? 'text-green-400'
+                      : 'text-red-400'
+                  }`}>
+                    {safeNumber(portfolioData?.periodChanges?.['1m']?.altRetirementAssetsPercent, 0) >= 0 ? '+' : ''}
+                    {safeNumber(portfolioData?.periodChanges?.['1m']?.altRetirementAssetsPercent, 0).toFixed(2)}%
+                  </span>
+                  <span className="text-gray-500">gain</span>
+                </div>
               </div>
             </motion.div>
 
@@ -317,16 +357,29 @@ export default function PositionsPage() {
               <p className="text-3xl font-bold mb-2">
                 {showValues ? formatCurrency(safeNumber(portfolioData?.altLiquidNetWorth, 0)) : '••••••'}
               </p>
-              <div className="flex items-center gap-2 text-sm">
-                <span className={`font-medium ${
-                  safeNumber(portfolioData?.periodChanges?.['1m']?.altLiquidNetWorth, 0) >= 0
-                    ? 'text-green-400'
-                    : 'text-red-400'
-                }`}>
-                  {safeNumber(portfolioData?.periodChanges?.['1m']?.altLiquidNetWorth, 0) >= 0 ? '+' : ''}
-                  {showValues ? formatCurrency(safeNumber(portfolioData?.periodChanges?.['1m']?.altLiquidNetWorth, 0)) : '••••'}
-                </span>
-                <span className="text-gray-500">1M</span>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 text-sm">
+                  <span className={`font-medium ${
+                    safeNumber(portfolioData?.periodChanges?.['1m']?.altLiquidNetWorth, 0) >= 0
+                      ? 'text-green-400'
+                      : 'text-red-400'
+                  }`}>
+                    {safeNumber(portfolioData?.periodChanges?.['1m']?.altLiquidNetWorth, 0) >= 0 ? '+' : ''}
+                    {showValues ? formatCurrency(safeNumber(portfolioData?.periodChanges?.['1m']?.altLiquidNetWorth, 0)) : '••••'}
+                  </span>
+                  <span className="text-gray-500">1M</span>
+                </div>
+                <div className="flex items-center gap-2 text-xs">
+                  <span className={`font-medium ${
+                    safeNumber(portfolioData?.periodChanges?.['1m']?.altLiquidNetWorthPercent, 0) >= 0
+                      ? 'text-green-400'
+                      : 'text-red-400'
+                  }`}>
+                    {safeNumber(portfolioData?.periodChanges?.['1m']?.altLiquidNetWorthPercent, 0) >= 0 ? '+' : ''}
+                    {safeNumber(portfolioData?.periodChanges?.['1m']?.altLiquidNetWorthPercent, 0).toFixed(2)}%
+                  </span>
+                  <span className="text-gray-500">gain</span>
+                </div>
               </div>
             </motion.div>
           </section>
@@ -337,7 +390,7 @@ export default function PositionsPage() {
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-xl font-semibold flex items-center gap-2">
                   <LineChart className="w-5 h-5 text-indigo-400" />
-                  Liquid Assets Trend
+                  Asset Trends
                 </h2>
                 <div className="flex gap-2">
                   {timeframeOptions.map((option) => (
@@ -356,14 +409,26 @@ export default function PositionsPage() {
                 </div>
               </div>
 
-              <div className="h-64">
+              <div className="h-80">
                 {chartData.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={chartData}>
                       <defs>
+                        <linearGradient id="totalAssetsGradient" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
+                          <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                        </linearGradient>
                         <linearGradient id="liquidAssetsGradient" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.3} />
-                          <stop offset="95%" stopColor="#4f46e5" stopOpacity={0} />
+                          <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.2} />
+                          <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                        </linearGradient>
+                        <linearGradient id="retirementAssetsGradient" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#10b981" stopOpacity={0.2} />
+                          <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                        </linearGradient>
+                        <linearGradient id="nonRetirementGradient" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#a855f7" stopOpacity={0.2} />
+                          <stop offset="95%" stopColor="#a855f7" stopOpacity={0} />
                         </linearGradient>
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
@@ -390,11 +455,39 @@ export default function PositionsPage() {
                       <Tooltip content={<CustomTooltip />} />
                       <Area
                         type="monotone"
+                        dataKey="totalAssets"
+                        stroke="#6366f1"
+                        strokeWidth={2}
+                        fillOpacity={1}
+                        fill="url(#totalAssetsGradient)"
+                        name="Total Assets"
+                      />
+                      <Area
+                        type="monotone"
                         dataKey="liquidAssets"
-                        stroke="#4f46e5"
+                        stroke="#3b82f6"
                         strokeWidth={2}
                         fillOpacity={1}
                         fill="url(#liquidAssetsGradient)"
+                        name="Liquid Assets"
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="altRetirementAssets"
+                        stroke="#10b981"
+                        strokeWidth={2}
+                        fillOpacity={1}
+                        fill="url(#retirementAssetsGradient)"
+                        name="Retirement"
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="altLiquidNetWorth"
+                        stroke="#a855f7"
+                        strokeWidth={2}
+                        fillOpacity={1}
+                        fill="url(#nonRetirementGradient)"
+                        name="Non-Retirement Liquid"
                       />
                     </AreaChart>
                   </ResponsiveContainer>
@@ -403,6 +496,26 @@ export default function PositionsPage() {
                     <p className="text-gray-400">No data available for the selected period</p>
                   </div>
                 )}
+              </div>
+
+              {/* Legend */}
+              <div className="flex items-center justify-center gap-6 mt-4 text-sm">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-indigo-500"></div>
+                  <span className="text-gray-400">Total Assets</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+                  <span className="text-gray-400">Liquid</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-emerald-500"></div>
+                  <span className="text-gray-400">Retirement</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-purple-500"></div>
+                  <span className="text-gray-400">Non-Retirement Liquid</span>
+                </div>
               </div>
             </div>
           </section>
@@ -453,11 +566,13 @@ export default function PositionsPage() {
                   <div className="p-2.5 bg-purple-500/10 rounded-lg">
                     <Target className="w-5 h-5 text-purple-400" />
                   </div>
-                  <div>
-                    <p className="text-sm font-semibold truncate max-w-[120px]">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold truncate">
                       {positionMetrics.largestPosition?.identifier || 'N/A'}
                     </p>
-                    <p className="text-xs text-gray-400">Largest Position</p>
+                    <p className="text-xs text-gray-400 truncate">
+                      {positionMetrics.largestPosition?.name || 'Largest Position'}
+                    </p>
                   </div>
                 </div>
 
@@ -466,11 +581,13 @@ export default function PositionsPage() {
                   <div className="p-2.5 bg-orange-500/10 rounded-lg">
                     <Flame className="w-5 h-5 text-orange-400" />
                   </div>
-                  <div>
-                    <p className="text-sm font-semibold truncate max-w-[120px]">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold truncate">
                       {positionMetrics.mostProfitablePosition?.identifier || 'N/A'}
                     </p>
-                    <p className="text-xs text-gray-400">Best Performer</p>
+                    <p className="text-xs text-gray-400 truncate">
+                      {positionMetrics.mostProfitablePosition?.name || 'Best Performer'}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -590,9 +707,9 @@ export default function PositionsPage() {
                     <div key={index} className="flex justify-between items-center">
                       <div className="flex-1">
                         <p className="text-sm font-medium">
-                          {position?.name || position?.identifier || 'N/A'}
+                          {position?.name || 'N/A'}
                         </p>
-                        <p className="text-xs text-gray-400">{position?.sector || 'N/A'}</p>
+                        <p className="text-xs text-gray-400">{position?.identifier || 'N/A'}</p>
                       </div>
                       <div className="text-right">
                         <p className="text-sm font-semibold text-green-400">
