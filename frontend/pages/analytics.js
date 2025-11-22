@@ -3495,8 +3495,10 @@ const TableBuilderTab = ({ groupedPositions, detailedPositions, accounts, chartD
             </thead>
             <tbody className="divide-y divide-gray-700">
               {filteredPositions.map((position, idx) => {
-                const gainLoss = position.total_gain_loss || 0;
-                const gainLossPct = position.total_gain_loss_pct || 0;
+                // Use correct field names from groupedPositions
+                const gainLoss = position.total_gain_loss_amt || position.total_gain_loss || 0;
+                const gainLossPct = (position.total_gain_loss_pct || 0) * 100; // Convert decimal to percentage
+                const currentPrice = position.latest_price_per_unit || position.current_price || 0;
 
                 return (
                   <tr key={idx} className="hover:bg-gray-800/40 transition-colors">
@@ -3510,7 +3512,7 @@ const TableBuilderTab = ({ groupedPositions, detailedPositions, accounts, chartD
                       {(position.total_quantity || 0).toFixed(2)}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-300 text-right">
-                      {formatCurrency(position.current_price || 0)}
+                      {formatCurrency(currentPrice)}
                     </td>
                     <td className="px-6 py-4 text-sm font-semibold text-white text-right">
                       {formatCurrency(position.total_current_value || 0)}
@@ -3518,12 +3520,12 @@ const TableBuilderTab = ({ groupedPositions, detailedPositions, accounts, chartD
                     <td className={`px-6 py-4 text-sm font-semibold text-right ${
                       gainLoss >= 0 ? 'text-green-400' : 'text-red-400'
                     }`}>
-                      {formatCurrency(gainLoss)}
+                      {gainLoss >= 0 ? '+' : ''}{formatCurrency(gainLoss)}
                     </td>
                     <td className={`px-6 py-4 text-sm font-semibold text-right ${
                       gainLossPct >= 0 ? 'text-green-400' : 'text-red-400'
                     }`}>
-                      {formatPercent(gainLossPct, false)}
+                      {gainLossPct >= 0 ? '+' : ''}{formatPercent(gainLossPct, false)}
                     </td>
                   </tr>
                 );
