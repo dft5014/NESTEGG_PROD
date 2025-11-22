@@ -397,17 +397,17 @@ export default function AccountsPage() {
               </ResponsiveContainer>
             </div>
 
-            <div className="space-y-2 max-h-48 overflow-y-auto">
+            <div className="space-y-2.5 max-h-52 overflow-y-auto pr-2 custom-scrollbar">
               {accountDistribution.map((inst, index) => (
-                <div key={index} className="flex items-center justify-between text-sm">
-                  <div className="flex items-center gap-2">
+                <div key={index} className="flex items-center justify-between text-sm py-1">
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
                     <div
-                      className="w-3 h-3 rounded-full"
+                      className="w-3 h-3 rounded-full flex-shrink-0"
                       style={{ backgroundColor: inst.color }}
                     />
-                    <span className="text-gray-300">{inst.name}</span>
+                    <span className="text-gray-300 truncate">{inst.name}</span>
                   </div>
-                  <span className="text-white font-medium">
+                  <span className="text-white font-medium ml-3 flex-shrink-0">
                     {inst.percentage.toFixed(1)}%
                   </span>
                 </div>
@@ -494,6 +494,7 @@ export default function AccountsPage() {
               <h4 className="text-sm font-semibold text-gray-400 mb-3 flex items-center">
                 <Award className="w-4 h-4 mr-2" />
                 Top Performing Accounts
+                <span className="ml-2 text-xs text-gray-500 font-normal">(by Total Gain/Loss)</span>
               </h4>
               <div className="space-y-2">
                 {topPerformers.map((account, index) => (
@@ -524,7 +525,7 @@ export default function AccountsPage() {
                         account.totalGainLossPercent >= 0 ? 'text-green-400' : 'text-red-400'
                       }`}>
                         {account.totalGainLossPercent >= 0 ? '+' : ''}
-                        {account.totalGainLossPercent?.toFixed(2) || '0.00'}%
+                        {account.totalGainLossPercent?.toFixed(2) || '0.00'}% return
                       </p>
                     </div>
                   </motion.div>
@@ -559,11 +560,21 @@ export default function AccountsPage() {
                     {showValues ? formatCurrency(portfolioSummary.assetAllocation.securities?.value || 0) : '•••••'}
                   </div>
                   <div className="text-sm text-blue-400 font-medium">
-                    {formatPercentage((portfolioSummary.assetAllocation.securities?.percentage || 0) / 100, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                    {(portfolioSummary.assetAllocation.securities?.percentage || 0).toFixed(1)}% of portfolio
                   </div>
                   {portfolioSummary.assetAllocation.securities?.count > 0 && (
                     <div className="text-xs text-gray-500">
                       {portfolioSummary.assetAllocation.securities.count} positions
+                    </div>
+                  )}
+                  {portfolioSummary.assetAllocation.securities?.gainLoss !== undefined && (
+                    <div className={`text-xs font-medium ${
+                      portfolioSummary.assetAllocation.securities.gainLoss >= 0 ? 'text-green-400' : 'text-red-400'
+                    }`}>
+                      {portfolioSummary.assetAllocation.securities.gainLoss >= 0 ? '+' : ''}
+                      {showValues ? formatCurrency(portfolioSummary.assetAllocation.securities.gainLoss) : '•••••'}
+                      {' '}({portfolioSummary.assetAllocation.securities.gainLossPercent >= 0 ? '+' : ''}
+                      {portfolioSummary.assetAllocation.securities.gainLossPercent?.toFixed(1) || '0.0'}%)
                     </div>
                   )}
                   <div className="w-full bg-gray-800 rounded-full h-2 mt-2">
@@ -586,7 +597,7 @@ export default function AccountsPage() {
                     {showValues ? formatCurrency(portfolioSummary.assetAllocation.cash?.value || 0) : '•••••'}
                   </div>
                   <div className="text-sm text-green-400 font-medium">
-                    {formatPercentage((portfolioSummary.assetAllocation.cash?.percentage || 0) / 100, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                    {(portfolioSummary.assetAllocation.cash?.percentage || 0).toFixed(1)}% of portfolio
                   </div>
                   {portfolioSummary.assetAllocation.cash?.count > 0 && (
                     <div className="text-xs text-gray-500">
@@ -613,11 +624,21 @@ export default function AccountsPage() {
                     {showValues ? formatCurrency(portfolioSummary.assetAllocation.crypto?.value || 0) : '•••••'}
                   </div>
                   <div className="text-sm text-purple-400 font-medium">
-                    {formatPercentage((portfolioSummary.assetAllocation.crypto?.percentage || 0) / 100, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                    {(portfolioSummary.assetAllocation.crypto?.percentage || 0).toFixed(1)}% of portfolio
                   </div>
                   {portfolioSummary.assetAllocation.crypto?.count > 0 && (
                     <div className="text-xs text-gray-500">
                       {portfolioSummary.assetAllocation.crypto.count} positions
+                    </div>
+                  )}
+                  {portfolioSummary.assetAllocation.crypto?.gainLoss !== undefined && (
+                    <div className={`text-xs font-medium ${
+                      portfolioSummary.assetAllocation.crypto.gainLoss >= 0 ? 'text-green-400' : 'text-red-400'
+                    }`}>
+                      {portfolioSummary.assetAllocation.crypto.gainLoss >= 0 ? '+' : ''}
+                      {showValues ? formatCurrency(portfolioSummary.assetAllocation.crypto.gainLoss) : '•••••'}
+                      {' '}({portfolioSummary.assetAllocation.crypto.gainLossPercent >= 0 ? '+' : ''}
+                      {portfolioSummary.assetAllocation.crypto.gainLossPercent?.toFixed(1) || '0.0'}%)
                     </div>
                   )}
                   <div className="w-full bg-gray-800 rounded-full h-2 mt-2">
@@ -640,11 +661,21 @@ export default function AccountsPage() {
                     {showValues ? formatCurrency(portfolioSummary.assetAllocation.metals?.value || 0) : '•••••'}
                   </div>
                   <div className="text-sm text-yellow-400 font-medium">
-                    {formatPercentage((portfolioSummary.assetAllocation.metals?.percentage || 0) / 100, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                    {(portfolioSummary.assetAllocation.metals?.percentage || 0).toFixed(1)}% of portfolio
                   </div>
                   {portfolioSummary.assetAllocation.metals?.count > 0 && (
                     <div className="text-xs text-gray-500">
                       {portfolioSummary.assetAllocation.metals.count} holdings
+                    </div>
+                  )}
+                  {portfolioSummary.assetAllocation.metals?.gainLoss !== undefined && (
+                    <div className={`text-xs font-medium ${
+                      portfolioSummary.assetAllocation.metals.gainLoss >= 0 ? 'text-green-400' : 'text-red-400'
+                    }`}>
+                      {portfolioSummary.assetAllocation.metals.gainLoss >= 0 ? '+' : ''}
+                      {showValues ? formatCurrency(portfolioSummary.assetAllocation.metals.gainLoss) : '•••••'}
+                      {' '}({portfolioSummary.assetAllocation.metals.gainLossPercent >= 0 ? '+' : ''}
+                      {portfolioSummary.assetAllocation.metals.gainLossPercent?.toFixed(1) || '0.0'}%)
                     </div>
                   )}
                   <div className="w-full bg-gray-800 rounded-full h-2 mt-2">
@@ -667,11 +698,21 @@ export default function AccountsPage() {
                     {showValues ? formatCurrency(portfolioSummary.assetAllocation.realEstate?.value || 0) : '•••••'}
                   </div>
                   <div className="text-sm text-teal-400 font-medium">
-                    {formatPercentage((portfolioSummary.assetAllocation.realEstate?.percentage || 0) / 100, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                    {(portfolioSummary.assetAllocation.realEstate?.percentage || 0).toFixed(1)}% of portfolio
                   </div>
                   {portfolioSummary.assetAllocation.realEstate?.count > 0 && (
                     <div className="text-xs text-gray-500">
                       {portfolioSummary.assetAllocation.realEstate.count} properties
+                    </div>
+                  )}
+                  {portfolioSummary.assetAllocation.realEstate?.gainLoss !== undefined && (
+                    <div className={`text-xs font-medium ${
+                      portfolioSummary.assetAllocation.realEstate.gainLoss >= 0 ? 'text-green-400' : 'text-red-400'
+                    }`}>
+                      {portfolioSummary.assetAllocation.realEstate.gainLoss >= 0 ? '+' : ''}
+                      {showValues ? formatCurrency(portfolioSummary.assetAllocation.realEstate.gainLoss) : '•••••'}
+                      {' '}({portfolioSummary.assetAllocation.realEstate.gainLossPercent >= 0 ? '+' : ''}
+                      {portfolioSummary.assetAllocation.realEstate.gainLossPercent?.toFixed(1) || '0.0'}%)
                     </div>
                   )}
                   <div className="w-full bg-gray-800 rounded-full h-2 mt-2">
