@@ -31,6 +31,7 @@ const timeframeOptions = [
 export default function PositionsPage() {
   const [showValues, setShowValues] = useState(true);
   const [selectedTimeframe, setSelectedTimeframe] = useState('1m');
+  const [hoveredLine, setHoveredLine] = useState(null);
 
   // Get data from the store - no API calls!
   const {
@@ -252,7 +253,7 @@ export default function PositionsPage() {
                       : 'text-red-400'
                   }`}>
                     {safeNumber(portfolioData?.periodChanges?.['1m']?.totalAssetsPercent, 0) >= 0 ? '+' : ''}
-                    {safeNumber(portfolioData?.periodChanges?.['1m']?.totalAssetsPercent, 0).toFixed(2)}%
+                    {(safeNumber(portfolioData?.periodChanges?.['1m']?.totalAssetsPercent, 0) * 100).toFixed(2)}%
                   </span>
                   <span className="text-gray-500">1M</span>
                 </div>
@@ -292,7 +293,7 @@ export default function PositionsPage() {
                       : 'text-red-400'
                   }`}>
                     {safeNumber(portfolioData?.periodChanges?.['1m']?.liquidAssetsPercent, 0) >= 0 ? '+' : ''}
-                    {safeNumber(portfolioData?.periodChanges?.['1m']?.liquidAssetsPercent, 0).toFixed(2)}%
+                    {(safeNumber(portfolioData?.periodChanges?.['1m']?.liquidAssetsPercent, 0) * 100).toFixed(2)}%
                   </span>
                   <span className="text-gray-500">1M</span>
                 </div>
@@ -334,7 +335,7 @@ export default function PositionsPage() {
                       : 'text-red-400'
                   }`}>
                     {safeNumber(portfolioData?.periodChanges?.['1m']?.altRetirementAssetsPercent, 0) >= 0 ? '+' : ''}
-                    {safeNumber(portfolioData?.periodChanges?.['1m']?.altRetirementAssetsPercent, 0).toFixed(2)}%
+                    {(safeNumber(portfolioData?.periodChanges?.['1m']?.altRetirementAssetsPercent, 0) * 100).toFixed(2)}%
                   </span>
                   <span className="text-gray-500">gain</span>
                 </div>
@@ -376,7 +377,7 @@ export default function PositionsPage() {
                       : 'text-red-400'
                   }`}>
                     {safeNumber(portfolioData?.periodChanges?.['1m']?.altLiquidNetWorthPercent, 0) >= 0 ? '+' : ''}
-                    {safeNumber(portfolioData?.periodChanges?.['1m']?.altLiquidNetWorthPercent, 0).toFixed(2)}%
+                    {(safeNumber(portfolioData?.periodChanges?.['1m']?.altLiquidNetWorthPercent, 0) * 100).toFixed(2)}%
                   </span>
                   <span className="text-gray-500">gain</span>
                 </div>
@@ -457,37 +458,45 @@ export default function PositionsPage() {
                         type="monotone"
                         dataKey="totalAssets"
                         stroke="#6366f1"
-                        strokeWidth={2}
-                        fillOpacity={1}
+                        strokeWidth={hoveredLine === 'totalAssets' ? 3 : hoveredLine === null ? 2 : 1}
+                        fillOpacity={hoveredLine === 'totalAssets' ? 1 : hoveredLine === null ? 1 : 0.3}
                         fill="url(#totalAssetsGradient)"
                         name="Total Assets"
+                        dot={false}
+                        activeDot={hoveredLine === 'totalAssets' ? { r: 4, fill: '#6366f1' } : false}
                       />
                       <Area
                         type="monotone"
                         dataKey="liquidAssets"
                         stroke="#3b82f6"
-                        strokeWidth={2}
-                        fillOpacity={1}
+                        strokeWidth={hoveredLine === 'liquidAssets' ? 3 : hoveredLine === null ? 2 : 1}
+                        fillOpacity={hoveredLine === 'liquidAssets' ? 1 : hoveredLine === null ? 1 : 0.3}
                         fill="url(#liquidAssetsGradient)"
                         name="Liquid Assets"
+                        dot={false}
+                        activeDot={hoveredLine === 'liquidAssets' ? { r: 4, fill: '#3b82f6' } : false}
                       />
                       <Area
                         type="monotone"
                         dataKey="altRetirementAssets"
                         stroke="#10b981"
-                        strokeWidth={2}
-                        fillOpacity={1}
+                        strokeWidth={hoveredLine === 'altRetirementAssets' ? 3 : hoveredLine === null ? 2 : 1}
+                        fillOpacity={hoveredLine === 'altRetirementAssets' ? 1 : hoveredLine === null ? 1 : 0.3}
                         fill="url(#retirementAssetsGradient)"
                         name="Retirement"
+                        dot={false}
+                        activeDot={hoveredLine === 'altRetirementAssets' ? { r: 4, fill: '#10b981' } : false}
                       />
                       <Area
                         type="monotone"
                         dataKey="altLiquidNetWorth"
                         stroke="#a855f7"
-                        strokeWidth={2}
-                        fillOpacity={1}
+                        strokeWidth={hoveredLine === 'altLiquidNetWorth' ? 3 : hoveredLine === null ? 2 : 1}
+                        fillOpacity={hoveredLine === 'altLiquidNetWorth' ? 1 : hoveredLine === null ? 1 : 0.3}
                         fill="url(#nonRetirementGradient)"
                         name="Non-Retirement Liquid"
+                        dot={false}
+                        activeDot={hoveredLine === 'altLiquidNetWorth' ? { r: 4, fill: '#a855f7' } : false}
                       />
                     </AreaChart>
                   </ResponsiveContainer>
@@ -500,22 +509,70 @@ export default function PositionsPage() {
 
               {/* Legend */}
               <div className="flex items-center justify-center gap-6 mt-4 text-sm">
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-indigo-500"></div>
-                  <span className="text-gray-400">Total Assets</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-                  <span className="text-gray-400">Liquid</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-emerald-500"></div>
-                  <span className="text-gray-400">Retirement</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-purple-500"></div>
-                  <span className="text-gray-400">Non-Retirement Liquid</span>
-                </div>
+                <button
+                  onMouseEnter={() => setHoveredLine('totalAssets')}
+                  onMouseLeave={() => setHoveredLine(null)}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all ${
+                    hoveredLine === 'totalAssets'
+                      ? 'bg-indigo-500/20 ring-2 ring-indigo-500/50'
+                      : hoveredLine === null
+                      ? 'hover:bg-gray-700/50'
+                      : 'opacity-50'
+                  }`}
+                >
+                  <div className={`w-3 h-3 rounded-full bg-indigo-500 transition-transform ${
+                    hoveredLine === 'totalAssets' ? 'scale-125' : ''
+                  }`}></div>
+                  <span className="text-gray-400 font-medium">Total Assets</span>
+                </button>
+                <button
+                  onMouseEnter={() => setHoveredLine('liquidAssets')}
+                  onMouseLeave={() => setHoveredLine(null)}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all ${
+                    hoveredLine === 'liquidAssets'
+                      ? 'bg-blue-500/20 ring-2 ring-blue-500/50'
+                      : hoveredLine === null
+                      ? 'hover:bg-gray-700/50'
+                      : 'opacity-50'
+                  }`}
+                >
+                  <div className={`w-3 h-3 rounded-full bg-blue-500 transition-transform ${
+                    hoveredLine === 'liquidAssets' ? 'scale-125' : ''
+                  }`}></div>
+                  <span className="text-gray-400 font-medium">Liquid</span>
+                </button>
+                <button
+                  onMouseEnter={() => setHoveredLine('altRetirementAssets')}
+                  onMouseLeave={() => setHoveredLine(null)}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all ${
+                    hoveredLine === 'altRetirementAssets'
+                      ? 'bg-emerald-500/20 ring-2 ring-emerald-500/50'
+                      : hoveredLine === null
+                      ? 'hover:bg-gray-700/50'
+                      : 'opacity-50'
+                  }`}
+                >
+                  <div className={`w-3 h-3 rounded-full bg-emerald-500 transition-transform ${
+                    hoveredLine === 'altRetirementAssets' ? 'scale-125' : ''
+                  }`}></div>
+                  <span className="text-gray-400 font-medium">Retirement</span>
+                </button>
+                <button
+                  onMouseEnter={() => setHoveredLine('altLiquidNetWorth')}
+                  onMouseLeave={() => setHoveredLine(null)}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all ${
+                    hoveredLine === 'altLiquidNetWorth'
+                      ? 'bg-purple-500/20 ring-2 ring-purple-500/50'
+                      : hoveredLine === null
+                      ? 'hover:bg-gray-700/50'
+                      : 'opacity-50'
+                  }`}
+                >
+                  <div className={`w-3 h-3 rounded-full bg-purple-500 transition-transform ${
+                    hoveredLine === 'altLiquidNetWorth' ? 'scale-125' : ''
+                  }`}></div>
+                  <span className="text-gray-400 font-medium">Non-Retirement Liquid</span>
+                </button>
               </div>
             </div>
           </section>
@@ -555,7 +612,7 @@ export default function PositionsPage() {
                       positionMetrics.totalGainLoss >= 0 ? 'text-green-400' : 'text-red-400'
                     }`}>
                       {positionMetrics.totalGainLossPercent >= 0 ? '+' : ''}
-                      {positionMetrics.totalGainLossPercent.toFixed(1)}%
+                      {(positionMetrics.totalGainLossPercent * 100).toFixed(1)}%
                     </p>
                     <p className="text-xs text-gray-400">Total Return</p>
                   </div>
@@ -678,7 +735,7 @@ export default function PositionsPage() {
                       <div className="text-right">
                         <p className="text-sm font-semibold text-green-400">
                           {Number.isFinite(position?.gain_loss_percent)
-                            ? `${position.gain_loss_percent >= 0 ? '+' : ''}${position.gain_loss_percent.toFixed(2)}%`
+                            ? `${position.gain_loss_percent >= 0 ? '+' : ''}${(position.gain_loss_percent * 100).toFixed(2)}%`
                             : '—'}
                         </p>
                         <p className="text-xs text-gray-400">
@@ -719,7 +776,7 @@ export default function PositionsPage() {
                         </p>
                         <p className="text-xs text-gray-400">
                           {Number.isFinite(position?.gain_loss_percent)
-                            ? `${position.gain_loss_percent >= 0 ? '+' : ''}${position.gain_loss_percent.toFixed(2)}%`
+                            ? `${position.gain_loss_percent >= 0 ? '+' : ''}${(position.gain_loss_percent * 100).toFixed(2)}%`
                             : '—'}
                         </p>
                       </div>
