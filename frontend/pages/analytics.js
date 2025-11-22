@@ -947,6 +947,7 @@ export default function Analytics() {
               groupedPositions={groupedPositions}
               detailedPositions={detailedPositions}
               summary={summary}
+              accounts={accounts}
             />
           )}
 
@@ -2519,31 +2520,39 @@ const ChartBuilderTab = ({
 // TAB COMPONENTS - COMPARISON
 // ============================================================================
 
-const ComparisonTab = ({ chartData, groupedPositions, detailedPositions, summary }) => {
+const ComparisonTab = ({ chartData, groupedPositions, detailedPositions, summary, accounts }) => {
   const [expandedGroups, setExpandedGroups] = useState(new Set());
   const [groupBy, setGroupBy] = useState('asset'); // 'asset', 'account', or 'position'
 
-  // Generate comparison data from groupedPositions (Cost Basis vs Current Value)
+  // Generate comparison data (Cost Basis vs Current Value)
   const comparisonData = useMemo(() => {
-    if (!groupedPositions || groupedPositions.length === 0) return [];
+    // Use detailedPositions for account grouping, groupedPositions for others
+    const sourceData = groupBy === 'account' ? (detailedPositions || []) : (groupedPositions || []);
+
+    if (!sourceData || sourceData.length === 0) return [];
 
     // Group positions
     const grouped = {};
 
-    groupedPositions.forEach(position => {
+    sourceData.forEach(position => {
       let groupKey, groupName;
 
       if (groupBy === 'asset') {
         groupKey = position.asset_type;
         groupName = position.asset_type.charAt(0).toUpperCase() + position.asset_type.slice(1);
       } else if (groupBy === 'account') {
-        // Get account info from position
-        groupKey = position.account_name || 'Unknown';
-        groupName = position.account_name || 'Unknown Account';
+        // Use detailedPositions which have account_id and account_name
+        const accountId = position.account_id || position.accountId;
+        const accountName = position.account_name || position.accountName;
+
+        // Find account from accounts list if available
+        const account = accounts?.find(a => a.id === accountId);
+        groupKey = accountId || accountName || 'unknown';
+        groupName = account?.name || accountName || 'Unknown Account';
       } else {
         // By position - each position is its own group
-        groupKey = position.identifier;
-        groupName = position.name || position.identifier;
+        groupKey = position.identifier || position.symbol;
+        groupName = position.name || position.identifier || position.symbol;
       }
 
       if (!grouped[groupKey]) {
@@ -2559,11 +2568,11 @@ const ComparisonTab = ({ chartData, groupedPositions, detailedPositions, summary
         };
       }
 
-      // Add position data
-      const costBasis = position.total_cost_basis || 0;
-      const currentValue = position.total_current_value || 0;
-      const gainLoss = position.total_gain_loss || 0;
-      const gainLossPct = (position.total_gain_loss_pct || 0) * 100;
+      // Add position data (handle both groupedPositions and detailedPositions field names)
+      const costBasis = position.total_cost_basis || position.cost_basis || position.purchase_price * position.quantity || 0;
+      const currentValue = position.total_current_value || position.current_value || position.current_price * position.quantity || 0;
+      const gainLoss = position.total_gain_loss || position.gain_loss || (currentValue - costBasis);
+      const gainLossPct = position.total_gain_loss_pct ? (position.total_gain_loss_pct * 100) : (position.gain_loss_percent || (costBasis > 0 ? (gainLoss / costBasis) * 100 : 0));
 
       grouped[groupKey].positions.push({
         identifier: position.identifier,
@@ -2575,9 +2584,9 @@ const ComparisonTab = ({ chartData, groupedPositions, detailedPositions, summary
         valueDelta: gainLoss,
         valueChangePercent: gainLossPct,
         quantity1: 0, // No historical quantity for cost basis comparison
-        quantity2: position.total_quantity || 0,
-        price1: costBasis > 0 && position.total_quantity > 0 ? costBasis / position.total_quantity : 0,
-        price2: position.current_price || 0
+        quantity2: position.total_quantity || position.quantity || 0,
+        price1: costBasis > 0 && (position.total_quantity || position.quantity) > 0 ? costBasis / (position.total_quantity || position.quantity) : (position.purchase_price || 0),
+        price2: position.current_price || position.latest_price_per_unit || 0
       });
 
       grouped[groupKey].value1 += costBasis;
@@ -2593,7 +2602,7 @@ const ComparisonTab = ({ chartData, groupedPositions, detailedPositions, summary
         positions: group.positions.sort((a, b) => Math.abs(b.valueDelta) - Math.abs(a.valueDelta))
       }))
       .sort((a, b) => b.value2 - a.value2);
-  }, [groupedPositions, groupBy]);
+  }, [groupedPositions, detailedPositions, groupBy, accounts]);
 
   // Calculate totals for summary cards
   const totals = useMemo(() => {
