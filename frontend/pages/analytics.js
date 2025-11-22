@@ -471,10 +471,7 @@ const FilterPanel = ({ filters, onFilterChange, availableAssetTypes }) => {
 // ============================================================================
 
 export default function Analytics() {
-  // Initialize DataStore
-  useDataStore();
-
-  // Hooks
+  // Hooks (each hook calls useDataStore internally, no need to call it here)
   const {
     summary,
     topPositions,

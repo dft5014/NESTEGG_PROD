@@ -930,7 +930,11 @@ export const DataStoreProvider = ({ children }) => {
 
   // ---------- Progressive init (phased) ----------
   const kickPhases = useCallback(() => {
-    if (hasInitialized.current) return;
+    console.log('[DataStore] kickPhases called, hasInitialized:', hasInitialized.current);
+    if (hasInitialized.current) {
+      console.log('[DataStore] Already initialized, skipping phases');
+      return;
+    }
     hasInitialized.current = true;
 
     // Phase 1: Critical data for initial page load (immediate)
@@ -955,9 +959,14 @@ export const DataStoreProvider = ({ children }) => {
       // Optionally: snapshots later
       // if (!state.snapshots.data && !state.snapshots.loading) fetchSnapshotsData();
     }, 3000);
+  // FIX: Remove 'state' from dependencies - only include the stable fetch functions
   }, [
-    state, fetchPortfolioData, fetchGroupedPositionsData, fetchAccountsData,
-    fetchAccountsSummaryPositionsData, fetchGroupedLiabilitiesData, fetchDetailedPositionsData
+    fetchPortfolioData,
+    fetchGroupedPositionsData,
+    fetchAccountsData,
+    fetchAccountsSummaryPositionsData,
+    fetchGroupedLiabilitiesData,
+    fetchDetailedPositionsData
   ]);
 
   useEffect(() => {
