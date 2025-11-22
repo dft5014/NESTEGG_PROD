@@ -4,7 +4,8 @@ import { motion } from 'framer-motion';
 import {
   DollarSign, TrendingUp, TrendingDown,
   Target, Flame, RefreshCw, Eye, EyeOff,
-  BarChart3, LineChart, PieChart, ArrowUpRight
+  BarChart3, LineChart, PieChart, ArrowUpRight,
+  Layers, Droplet, Shield, Wallet, Activity, Package
 } from 'lucide-react';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
@@ -161,7 +162,7 @@ export default function PositionsPage() {
         <meta name="description" content="Track your investment positions" />
       </Head>
 
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-indigo-900 text-white">
+      <div className="min-h-screen bg-gradient-to-br from-gray-950 to-slate-900 text-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           {/* Header */}
           <header className="mb-8">
@@ -213,6 +214,122 @@ export default function PositionsPage() {
               </ul>
             </div>
           )}
+
+          {/* Key Performance Indicators - Asset Breakdown */}
+          <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            {/* All Assets */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+              className="bg-gradient-to-br from-gray-800/90 to-gray-900/90 backdrop-blur-sm rounded-xl p-6 border border-gray-700 hover:border-indigo-500/50 transition-all shadow-lg"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <div className="p-3 bg-indigo-500/20 rounded-lg">
+                  <Layers className="w-6 h-6 text-indigo-400" />
+                </div>
+              </div>
+              <h3 className="text-sm font-medium text-gray-400 mb-2">All Assets</h3>
+              <p className="text-3xl font-bold mb-2">
+                {showValues ? formatCurrency(safeNumber(portfolioData?.totalAssets, 0)) : '••••••'}
+              </p>
+              <div className="flex items-center gap-2 text-sm">
+                <span className={`font-medium ${
+                  safeNumber(portfolioData?.periodChanges?.['1m']?.totalAssets, 0) >= 0
+                    ? 'text-green-400'
+                    : 'text-red-400'
+                }`}>
+                  {safeNumber(portfolioData?.periodChanges?.['1m']?.totalAssets, 0) >= 0 ? '+' : ''}
+                  {showValues ? formatCurrency(safeNumber(portfolioData?.periodChanges?.['1m']?.totalAssets, 0)) : '••••'}
+                </span>
+                <span className="text-gray-500">1M</span>
+              </div>
+            </motion.div>
+
+            {/* Liquid Assets */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.15 }}
+              className="bg-gradient-to-br from-gray-800/90 to-gray-900/90 backdrop-blur-sm rounded-xl p-6 border border-gray-700 hover:border-blue-500/50 transition-all shadow-lg"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <div className="p-3 bg-blue-500/20 rounded-lg">
+                  <Droplet className="w-6 h-6 text-blue-400" />
+                </div>
+              </div>
+              <h3 className="text-sm font-medium text-gray-400 mb-2">Liquid Assets</h3>
+              <p className="text-3xl font-bold mb-2">
+                {showValues ? formatCurrency(positionMetrics.totalValue) : '••••••'}
+              </p>
+              <div className="flex items-center gap-2 text-sm">
+                <span className={`font-medium ${
+                  positionMetrics.totalGainLoss >= 0 ? 'text-green-400' : 'text-red-400'
+                }`}>
+                  {positionMetrics.totalGainLoss >= 0 ? '+' : ''}
+                  {positionMetrics.totalGainLossPercent.toFixed(2)}% gain
+                </span>
+              </div>
+            </motion.div>
+
+            {/* Retirement Assets */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="bg-gradient-to-br from-gray-800/90 to-gray-900/90 backdrop-blur-sm rounded-xl p-6 border border-gray-700 hover:border-emerald-500/50 transition-all shadow-lg"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <div className="p-3 bg-emerald-500/20 rounded-lg">
+                  <Shield className="w-6 h-6 text-emerald-400" />
+                </div>
+              </div>
+              <h3 className="text-sm font-medium text-gray-400 mb-2">Retirement Assets</h3>
+              <p className="text-3xl font-bold mb-2">
+                {showValues ? formatCurrency(safeNumber(portfolioData?.altRetirementAssets, 0)) : '••••••'}
+              </p>
+              <div className="flex items-center gap-2 text-sm">
+                <span className={`font-medium ${
+                  safeNumber(portfolioData?.periodChanges?.['1m']?.altRetirementAssets, 0) >= 0
+                    ? 'text-green-400'
+                    : 'text-red-400'
+                }`}>
+                  {safeNumber(portfolioData?.periodChanges?.['1m']?.altRetirementAssets, 0) >= 0 ? '+' : ''}
+                  {showValues ? formatCurrency(safeNumber(portfolioData?.periodChanges?.['1m']?.altRetirementAssets, 0)) : '••••'}
+                </span>
+                <span className="text-gray-500">1M</span>
+              </div>
+            </motion.div>
+
+            {/* Non-Retirement Liquid */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.25 }}
+              className="bg-gradient-to-br from-gray-800/90 to-gray-900/90 backdrop-blur-sm rounded-xl p-6 border border-gray-700 hover:border-purple-500/50 transition-all shadow-lg"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <div className="p-3 bg-purple-500/20 rounded-lg">
+                  <Wallet className="w-6 h-6 text-purple-400" />
+                </div>
+              </div>
+              <h3 className="text-sm font-medium text-gray-400 mb-2">Non-Retirement Liquid</h3>
+              <p className="text-3xl font-bold mb-2">
+                {showValues ? formatCurrency(safeNumber(portfolioData?.altLiquidNetWorth, 0)) : '••••••'}
+              </p>
+              <div className="flex items-center gap-2 text-sm">
+                <span className={`font-medium ${
+                  safeNumber(portfolioData?.periodChanges?.['1m']?.altLiquidNetWorth, 0) >= 0
+                    ? 'text-green-400'
+                    : 'text-red-400'
+                }`}>
+                  {safeNumber(portfolioData?.periodChanges?.['1m']?.altLiquidNetWorth, 0) >= 0 ? '+' : ''}
+                  {showValues ? formatCurrency(safeNumber(portfolioData?.periodChanges?.['1m']?.altLiquidNetWorth, 0)) : '••••'}
+                </span>
+                <span className="text-gray-500">1M</span>
+              </div>
+            </motion.div>
+          </section>
 
           {/* Portfolio Value Trend Chart */}
           <section className="mb-8">
@@ -290,78 +407,74 @@ export default function PositionsPage() {
             </div>
           </section>
 
-          {/* Summary Metrics */}
-          <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-            {[
-              {
-                title: 'Total Liquid Value',
-                value: positionMetrics.totalValue,
-                icon: <DollarSign className="w-5 h-5" />,
-                color: 'text-blue-400',
-                bgColor: 'bg-blue-500/10',
-                format: (v) => (showValues ? formatCurrency(safeNumber(v, 0)) : '••••'),
-                subtitle: `${positionMetrics.positionCount} unique assets`
-              },
-              {
-                title: 'Total Gain/Loss',
-                value: positionMetrics.totalGainLoss,
-                icon:
-                  positionMetrics.totalGainLoss >= 0 ? (
-                    <TrendingUp className="w-5 h-5" />
-                  ) : (
-                    <TrendingDown className="w-5 h-5" />
-                  ),
-                color:
-                  positionMetrics.totalGainLoss >= 0 ? 'text-green-400' : 'text-red-400',
-                bgColor:
-                  positionMetrics.totalGainLoss >= 0 ? 'bg-green-500/10' : 'bg-red-500/10',
-                format: (v) => (showValues ? formatCurrency(safeNumber(v, 0)) : '••••'),
-                subtitle: `${
-                  positionMetrics.totalGainLossPercent >= 0 ? '+' : ''
-                }${safeNumber(positionMetrics.totalGainLossPercent, 0).toFixed(2)}% return`
-              },
-              {
-                title: 'Largest Position',
-                value: positionMetrics.largestPosition?.total_current_value ?? 0,
-                icon: <Target className="w-5 h-5" />,
-                color: 'text-purple-400',
-                bgColor: 'bg-purple-500/10',
-                format: (v) => (showValues ? formatCurrency(safeNumber(v, 0)) : '••••'),
-                subtitle:
-                  positionMetrics.largestPosition?.name ||
-                  positionMetrics.largestPosition?.identifier ||
-                  'N/A'
-              },
-              {
-                title: 'Best Performer',
-                value: positionMetrics.mostProfitablePosition?.gain_loss_percent ?? 0,
-                icon: <Flame className="w-5 h-5" />,
-                color: 'text-orange-400',
-                bgColor: 'bg-orange-500/10',
-                format: (v) =>
-                  Number.isFinite(v) ? `${v >= 0 ? '+' : ''}${v.toFixed(2)}%` : '—',
-                subtitle: positionMetrics.mostProfitablePosition?.name || 'N/A'
-              }
-            ].map((metric, index) => (
-              <motion.div
-                key={metric.title}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.1 + index * 0.05 }}
-                className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-4 border border-gray-700 hover:border-gray-600 transition-all"
-              >
-                <div className="flex items-start justify-between mb-3">
-                  <div className={`p-2 rounded-lg ${metric.bgColor}`}>
-                    <div className={metric.color}>{metric.icon}</div>
+          {/* Position Highlights - Compact Performance Overview */}
+          <section className="mb-8">
+            <div className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-6 border border-gray-700">
+              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <Activity className="w-5 h-5 text-indigo-400" />
+                Position Highlights
+              </h2>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                {/* Position Count */}
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 bg-blue-500/10 rounded-lg">
+                    <Package className="w-5 h-5 text-blue-400" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold">{positionMetrics.positionCount}</p>
+                    <p className="text-xs text-gray-400">Unique Assets</p>
                   </div>
                 </div>
-                <h3 className="text-gray-400 text-sm mb-1">{metric.title}</h3>
-                <p className="text-2xl font-bold mb-1">{metric.format(metric.value)}</p>
-                {metric.subtitle && (
-                  <p className="text-xs text-gray-500 truncate">{metric.subtitle}</p>
-                )}
-              </motion.div>
-            ))}
+
+                {/* Total Gain/Loss */}
+                <div className="flex items-center gap-3">
+                  <div className={`p-2.5 rounded-lg ${
+                    positionMetrics.totalGainLoss >= 0 ? 'bg-green-500/10' : 'bg-red-500/10'
+                  }`}>
+                    {positionMetrics.totalGainLoss >= 0 ? (
+                      <TrendingUp className="w-5 h-5 text-green-400" />
+                    ) : (
+                      <TrendingDown className="w-5 h-5 text-red-400" />
+                    )}
+                  </div>
+                  <div>
+                    <p className={`text-2xl font-bold ${
+                      positionMetrics.totalGainLoss >= 0 ? 'text-green-400' : 'text-red-400'
+                    }`}>
+                      {positionMetrics.totalGainLossPercent >= 0 ? '+' : ''}
+                      {positionMetrics.totalGainLossPercent.toFixed(1)}%
+                    </p>
+                    <p className="text-xs text-gray-400">Total Return</p>
+                  </div>
+                </div>
+
+                {/* Largest Position */}
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 bg-purple-500/10 rounded-lg">
+                    <Target className="w-5 h-5 text-purple-400" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold truncate max-w-[120px]">
+                      {positionMetrics.largestPosition?.identifier || 'N/A'}
+                    </p>
+                    <p className="text-xs text-gray-400">Largest Position</p>
+                  </div>
+                </div>
+
+                {/* Best Performer */}
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 bg-orange-500/10 rounded-lg">
+                    <Flame className="w-5 h-5 text-orange-400" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold truncate max-w-[120px]">
+                      {positionMetrics.mostProfitablePosition?.identifier || 'N/A'}
+                    </p>
+                    <p className="text-xs text-gray-400">Best Performer</p>
+                  </div>
+                </div>
+              </div>
+            </div>
           </section>
 
           {/* Unified Grouped Positions Table */}
