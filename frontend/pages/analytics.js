@@ -508,8 +508,15 @@ export default function Analytics() {
   const topPerformersByAmount = useMemo(() => {
     if (!groupedPositions || groupedPositions.length === 0) return [];
     return [...groupedPositions]
-      .filter(p => p.total_gain_loss && p.total_gain_loss > 0)
-      .sort((a, b) => (b.total_gain_loss || 0) - (a.total_gain_loss || 0))
+      .filter(p => {
+        const gainLoss = p.total_gain_loss_amt || p.total_gain_loss || 0;
+        return gainLoss > 0;
+      })
+      .sort((a, b) => {
+        const aGain = a.total_gain_loss_amt || a.total_gain_loss || 0;
+        const bGain = b.total_gain_loss_amt || b.total_gain_loss || 0;
+        return bGain - aGain;
+      })
       .slice(0, 10);
   }, [groupedPositions]);
 
@@ -841,7 +848,7 @@ export default function Analytics() {
             { id: 'performance', label: 'Performance', icon: TrendingUp },
             { id: 'allocation', label: 'Allocation', icon: PieChartIcon },
             { id: 'risk', label: 'Risk Analysis', icon: Shield },
-            { id: 'holdings', label: 'Top Holdings', icon: Award },
+            { id: 'holdings', label: 'Top Positions', icon: Award },
             { id: 'comparison', label: 'Comparison', icon: Repeat },
             { id: 'builder', label: 'Chart Builder', icon: Settings },
             { id: 'reports', label: 'Table Builder', icon: Grid }
@@ -940,6 +947,7 @@ export default function Analytics() {
               groupedPositions={groupedPositions}
               detailedPositions={detailedPositions}
               summary={summary}
+              accounts={accounts}
             />
           )}
 
@@ -1414,33 +1422,39 @@ const PerformanceTab = ({
             <Award className="w-6 h-6 text-emerald-400" />
             <h3 className="text-lg font-bold text-white">Top Gainers by Amount</h3>
           </div>
-          <div className="space-y-3">
-            {topPerformersAmount?.slice(0, 5).map((pos, idx) => (
-              <motion.div
-                key={idx}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: idx * 0.1 }}
-                className="flex items-center justify-between p-3 bg-gray-900/40 rounded-xl hover:bg-gray-900/60 transition-colors"
-              >
-                <div className="flex items-center gap-3">
-                  <span className="text-gray-500 font-mono text-sm">#{idx + 1}</span>
-                  <div>
-                    <p className="text-white font-medium">{pos.name || pos.identifier}</p>
-                    <p className="text-xs text-gray-400">{pos.asset_type}</p>
+          {positionsLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-8 h-8 text-emerald-400 animate-spin" />
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {topPerformersByAmount?.slice(0, 5).map((pos, idx) => (
+                <motion.div
+                  key={idx}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: idx * 0.1 }}
+                  className="flex items-center justify-between p-3 bg-gray-900/40 rounded-xl hover:bg-gray-900/60 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="text-gray-500 font-mono text-sm">#{idx + 1}</span>
+                    <div>
+                      <p className="text-white font-medium">{pos.name || pos.identifier}</p>
+                      <p className="text-xs text-gray-400">{pos.asset_type}</p>
+                    </div>
                   </div>
-                </div>
-                <div className="text-right">
-                  <p className="text-emerald-400 font-bold">
-                    +{formatCurrency(pos.total_gain_loss || 0)}
-                  </p>
-                  <p className="text-xs text-gray-400">
-                    {formatCurrency(pos.total_current_value || 0, true)} value
-                  </p>
-                </div>
-              </motion.div>
-            ))}
-          </div>
+                  <div className="text-right">
+                    <p className="text-emerald-400 font-bold">
+                      +{formatCurrency(pos.total_gain_loss_amt || pos.total_gain_loss || 0)}
+                    </p>
+                    <p className="text-xs text-gray-400">
+                      {formatCurrency(pos.total_current_value || 0, true)} value
+                    </p>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          )}
         </motion.div>
 
         {/* By Percent */}
@@ -1452,8 +1466,13 @@ const PerformanceTab = ({
             <Percent className="w-6 h-6 text-purple-400" />
             <h3 className="text-lg font-bold text-white">Top Gainers by Percent</h3>
           </div>
-          <div className="space-y-3">
-            {topPerformersPercent?.slice(0, 5).map((pos, idx) => (
+          {positionsLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-8 h-8 text-purple-400 animate-spin" />
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {topPerformersByPercent?.slice(0, 5).map((pos, idx) => (
               <motion.div
                 key={idx}
                 initial={{ opacity: 0, x: -20 }}
@@ -1473,12 +1492,13 @@ const PerformanceTab = ({
                     +{formatPercent((pos.total_gain_loss_pct || 0) * 100, false)}
                   </p>
                   <p className="text-xs text-gray-400">
-                    +{formatCurrency(pos.total_gain_loss || 0)}
+                    +{formatCurrency(pos.total_gain_loss_amt || pos.total_gain_loss || 0)}
                   </p>
                 </div>
               </motion.div>
             ))}
-          </div>
+            </div>
+          )}
         </motion.div>
       </div>
 
@@ -2132,7 +2152,7 @@ const TopHoldingsTab = ({ topPositions, groupedPositions, summary, filters }) =>
         <div className="p-6 border-b border-gray-700/50">
           <div className="flex items-center gap-3">
             <Award className="w-6 h-6 text-indigo-400" />
-            <h3 className="text-lg font-bold text-white">Top Holdings by Value</h3>
+            <h3 className="text-lg font-bold text-white">Top Positions by Value</h3>
           </div>
           <p className="text-sm text-gray-400 mt-1">
             Showing {sortedPositions.length} positions
@@ -2199,8 +2219,9 @@ const TopHoldingsTab = ({ topPositions, groupedPositions, summary, filters }) =>
                         />
                         <div>
                           <p className="text-sm font-medium text-white">
-                            {pos.name || pos.identifier}
+                            {pos.identifier || pos.name}
                           </p>
+                          <p className="text-xs text-gray-400">{pos.name || pos.identifier}</p>
                           <p className="text-xs text-gray-500">{pos.account_name}</p>
                         </div>
                       </div>
@@ -2499,31 +2520,39 @@ const ChartBuilderTab = ({
 // TAB COMPONENTS - COMPARISON
 // ============================================================================
 
-const ComparisonTab = ({ chartData, groupedPositions, detailedPositions, summary }) => {
+const ComparisonTab = ({ chartData, groupedPositions, detailedPositions, summary, accounts }) => {
   const [expandedGroups, setExpandedGroups] = useState(new Set());
   const [groupBy, setGroupBy] = useState('asset'); // 'asset', 'account', or 'position'
 
-  // Generate comparison data from groupedPositions (Cost Basis vs Current Value)
+  // Generate comparison data (Cost Basis vs Current Value)
   const comparisonData = useMemo(() => {
-    if (!groupedPositions || groupedPositions.length === 0) return [];
+    // Use detailedPositions for account grouping, groupedPositions for others
+    const sourceData = groupBy === 'account' ? (detailedPositions || []) : (groupedPositions || []);
+
+    if (!sourceData || sourceData.length === 0) return [];
 
     // Group positions
     const grouped = {};
 
-    groupedPositions.forEach(position => {
+    sourceData.forEach(position => {
       let groupKey, groupName;
 
       if (groupBy === 'asset') {
         groupKey = position.asset_type;
         groupName = position.asset_type.charAt(0).toUpperCase() + position.asset_type.slice(1);
       } else if (groupBy === 'account') {
-        // Get account info from position
-        groupKey = position.account_name || 'Unknown';
-        groupName = position.account_name || 'Unknown Account';
+        // Use detailedPositions which have account_id and account_name
+        const accountId = position.account_id || position.accountId;
+        const accountName = position.account_name || position.accountName;
+
+        // Find account from accounts list if available
+        const account = accounts?.find(a => a.id === accountId);
+        groupKey = accountId || accountName || 'unknown';
+        groupName = account?.name || accountName || 'Unknown Account';
       } else {
         // By position - each position is its own group
-        groupKey = position.identifier;
-        groupName = position.name || position.identifier;
+        groupKey = position.identifier || position.symbol;
+        groupName = position.name || position.identifier || position.symbol;
       }
 
       if (!grouped[groupKey]) {
@@ -2539,11 +2568,11 @@ const ComparisonTab = ({ chartData, groupedPositions, detailedPositions, summary
         };
       }
 
-      // Add position data
-      const costBasis = position.total_cost_basis || 0;
-      const currentValue = position.total_current_value || 0;
-      const gainLoss = position.total_gain_loss || 0;
-      const gainLossPct = (position.total_gain_loss_pct || 0) * 100;
+      // Add position data (handle both groupedPositions and detailedPositions field names)
+      const costBasis = position.total_cost_basis || position.cost_basis || position.purchase_price * position.quantity || 0;
+      const currentValue = position.total_current_value || position.current_value || position.current_price * position.quantity || 0;
+      const gainLoss = position.total_gain_loss || position.gain_loss || (currentValue - costBasis);
+      const gainLossPct = position.total_gain_loss_pct ? (position.total_gain_loss_pct * 100) : (position.gain_loss_percent || (costBasis > 0 ? (gainLoss / costBasis) * 100 : 0));
 
       grouped[groupKey].positions.push({
         identifier: position.identifier,
@@ -2555,9 +2584,9 @@ const ComparisonTab = ({ chartData, groupedPositions, detailedPositions, summary
         valueDelta: gainLoss,
         valueChangePercent: gainLossPct,
         quantity1: 0, // No historical quantity for cost basis comparison
-        quantity2: position.total_quantity || 0,
-        price1: costBasis > 0 && position.total_quantity > 0 ? costBasis / position.total_quantity : 0,
-        price2: position.current_price || 0
+        quantity2: position.total_quantity || position.quantity || 0,
+        price1: costBasis > 0 && (position.total_quantity || position.quantity) > 0 ? costBasis / (position.total_quantity || position.quantity) : (position.purchase_price || 0),
+        price2: position.current_price || position.latest_price_per_unit || 0
       });
 
       grouped[groupKey].value1 += costBasis;
@@ -2573,7 +2602,7 @@ const ComparisonTab = ({ chartData, groupedPositions, detailedPositions, summary
         positions: group.positions.sort((a, b) => Math.abs(b.valueDelta) - Math.abs(a.valueDelta))
       }))
       .sort((a, b) => b.value2 - a.value2);
-  }, [groupedPositions, groupBy]);
+  }, [groupedPositions, detailedPositions, groupBy, accounts]);
 
   // Calculate totals for summary cards
   const totals = useMemo(() => {
