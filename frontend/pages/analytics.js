@@ -850,8 +850,7 @@ export default function Analytics() {
             { id: 'risk', label: 'Risk Analysis', icon: Shield },
             { id: 'holdings', label: 'Top Positions', icon: Award },
             { id: 'comparison', label: 'Comparison', icon: Repeat },
-            { id: 'builder', label: 'Chart Builder', icon: Settings },
-            { id: 'reports', label: 'Table Builder', icon: Grid }
+            { id: 'builder', label: 'Builder', icon: Settings }
           ].map((tab) => {
             const Icon = tab.icon;
             return (
@@ -951,26 +950,18 @@ export default function Analytics() {
             />
           )}
 
-          {/* CHART BUILDER TAB */}
+          {/* BUILDER TAB (Combined Chart & Table Builder) */}
           {activeTab === 'builder' && (
-            <ChartBuilderTab
+            <BuilderTab
               key="builder-tab"
               chartData={chartData}
               selectedMetrics={selectedMetrics}
               setSelectedMetrics={setSelectedMetrics}
               selectedChartType={selectedChartType}
               setSelectedChartType={setSelectedChartType}
-            />
-          )}
-
-          {/* TABLE BUILDER TAB */}
-          {activeTab === 'reports' && (
-            <TableBuilderTab
-              key="reports-tab"
               groupedPositions={groupedPositions}
               detailedPositions={detailedPositions}
               accounts={accounts}
-              chartData={chartData}
               summary={summary}
             />
           )}
@@ -2264,20 +2255,290 @@ const TopHoldingsTab = ({ topPositions, groupedPositions, summary, filters }) =>
 };
 
 // ============================================================================
-// TAB COMPONENTS - CHART BUILDER
+// TAB COMPONENTS - BUILDER (Combined Chart & Table Builder)
 // ============================================================================
 
-const ChartBuilderTab = ({
+const BuilderTab = ({
+  chartData,
+  selectedMetrics,
+  setSelectedMetrics,
+  selectedChartType,
+  setSelectedChartType,
+  groupedPositions,
+  detailedPositions,
+  accounts,
+  summary
+}) => {
+  const [builderMode, setBuilderMode] = useState('chart'); // 'chart' or 'table'
+
+  console.log('BuilderTab: Rendering with mode:', builderMode);
+
+  return (
+    <div className="space-y-6">
+      {/* Mode Toggle */}
+      <div className="bg-gradient-to-br from-gray-800/60 to-gray-900/60 backdrop-blur-xl rounded-3xl border border-gray-700/50 p-4">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-xl bg-indigo-500/20">
+            <Settings className="w-5 h-5 text-indigo-400" />
+          </div>
+          <h2 className="text-xl font-bold text-white">Builder Studio</h2>
+          <div className="ml-auto flex gap-2">
+            <button
+              onClick={() => setBuilderMode('chart')}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${
+                builderMode === 'chart'
+                  ? 'bg-cyan-600 text-white shadow-lg shadow-cyan-500/30'
+                  : 'bg-gray-700/50 text-gray-400 hover:bg-gray-700 hover:text-white'
+              }`}
+            >
+              <BarChart3 className="w-4 h-4" />
+              Chart Builder
+            </button>
+            <button
+              onClick={() => setBuilderMode('table')}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${
+                builderMode === 'table'
+                  ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-500/30'
+                  : 'bg-gray-700/50 text-gray-400 hover:bg-gray-700 hover:text-white'
+              }`}
+            >
+              <Grid className="w-4 h-4" />
+              Table Builder
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Content */}
+      {builderMode === 'chart' ? (
+        <ChartBuilderContent
+          chartData={chartData}
+          selectedMetrics={selectedMetrics}
+          setSelectedMetrics={setSelectedMetrics}
+          selectedChartType={selectedChartType}
+          setSelectedChartType={setSelectedChartType}
+        />
+      ) : (
+        <TableBuilderContent
+          groupedPositions={groupedPositions}
+          detailedPositions={detailedPositions}
+          accounts={accounts}
+          chartData={chartData}
+          summary={summary}
+        />
+      )}
+    </div>
+  );
+};
+
+// ============================================================================
+// TAB COMPONENTS - CHART BUILDER CONTENT
+// ============================================================================
+
+const ChartBuilderContent = ({
   chartData,
   selectedMetrics,
   setSelectedMetrics,
   selectedChartType,
   setSelectedChartType
 }) => {
-  console.log('ChartBuilderTab: Rendering with data:', {
+  console.log('ChartBuilderContent: Rendering with data:', {
     chartDataLength: chartData?.length,
     selectedMetricsCount: selectedMetrics?.length,
     selectedChartType
+  });
+
+  // Show loading if critical data is missing
+  if (!chartData || chartData.length === 0) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 text-cyan-400 animate-spin mx-auto mb-4" />
+          <p className="text-gray-400">Loading chart data...</p>
+        </div>
+      </div>
+    );
+  }
+
+  const availableMetrics = [
+    { id: 'netWorth', label: 'Net Worth', color: '#6366f1' },
+    { id: 'totalAssets', label: 'Total Assets', color: '#10b981' },
+    { id: 'liquidAssets', label: 'Liquid Assets', color: '#3b82f6' },
+    { id: 'totalLiabilities', label: 'Total Liabilities', color: '#ef4444' },
+    { id: 'altLiquidNetWorth', label: 'Liquid Net Worth', color: '#14b8a6' },
+    { id: 'altRetirementAssets', label: 'Retirement Assets', color: '#8b5cf6' },
+    { id: 'altIlliquidNetWorth', label: 'Illiquid Net Worth', color: '#f59e0b' },
+    { id: 'unrealizedGain', label: 'Unrealized Gain/Loss', color: '#ec4899' }
+  ];
+
+  const toggleMetric = (metricId) => {
+    setSelectedMetrics((prev) => {
+      if (prev.includes(metricId)) {
+        return prev.filter((m) => m !== metricId);
+      }
+      return [...prev, metricId].slice(0, 4); // Max 4 metrics
+    });
+  };
+
+  return (
+    <motion.div
+      variants={cardVariants}
+      className="bg-gradient-to-br from-gray-800/60 to-gray-900/60 backdrop-blur-xl rounded-3xl border border-gray-700/50 p-6"
+    >
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-xl bg-cyan-500/20">
+            <BarChart3 className="w-5 h-5 text-cyan-400" />
+          </div>
+          <h3 className="text-lg font-bold text-white">Custom Chart Builder</h3>
+        </div>
+        <div className="flex gap-2">
+          {['area', 'line', 'bar'].map((type) => (
+            <button
+              key={type}
+              onClick={() => setSelectedChartType(type)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-all ${
+                selectedChartType === type
+                  ? 'bg-cyan-600 text-white'
+                  : 'bg-gray-700/50 text-gray-400 hover:text-white'
+              }`}
+            >
+              {type}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Metric Selection */}
+      <div className="mb-6">
+        <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3 block">
+          Select Metrics (max 4)
+        </label>
+        <div className="flex flex-wrap gap-2">
+          {availableMetrics.map((metric) => {
+            const isSelected = selectedMetrics.includes(metric.id);
+            return (
+              <button
+                key={metric.id}
+                onClick={() => toggleMetric(metric.id)}
+                disabled={!isSelected && selectedMetrics.length >= 4}
+                className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                  isSelected
+                    ? 'text-white shadow-lg'
+                    : 'bg-gray-700/50 text-gray-400 hover:bg-gray-700 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed'
+                }`}
+                style={{
+                  backgroundColor: isSelected ? metric.color : undefined
+                }}
+              >
+                {metric.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Chart */}
+      <div className="h-96 bg-gray-900/40 rounded-2xl p-4">
+        <ResponsiveContainer width="100%" height="100%">
+          {selectedChartType === 'area' ? (
+            <AreaChart data={chartData}>
+              {selectedMetrics.map((metricId) => {
+                const metric = availableMetrics.find((m) => m.id === metricId);
+                return (
+                  <Area
+                    key={metricId}
+                    type="monotone"
+                    dataKey={metricId}
+                    name={metric?.label || metricId}
+                    stroke={metric?.color}
+                    fill={metric?.color}
+                    fillOpacity={0.2}
+                    strokeWidth={2}
+                  />
+                );
+              })}
+              <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+              <XAxis dataKey="date" tick={{ fill: '#9ca3af', fontSize: 12 }} tickFormatter={formatDate} />
+              <YAxis tick={{ fill: '#9ca3af', fontSize: 12 }} tickFormatter={(v) => formatCurrency(v, true)} />
+              <Tooltip
+                contentStyle={{ backgroundColor: '#111827', border: '1px solid #374151', borderRadius: '12px' }}
+                labelFormatter={(date) => new Date(date).toLocaleDateString()}
+                formatter={(value) => [formatCurrency(value), '']}
+              />
+              <Legend />
+            </AreaChart>
+          ) : selectedChartType === 'line' ? (
+            <LineChart data={chartData}>
+              {selectedMetrics.map((metricId) => {
+                const metric = availableMetrics.find((m) => m.id === metricId);
+                return (
+                  <Line
+                    key={metricId}
+                    type="monotone"
+                    dataKey={metricId}
+                    name={metric?.label || metricId}
+                    stroke={metric?.color}
+                    strokeWidth={2}
+                    dot={{ r: 3 }}
+                  />
+                );
+              })}
+              <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+              <XAxis dataKey="date" tick={{ fill: '#9ca3af', fontSize: 12 }} tickFormatter={formatDate} />
+              <YAxis tick={{ fill: '#9ca3af', fontSize: 12 }} tickFormatter={(v) => formatCurrency(v, true)} />
+              <Tooltip
+                contentStyle={{ backgroundColor: '#111827', border: '1px solid #374151', borderRadius: '12px' }}
+                labelFormatter={(date) => new Date(date).toLocaleDateString()}
+                formatter={(value) => [formatCurrency(value), '']}
+              />
+              <Legend />
+            </LineChart>
+          ) : (
+            <BarChart data={chartData}>
+              {selectedMetrics.map((metricId) => {
+                const metric = availableMetrics.find((m) => m.id === metricId);
+                return (
+                  <Bar key={metricId} dataKey={metricId} name={metric?.label || metricId} fill={metric?.color} />
+                );
+              })}
+              <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+              <XAxis dataKey="date" tick={{ fill: '#9ca3af', fontSize: 12 }} tickFormatter={formatDate} />
+              <YAxis tick={{ fill: '#9ca3af', fontSize: 12 }} tickFormatter={(v) => formatCurrency(v, true)} />
+              <Tooltip
+                contentStyle={{ backgroundColor: '#111827', border: '1px solid #374151', borderRadius: '12px' }}
+                labelFormatter={(date) => new Date(date).toLocaleDateString()}
+                formatter={(value) => [formatCurrency(value), '']}
+              />
+              <Legend />
+            </BarChart>
+          )}
+        </ResponsiveContainer>
+      </div>
+    </motion.div>
+  );
+};
+
+// ============================================================================
+// TAB COMPONENTS - TABLE BUILDER CONTENT
+// ============================================================================
+
+const TableBuilderContent = ({ groupedPositions, detailedPositions, accounts, chartData, summary }) => {
+  // Use the original TableBuilderTab component
+  return <TableBuilderTab
+    groupedPositions={groupedPositions}
+    detailedPositions={detailedPositions}
+    accounts={accounts}
+    chartData={chartData}
+    summary={summary}
+  />;
+};
+
+// Keep original TableBuilderTab for backwards compatibility
+const TableBuilderTabOriginal = ({ groupedPositions, detailedPositions, accounts, chartData, summary }) => {
+  console.log('TableBuilderTab: Rendering with data:', {
+    groupedPositionsLength: groupedPositions?.length,
+    accountsLength: accounts?.length
   });
 
   // Show loading if critical data is missing
