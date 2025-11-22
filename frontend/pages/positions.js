@@ -248,14 +248,14 @@ export default function PositionsPage() {
                 </div>
                 <div className="flex items-center gap-2 text-xs">
                   <span className={`font-medium ${
-                    safeNumber(portfolioData?.periodChanges?.['1m']?.totalAssetsPercent, 0) >= 0
+                    safeNumber(portfolioData?.periodChanges?.[selectedTimeframe]?.totalAssetsPercent, 0) >= 0
                       ? 'text-green-400'
                       : 'text-red-400'
                   }`}>
-                    {safeNumber(portfolioData?.periodChanges?.['1m']?.totalAssetsPercent, 0) >= 0 ? '+' : ''}
-                    {(safeNumber(portfolioData?.periodChanges?.['1m']?.totalAssetsPercent, 0) * 100).toFixed(2)}%
+                    {safeNumber(portfolioData?.periodChanges?.[selectedTimeframe]?.totalAssetsPercent, 0) >= 0 ? '+' : ''}
+                    {(safeNumber(portfolioData?.periodChanges?.[selectedTimeframe]?.totalAssetsPercent, 0) * 100).toFixed(2)}%
                   </span>
-                  <span className="text-gray-500">1M</span>
+                  <span className="text-gray-500">{selectedTimeframe.toUpperCase()}</span>
                 </div>
               </div>
             </motion.div>
@@ -288,14 +288,14 @@ export default function PositionsPage() {
                 </div>
                 <div className="flex items-center gap-2 text-xs">
                   <span className={`font-medium ${
-                    safeNumber(portfolioData?.periodChanges?.['1m']?.liquidAssetsPercent, 0) >= 0
+                    safeNumber(portfolioData?.periodChanges?.[selectedTimeframe]?.liquidAssetsPercent, 0) >= 0
                       ? 'text-green-400'
                       : 'text-red-400'
                   }`}>
-                    {safeNumber(portfolioData?.periodChanges?.['1m']?.liquidAssetsPercent, 0) >= 0 ? '+' : ''}
-                    {(safeNumber(portfolioData?.periodChanges?.['1m']?.liquidAssetsPercent, 0) * 100).toFixed(2)}%
+                    {safeNumber(portfolioData?.periodChanges?.[selectedTimeframe]?.liquidAssetsPercent, 0) >= 0 ? '+' : ''}
+                    {(safeNumber(portfolioData?.periodChanges?.[selectedTimeframe]?.liquidAssetsPercent, 0) * 100).toFixed(2)}%
                   </span>
-                  <span className="text-gray-500">1M</span>
+                  <span className="text-gray-500">{selectedTimeframe.toUpperCase()}</span>
                 </div>
               </div>
             </motion.div>
@@ -319,25 +319,25 @@ export default function PositionsPage() {
               <div className="space-y-1">
                 <div className="flex items-center gap-2 text-sm">
                   <span className={`font-medium ${
-                    safeNumber(portfolioData?.periodChanges?.['1m']?.altRetirementAssets, 0) >= 0
+                    safeNumber(portfolioData?.periodChanges?.[selectedTimeframe]?.altRetirementAssets, 0) >= 0
                       ? 'text-green-400'
                       : 'text-red-400'
                   }`}>
-                    {safeNumber(portfolioData?.periodChanges?.['1m']?.altRetirementAssets, 0) >= 0 ? '+' : ''}
-                    {showValues ? formatCurrency(safeNumber(portfolioData?.periodChanges?.['1m']?.altRetirementAssets, 0)) : '••••'}
+                    {safeNumber(portfolioData?.periodChanges?.[selectedTimeframe]?.altRetirementAssets, 0) >= 0 ? '+' : ''}
+                    {showValues ? formatCurrency(safeNumber(portfolioData?.periodChanges?.[selectedTimeframe]?.altRetirementAssets, 0)) : '••••'}
                   </span>
-                  <span className="text-gray-500">1M</span>
+                  <span className="text-gray-500">gain</span>
                 </div>
                 <div className="flex items-center gap-2 text-xs">
                   <span className={`font-medium ${
-                    safeNumber(portfolioData?.periodChanges?.['1m']?.altRetirementAssetsPercent, 0) >= 0
+                    safeNumber(portfolioData?.periodChanges?.[selectedTimeframe]?.altRetirementAssetsPercent, 0) >= 0
                       ? 'text-green-400'
                       : 'text-red-400'
                   }`}>
-                    {safeNumber(portfolioData?.periodChanges?.['1m']?.altRetirementAssetsPercent, 0) >= 0 ? '+' : ''}
-                    {(safeNumber(portfolioData?.periodChanges?.['1m']?.altRetirementAssetsPercent, 0) * 100).toFixed(2)}%
+                    {safeNumber(portfolioData?.periodChanges?.[selectedTimeframe]?.altRetirementAssetsPercent, 0) >= 0 ? '+' : ''}
+                    {(safeNumber(portfolioData?.periodChanges?.[selectedTimeframe]?.altRetirementAssetsPercent, 0) * 100).toFixed(2)}%
                   </span>
-                  <span className="text-gray-500">gain</span>
+                  <span className="text-gray-500">{selectedTimeframe.toUpperCase()}</span>
                 </div>
               </div>
             </motion.div>
@@ -361,25 +361,25 @@ export default function PositionsPage() {
               <div className="space-y-1">
                 <div className="flex items-center gap-2 text-sm">
                   <span className={`font-medium ${
-                    safeNumber(portfolioData?.periodChanges?.['1m']?.altLiquidNetWorth, 0) >= 0
+                    safeNumber(portfolioData?.periodChanges?.[selectedTimeframe]?.altLiquidNetWorth, 0) >= 0
                       ? 'text-green-400'
                       : 'text-red-400'
                   }`}>
-                    {safeNumber(portfolioData?.periodChanges?.['1m']?.altLiquidNetWorth, 0) >= 0 ? '+' : ''}
-                    {showValues ? formatCurrency(safeNumber(portfolioData?.periodChanges?.['1m']?.altLiquidNetWorth, 0)) : '••••'}
+                    {safeNumber(portfolioData?.periodChanges?.[selectedTimeframe]?.altLiquidNetWorth, 0) >= 0 ? '+' : ''}
+                    {showValues ? formatCurrency(safeNumber(portfolioData?.periodChanges?.[selectedTimeframe]?.altLiquidNetWorth, 0)) : '••••'}
                   </span>
-                  <span className="text-gray-500">1M</span>
+                  <span className="text-gray-500">gain</span>
                 </div>
                 <div className="flex items-center gap-2 text-xs">
                   <span className={`font-medium ${
-                    safeNumber(portfolioData?.periodChanges?.['1m']?.altLiquidNetWorthPercent, 0) >= 0
+                    safeNumber(portfolioData?.periodChanges?.[selectedTimeframe]?.altLiquidNetWorthPercent, 0) >= 0
                       ? 'text-green-400'
                       : 'text-red-400'
                   }`}>
-                    {safeNumber(portfolioData?.periodChanges?.['1m']?.altLiquidNetWorthPercent, 0) >= 0 ? '+' : ''}
-                    {(safeNumber(portfolioData?.periodChanges?.['1m']?.altLiquidNetWorthPercent, 0) * 100).toFixed(2)}%
+                    {safeNumber(portfolioData?.periodChanges?.[selectedTimeframe]?.altLiquidNetWorthPercent, 0) >= 0 ? '+' : ''}
+                    {(safeNumber(portfolioData?.periodChanges?.[selectedTimeframe]?.altLiquidNetWorthPercent, 0) * 100).toFixed(2)}%
                   </span>
-                  <span className="text-gray-500">gain</span>
+                  <span className="text-gray-500">{selectedTimeframe.toUpperCase()}</span>
                 </div>
               </div>
             </motion.div>
