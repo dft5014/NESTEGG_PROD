@@ -1094,44 +1094,6 @@ export default function MobilePortfolio() {
             </div>
           </motion.section>
 
-          {/* QUICK ACTIONS */}
-          <motion.section
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.7 }}
-            className="mt-4 mb-8"
-          >
-            <div className="grid grid-cols-2 gap-3">
-              <motion.button
-                whileTap={{ scale: 0.97 }}
-                onClick={() => router.push('/accounts')}
-                className="rounded-xl bg-gradient-to-br from-indigo-600/70 to-indigo-500/50 hover:to-indigo-500/60 border border-indigo-400/20 px-4 py-4 text-sm font-semibold flex items-center justify-center gap-2 transition shadow-lg shadow-indigo-500/20"
-              >
-                <Wallet className="w-5 h-5" /> Accounts
-              </motion.button>
-              <motion.button
-                whileTap={{ scale: 0.97 }}
-                onClick={() => router.push('/positions')}
-                className="rounded-xl bg-gradient-to-br from-emerald-600/70 to-emerald-500/50 hover:to-emerald-500/60 border border-emerald-400/20 px-4 py-4 text-sm font-semibold flex items-center justify-center gap-2 transition shadow-lg shadow-emerald-500/20"
-              >
-                <Layers className="w-5 h-5" /> Positions
-              </motion.button>
-              <motion.button
-                whileTap={{ scale: 0.97 }}
-                onClick={() => router.push('/reports')}
-                className="rounded-xl bg-gradient-to-br from-amber-600/70 to-amber-500/50 hover:to-amber-500/60 border border-amber-400/20 px-4 py-4 text-sm font-semibold flex items-center justify-center gap-2 transition shadow-lg shadow-amber-500/20"
-              >
-                <TrendingUp className="w-5 h-5" /> Reports
-              </motion.button>
-              <motion.button
-                whileTap={{ scale: 0.97 }}
-                onClick={() => router.push('/command-center')}
-                className="rounded-xl bg-gradient-to-br from-purple-600/70 to-purple-500/50 hover:to-purple-500/60 border border-purple-400/20 px-4 py-4 text-sm font-semibold flex items-center justify-center gap-2 transition shadow-lg shadow-purple-500/20"
-              >
-                <BarChart3 className="w-5 h-5" /> Analytics
-              </motion.button>
-            </div>
-          </motion.section>
         </main>
 
         {/* BOTTOM NAVIGATION */}
