@@ -1418,7 +1418,7 @@ const PerformanceTab = ({
             </div>
           ) : (
             <div className="space-y-3">
-              {topPerformersByAmount?.slice(0, 5).map((pos, idx) => (
+              {topPerformersAmount?.slice(0, 5).map((pos, idx) => (
                 <motion.div
                   key={idx}
                   initial={{ opacity: 0, x: -20 }}
@@ -1462,7 +1462,7 @@ const PerformanceTab = ({
             </div>
           ) : (
             <div className="space-y-3">
-              {topPerformersByPercent?.slice(0, 5).map((pos, idx) => (
+              {topPerformersPercent?.slice(0, 5).map((pos, idx) => (
               <motion.div
                 key={idx}
                 initial={{ opacity: 0, x: -20 }}
