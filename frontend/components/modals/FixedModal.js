@@ -7,9 +7,10 @@ const FixedModal = ({
     onClose,
     title,
     children,
-    size = 'max-w-md',
+    size = 'max-w-4xl', // Better default: 896px instead of 448px
     zIndex = 'z-50',
-    disableBackdropClose = false // optional: keep false to preserve behavior
+    disableBackdropClose = false,
+    colorfulHeader = false // NEW: Enable gradient header
 }) => {
     const [mounted, setMounted] = useState(false);
     const portalRootRef = useRef(null);
@@ -24,7 +25,7 @@ const FixedModal = ({
                 portalRoot.setAttribute('id', 'modal-root');
                 document.body.appendChild(portalRoot);
             }
-            portalRootRef.current = portalRoot; // stable reference
+            portalRootRef.current = portalRoot;
         }
     }, []);
 
@@ -32,23 +33,22 @@ const FixedModal = ({
         if (isOpen && mounted) {
             const originalOverflow = document.body.style.overflow;
             document.body.style.overflow = 'hidden';
-            
+
             return () => {
                 document.body.style.overflow = originalOverflow || 'unset';
             };
         }
     }, [isOpen, mounted]);
 
-        if (!mounted || !portalRootRef.current) {
-            return null;
-        }
+    if (!mounted || !portalRootRef.current) {
+        return null;
+    }
 
     return ReactDOM.createPortal(
         <div
-            className={`fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center ${zIndex} p-4`}
+            className={`fixed inset-0 bg-black/50 backdrop-blur-sm flex justify-center items-start ${zIndex} p-4 sm:p-6 lg:p-8 pt-8 sm:pt-12 lg:pt-16 overflow-y-auto`}
             style={{
-                backdropFilter: 'blur(4px)',
-                display: isOpen ? 'flex' : 'none' // <-- keep mounted; hide when closed
+                display: isOpen ? 'flex' : 'none'
             }}
             onClick={(e) => {
                 if (!disableBackdropClose) onClose?.(e);
@@ -58,33 +58,49 @@ const FixedModal = ({
             aria-modal="true"
         >
             <div
-                className={`bg-white rounded-lg shadow-xl w-full ${size} text-gray-900`}
+                className={`bg-white rounded-2xl shadow-2xl w-full ${size} text-gray-900 my-auto max-h-[calc(100vh-8rem)] flex flex-col border border-gray-200`}
                 onClick={e => e.stopPropagation()}
             >
-                <div className="flex justify-between items-center p-4 border-b border-gray-200">
-                    <h2 
-                        className="text-xl font-semibold text-gray-800" 
+                {/* Header */}
+                <div className={`
+                    flex justify-between items-center p-5 border-b flex-shrink-0
+                    ${colorfulHeader
+                        ? 'bg-gradient-to-r from-blue-600 to-purple-600 border-blue-700'
+                        : 'border-gray-200 bg-white'
+                    }
+                `}>
+                    <h2
+                        className={`text-xl font-bold ${
+                            colorfulHeader ? 'text-white' : 'text-gray-900'
+                        }`}
                         id={titleId}
                     >
                         {title}
                     </h2>
                     <button
                         onClick={onClose}
-                        className="text-gray-500 hover:text-gray-800 h-8 w-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors"
+                        className={`
+                            h-8 w-8 flex items-center justify-center rounded-full
+                            transition-colors
+                            ${colorfulHeader
+                                ? 'text-white hover:bg-white/20'
+                                : 'text-gray-500 hover:text-gray-800 hover:bg-gray-100'
+                            }
+                        `}
                         aria-label="Close modal"
                     >
                         <X className="h-5 w-5" />
                     </button>
                 </div>
-                <div className="p-6 overflow-y-auto max-h-[calc(100vh-150px)]">
+
+                {/* Content - Clean white background */}
+                <div className="flex-1 overflow-y-auto bg-white p-6">
                     {children}
                 </div>
             </div>
         </div>,
         portalRootRef.current
     );
-
-
 };
 
 export default FixedModal;
