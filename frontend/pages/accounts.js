@@ -562,6 +562,14 @@ export default function AccountsPage() {
                   <div className="text-sm text-blue-400 font-medium">
                     {((portfolioSummary.assetAllocation.securities?.percentage || 0) * 100).toFixed(1)}% of portfolio
                   </div>
+                  <div className="w-full bg-gray-800 rounded-full h-2 mt-2">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${(portfolioSummary.assetAllocation.securities?.percentage || 0) * 100}%` }}
+                      transition={{ duration: 0.5, delay: 0.4 }}
+                      className="h-full bg-blue-500 rounded-full"
+                    />
+                  </div>
                   {portfolioSummary.assetAllocation.securities?.count > 0 && (
                     <div className="text-xs text-gray-500">
                       {portfolioSummary.assetAllocation.securities.count} positions
@@ -577,14 +585,6 @@ export default function AccountsPage() {
                       {((portfolioSummary.assetAllocation.securities.gainLossPercent || 0) * 100).toFixed(1)}%)
                     </div>
                   )}
-                  <div className="w-full bg-gray-800 rounded-full h-2 mt-2">
-                    <motion.div
-                      initial={{ width: 0 }}
-                      animate={{ width: `${(portfolioSummary.assetAllocation.securities?.percentage || 0) * 100}%` }}
-                      transition={{ duration: 0.5, delay: 0.4 }}
-                      className="h-full bg-blue-500 rounded-full"
-                    />
-                  </div>
                 </div>
 
                 {/* Cash */}
@@ -599,11 +599,6 @@ export default function AccountsPage() {
                   <div className="text-sm text-green-400 font-medium">
                     {((portfolioSummary.assetAllocation.cash?.percentage || 0) * 100).toFixed(1)}% of portfolio
                   </div>
-                  {portfolioSummary.assetAllocation.cash?.count > 0 && (
-                    <div className="text-xs text-gray-500">
-                      {portfolioSummary.assetAllocation.cash.count} accounts
-                    </div>
-                  )}
                   <div className="w-full bg-gray-800 rounded-full h-2 mt-2">
                     <motion.div
                       initial={{ width: 0 }}
@@ -612,6 +607,11 @@ export default function AccountsPage() {
                       className="h-full bg-green-500 rounded-full"
                     />
                   </div>
+                  {portfolioSummary.assetAllocation.cash?.count > 0 && (
+                    <div className="text-xs text-gray-500">
+                      {portfolioSummary.assetAllocation.cash.count} accounts
+                    </div>
+                  )}
                 </div>
 
                 {/* Crypto */}
@@ -625,6 +625,14 @@ export default function AccountsPage() {
                   </div>
                   <div className="text-sm text-purple-400 font-medium">
                     {((portfolioSummary.assetAllocation.crypto?.percentage || 0) * 100).toFixed(1)}% of portfolio
+                  </div>
+                  <div className="w-full bg-gray-800 rounded-full h-2 mt-2">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${(portfolioSummary.assetAllocation.crypto?.percentage || 0) * 100}%` }}
+                      transition={{ duration: 0.5, delay: 0.6 }}
+                      className="h-full bg-purple-500 rounded-full"
+                    />
                   </div>
                   {portfolioSummary.assetAllocation.crypto?.count > 0 && (
                     <div className="text-xs text-gray-500">
@@ -641,14 +649,6 @@ export default function AccountsPage() {
                       {((portfolioSummary.assetAllocation.crypto.gainLossPercent || 0) * 100).toFixed(1)}%)
                     </div>
                   )}
-                  <div className="w-full bg-gray-800 rounded-full h-2 mt-2">
-                    <motion.div
-                      initial={{ width: 0 }}
-                      animate={{ width: `${(portfolioSummary.assetAllocation.crypto?.percentage || 0) * 100}%` }}
-                      transition={{ duration: 0.5, delay: 0.6 }}
-                      className="h-full bg-purple-500 rounded-full"
-                    />
-                  </div>
                 </div>
 
                 {/* Metals */}
@@ -662,6 +662,14 @@ export default function AccountsPage() {
                   </div>
                   <div className="text-sm text-yellow-400 font-medium">
                     {((portfolioSummary.assetAllocation.metals?.percentage || 0) * 100).toFixed(1)}% of portfolio
+                  </div>
+                  <div className="w-full bg-gray-800 rounded-full h-2 mt-2">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${(portfolioSummary.assetAllocation.metals?.percentage || 0) * 100}%` }}
+                      transition={{ duration: 0.5, delay: 0.7 }}
+                      className="h-full bg-yellow-500 rounded-full"
+                    />
                   </div>
                   {portfolioSummary.assetAllocation.metals?.count > 0 && (
                     <div className="text-xs text-gray-500">
@@ -678,14 +686,6 @@ export default function AccountsPage() {
                       {((portfolioSummary.assetAllocation.metals.gainLossPercent || 0) * 100).toFixed(1)}%)
                     </div>
                   )}
-                  <div className="w-full bg-gray-800 rounded-full h-2 mt-2">
-                    <motion.div
-                      initial={{ width: 0 }}
-                      animate={{ width: `${(portfolioSummary.assetAllocation.metals?.percentage || 0) * 100}%` }}
-                      transition={{ duration: 0.5, delay: 0.7 }}
-                      className="h-full bg-yellow-500 rounded-full"
-                    />
-                  </div>
                 </div>
 
                 {/* Real Estate & Other */}
@@ -699,6 +699,14 @@ export default function AccountsPage() {
                   </div>
                   <div className="text-sm text-teal-400 font-medium">
                     {((portfolioSummary.assetAllocation.realEstate?.percentage || 0) * 100).toFixed(1)}% of portfolio
+                  </div>
+                  <div className="w-full bg-gray-800 rounded-full h-2 mt-2">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${(portfolioSummary.assetAllocation.realEstate?.percentage || 0) * 100}%` }}
+                      transition={{ duration: 0.5, delay: 0.8 }}
+                      className="h-full bg-teal-500 rounded-full"
+                    />
                   </div>
                   {portfolioSummary.assetAllocation.realEstate?.count > 0 && (
                     <div className="text-xs text-gray-500">
@@ -715,14 +723,6 @@ export default function AccountsPage() {
                       {((portfolioSummary.assetAllocation.realEstate.gainLossPercent || 0) * 100).toFixed(1)}%)
                     </div>
                   )}
-                  <div className="w-full bg-gray-800 rounded-full h-2 mt-2">
-                    <motion.div
-                      initial={{ width: 0 }}
-                      animate={{ width: `${(portfolioSummary.assetAllocation.realEstate?.percentage || 0) * 100}%` }}
-                      transition={{ duration: 0.5, delay: 0.8 }}
-                      className="h-full bg-teal-500 rounded-full"
-                    />
-                  </div>
                 </div>
               </div>
             ) : (
