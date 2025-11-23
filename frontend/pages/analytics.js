@@ -899,6 +899,7 @@ export default function Analytics() {
               topPerformersPercent={topPerformersByPercent}
               assetPerformance={assetPerformance}
               timeframe={filters.timeframe}
+              positionsLoading={positionsLoading}
             />
           )}
 
@@ -1300,7 +1301,8 @@ const PerformanceTab = ({
   topPerformersAmount,
   topPerformersPercent,
   assetPerformance,
-  timeframe
+  timeframe,
+  positionsLoading
 }) => {
   console.log('PerformanceTab: Rendering with data:', {
     hasSummary: !!summary,
