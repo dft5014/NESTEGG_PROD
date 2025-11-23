@@ -327,37 +327,6 @@ export default function Portfolio() {
     };
   }, [assetPerformance?.timeseries_by_class]);
 
-  // Generate simple sparkline data from performance metrics for hover display
-  const generateSparklineData = (assetClass, currentValue) => {
-    const perf = assetPerformance?.[assetClass];
-    if (!perf || !currentValue) return null;
-
-    // Create synthetic data points from available performance metrics
-    const points = [];
-    const now = new Date();
-
-    // Use available period changes to build a simple trend
-    const periods = [
-      { days: 7, change: perf.weekly?.change_amount || 0 },
-      { days: 5, change: (perf.weekly?.change_amount || 0) * 0.7 },
-      { days: 3, change: (perf.weekly?.change_amount || 0) * 0.4 },
-      { days: 1, change: perf.daily?.change_amount || 0 },
-      { days: 0, change: 0 }, // today
-    ];
-
-    periods.reverse().forEach(({ days, change }) => {
-      const date = new Date(now);
-      date.setDate(date.getDate() - days);
-      points.push({
-        date: date.toISOString().split('T')[0],
-        value: currentValue - change,
-        pl: currentValue - change - (perf.cost_basis || currentValue)
-      });
-    });
-
-    return points.length > 0 ? points : null;
-  };
-
   // Derived tables --------------------------------------------------------------
   const netWorthMixData = useMemo(() => {
     if (!summary) return [];
@@ -370,12 +339,11 @@ export default function Portfolio() {
       { key: 'other', name: 'Other', value: summary.altNetWorth.netOtherAssets, pct: (summary.netWorthMix.netOtherAssets || 0) * 100, color: assetColors.other },
     ];
 
-    // Filter: show row if value/pct > 0, OR if it's "other" and has any liabilities
+    // Always show Real Estate and Other (even if 0) to display liabilities breakdown
+    // Filter out other categories only if they have no value
     return allRows.filter((x) => {
-      if (x.key === 'other') {
-        // Always show "Other" if there are non-CC/non-mortgage liabilities
-        const otherLiabs = (summary.liabilities?.total || 0) - (summary.liabilities?.creditCard || 0) - (summary.liabilities?.mortgage || 0);
-        return (x.value || 0) !== 0 || (x.pct || 0) !== 0 || otherLiabs > 0;
+      if (x.key === 'realEstate' || x.key === 'other') {
+        return true; // Always show these rows
       }
       return (x.value || 0) > 0 || (x.pct || 0) > 0;
     });
@@ -859,41 +827,40 @@ export default function Portfolio() {
               </div>
               {[
                 {
-                  key: 'securities', label: 'Securities', color: '#4f46e5', perfKey: 'security',
+                  key: 'securities', label: 'Securities', color: '#4f46e5',
                   market: summary?.assetAllocation?.securities?.value,
                   cost: summary?.assetAllocation?.securities?.costBasis,
                   gain: summary?.assetAllocation?.securities?.gainLoss,
                   gainPct: summary?.assetAllocation?.securities?.gainLossPercent
                 },
                 {
-                  key: 'cash', label: 'Cash', color: '#10b981', perfKey: 'cash',
+                  key: 'cash', label: 'Cash', color: '#10b981',
                   market: summary?.assetAllocation?.cash?.value,
                   cost: summary?.assetAllocation?.cash?.costBasis
                 },
                 {
-                  key: 'crypto', label: 'Crypto', color: '#8b5cf6', perfKey: 'crypto',
+                  key: 'crypto', label: 'Crypto', color: '#8b5cf6',
                   market: summary?.assetAllocation?.crypto?.value,
                   cost: summary?.assetAllocation?.crypto?.costBasis,
                   gain: summary?.assetAllocation?.crypto?.gainLoss,
                   gainPct: summary?.assetAllocation?.crypto?.gainLossPercent
                 },
                 {
-                  key: 'metals', label: 'Metals', color: '#f59e0b', perfKey: 'metal',
+                  key: 'metals', label: 'Metals', color: '#f59e0b',
                   market: summary?.assetAllocation?.metals?.value,
                   cost: summary?.assetAllocation?.metals?.costBasis,
                   gain: summary?.assetAllocation?.metals?.gainLoss,
                   gainPct: summary?.assetAllocation?.metals?.gainLossPercent
                 },
                 {
-                  key: 'otherAssets', label: 'Other Assets', color: '#6b7280', perfKey: 'other_assets',
+                  key: 'otherAssets', label: 'Other Assets', color: '#6b7280',
                   market: summary?.assetAllocation?.otherAssets?.value,
                   cost: summary?.assetAllocation?.otherAssets?.costBasis,
                   gain: summary?.assetAllocation?.otherAssets?.gainLoss,
                   gainPct: summary?.assetAllocation?.otherAssets?.gainLossPercent
                 },
               ].map((r) => {
-                // Use backend timeseries if available, otherwise generate from performance metrics
-                const sparkData = byClassTS[r.key] || generateSparklineData(r.perfKey, r.market);
+                const sparkData = byClassTS[r.key] || null;
                 return (
                   <InvestedRow
                     key={r.key}
@@ -914,7 +881,7 @@ export default function Portfolio() {
                   </span>
                 </div>
               </div>
-              <p className="text-[11px] text-gray-500 mt-2">Tip: hover a row for a sparkline • click rows with <Expand className="inline h-3 w-3 mx-1" /> to open full-screen.</p>
+              <p className="text-[11px] text-gray-500 mt-2">Tip: click rows with <Expand className="inline h-3 w-3 mx-1" /> to view detailed performance chart.</p>
             </Section>
 
             {/* Net Worth Breakdown */}
@@ -1284,12 +1251,15 @@ function InvestedRow({ label, color, market = 0, cost = 0, gain = null, gainPct 
   const up = (gain || 0) >= 0;
   return (
     <div
-      className={`group relative grid grid-cols-12 px-2 py-2 rounded-lg hover:bg-gray-800/50 ${sparkData ? 'cursor-pointer' : ''}`}
+      className={`grid grid-cols-12 px-2 py-2 rounded-lg hover:bg-gray-800/50 ${sparkData ? 'cursor-pointer' : ''}`}
       onClick={sparkData ? onClick : undefined}
     >
       <div className="col-span-4 flex items-center gap-2">
         <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ background: color }} />
-        <span className="text-sm text-gray-200">{label}</span>
+        <span className="text-sm text-gray-200 flex items-center gap-1">
+          {label}
+          {sparkData && <Expand className="h-3 w-3 text-gray-500" />}
+        </span>
       </div>
       <div className="col-span-3 text-right text-gray-100">{formatCurrency(market || 0, showInThousands)}</div>
       <div className="col-span-3 text-right text-gray-300">{formatCurrency(cost || 0, showInThousands)}</div>
@@ -1300,16 +1270,6 @@ function InvestedRow({ label, color, market = 0, cost = 0, gain = null, gainPct 
           </span>
         ) : <span className="text-gray-500 text-sm">—</span>}
       </div>
-
-      {/* hover sparkline */}
-      {sparkData?.length ? (
-        <div className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 pointer-events-none group-hover:opacity-100 transition">
-          <div className="flex items-center gap-1 bg-gray-900 border border-gray-800 rounded-lg p-2">
-            <Sparkline data={sparkData.map(d => ({ date: new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), value: d.pl ?? d.value ?? 0 }))} />
-            <Expand className="h-4 w-4 text-gray-400" />
-          </div>
-        </div>
-      ) : null}
     </div>
   );
 }
