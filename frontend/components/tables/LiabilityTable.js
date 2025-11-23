@@ -341,24 +341,32 @@ const LiabilityTable = ({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-700">
-                      {liability.liability_details?.map((detail, idx) => (
-                        <tr key={idx} className="hover:bg-gray-800/50">
-                          <td className="px-3 py-2 text-sm">{detail.name}</td>
-                          <td className="px-3 py-2 text-sm text-gray-400">{detail.institution}</td>
-                          <td className="px-3 py-2 text-sm text-right text-red-400">
-                            {formatCurrency(detail.current_balance)}
-                          </td>
-                          <td className="px-3 py-2 text-sm text-right">
-                            {formatCurrency(detail.original_amount)}
-                          </td>
-                          <td className="px-3 py-2 text-sm text-right">
-                            {detail.interest_rate?.toFixed(2)}%
-                          </td>
-                          <td className="px-3 py-2 text-sm text-right text-green-400">
-                            {formatCurrency(detail.paid_down)}
+                      {Array.isArray(liability.liability_details) && liability.liability_details.length > 0 ? (
+                        liability.liability_details.map((detail, idx) => (
+                          <tr key={idx} className="hover:bg-gray-800/50">
+                            <td className="px-3 py-2 text-sm">{detail.name}</td>
+                            <td className="px-3 py-2 text-sm text-gray-400">{detail.institution}</td>
+                            <td className="px-3 py-2 text-sm text-right text-red-400">
+                              {formatCurrency(detail.current_balance)}
+                            </td>
+                            <td className="px-3 py-2 text-sm text-right">
+                              {formatCurrency(detail.original_amount)}
+                            </td>
+                            <td className="px-3 py-2 text-sm text-right">
+                              {detail.interest_rate?.toFixed(2)}%
+                            </td>
+                            <td className="px-3 py-2 text-sm text-right text-green-400">
+                              {formatCurrency(detail.paid_down)}
+                            </td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan="6" className="px-3 py-4 text-sm text-center text-gray-400">
+                            No individual liability details available
                           </td>
                         </tr>
-                      ))}
+                      )}
                     </tbody>
                   </table>
                 </div>
