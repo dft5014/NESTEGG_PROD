@@ -8,6 +8,7 @@ import { useDetailedPositions } from '@/store/hooks/useDetailedPositions';
 import { usePortfolioTrends } from '@/store/hooks/usePortfolioTrends';
 import { useAccountTrends } from '@/store/hooks/useAccountTrends';
 import { useAccountsSummaryPositions } from '@/store/hooks/useAccountsSummaryPositions';
+import { usePortfolioSummary } from '@/store/hooks/usePortfolioSummary';
 // Utils
 import { popularBrokerages } from '@/utils/constants';
 import { formatCurrency, formatDate, formatPercentage, formatNumber } from '@/utils/formatters';
@@ -67,7 +68,7 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
 };
 
 // Updated Account Detail Modal Component
-    const AccountDetailModal = ({ isOpen, onClose, account }) => {
+    const AccountDetailModal = ({ isOpen, onClose, account, totalAssets }) => {
         // State for sorting - must be before any conditional returns
         const [positionSort, setPositionSort] = useState({ field: 'value', direction: 'desc' });
         const [performanceRange, setPerformanceRange] = useState('1M'); // 1D, 1W, 1M, 3M, YTD, 1Y, ALL
@@ -519,7 +520,7 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                                     <div className="text-xs text-gray-400">Total Value</div>
                                     <div className="text-xl font-semibold">{formatCurrency(account.totalValue)}</div>
                                     <div className="text-xs text-gray-500 mt-1">
-                                        {formatPercentage(account.totalValue / (account.portfolioValue || 1))} of portfolio
+                                        {formatPercentage(totalAssets > 0 ? account.totalValue / totalAssets : 0)} of portfolio assets
                                     </div>
                                 </div>
                                 <div className="bg-gray-800/50 p-4 rounded">
@@ -1333,7 +1334,7 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                                     <div className="text-xs text-gray-400">Total Value</div>
                                     <div className="text-xl font-semibold">{formatCurrency(account.totalValue)}</div>
                                     <div className="text-xs text-gray-500 mt-1">
-                                        {formatPercentage((account.totalValue / (account.portfolioValue || 1)) * 100)} of portfolio
+                                        {formatPercentage(totalAssets > 0 ? account.totalValue / totalAssets : 0)} of portfolio assets
                                     </div>
                                 </div>
                                 <div className="bg-gray-800/50 p-4 rounded">
@@ -1926,14 +1927,17 @@ const UnifiedAccountTable = ({
     console.log("UnifiedAccountTable: Rendering start");
 
     // Use the store hook to get data
-    const { 
-        accounts, 
-        summary, 
-        loading, 
-        error, 
+    const {
+        accounts,
+        summary,
+        loading,
+        error,
         refresh,
-        isStale 
+        isStale
     } = useAccounts();
+
+    // Get portfolio summary for total assets calculation
+    const { summary: portfolioSummary } = usePortfolioSummary();
 
     // Modal States
     const [selectedAccount, setSelectedAccount] = useState(null);
@@ -2528,6 +2532,7 @@ const UnifiedAccountTable = ({
                     setSelectedAccount(null);
                 }}
                 account={selectedAccount}
+                totalAssets={portfolioSummary?.totalAssets || 0}
             />
         </>
     );
