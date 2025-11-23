@@ -327,17 +327,58 @@ export default function Portfolio() {
     };
   }, [assetPerformance?.timeseries_by_class]);
 
+  // Generate simple sparkline data from performance metrics for hover display
+  const generateSparklineData = (assetClass, currentValue) => {
+    const perf = assetPerformance?.[assetClass];
+    if (!perf || !currentValue) return null;
+
+    // Create synthetic data points from available performance metrics
+    const points = [];
+    const now = new Date();
+
+    // Use available period changes to build a simple trend
+    const periods = [
+      { days: 7, change: perf.weekly?.change_amount || 0 },
+      { days: 5, change: (perf.weekly?.change_amount || 0) * 0.7 },
+      { days: 3, change: (perf.weekly?.change_amount || 0) * 0.4 },
+      { days: 1, change: perf.daily?.change_amount || 0 },
+      { days: 0, change: 0 }, // today
+    ];
+
+    periods.reverse().forEach(({ days, change }) => {
+      const date = new Date(now);
+      date.setDate(date.getDate() - days);
+      points.push({
+        date: date.toISOString().split('T')[0],
+        value: currentValue - change,
+        pl: currentValue - change - (perf.cost_basis || currentValue)
+      });
+    });
+
+    return points.length > 0 ? points : null;
+  };
+
   // Derived tables --------------------------------------------------------------
   const netWorthMixData = useMemo(() => {
     if (!summary) return [];
-    return [
+    const allRows = [
       { key: 'securities', name: 'Securities', value: summary.assetAllocation.securities.value, pct: (summary.netWorthMix.securities || 0) * 100, color: assetColors.securities },
       { key: 'netCash', name: 'Net Cash', value: summary.altNetWorth.netCash, pct: (summary.netWorthMix.netCash || 0) * 100, color: assetColors.cash },
       { key: 'crypto', name: 'Crypto', value: summary.assetAllocation.crypto.value, pct: (summary.netWorthMix.crypto || 0) * 100, color: assetColors.crypto },
       { key: 'metals', name: 'Metals', value: summary.assetAllocation.metals.value, pct: (summary.netWorthMix.metals || 0) * 100, color: assetColors.metals },
       { key: 'realEstate', name: 'Real Estate', value: summary.altNetWorth.realEstate, pct: (summary.netWorthMix.realEstateEquity || 0) * 100, color: assetColors.real_estate },
       { key: 'other', name: 'Other', value: summary.altNetWorth.netOtherAssets, pct: (summary.netWorthMix.netOtherAssets || 0) * 100, color: assetColors.other },
-    ].filter((x) => (x.value || 0) > 0 || (x.pct || 0) > 0);
+    ];
+
+    // Filter: show row if value/pct > 0, OR if it's "other" and has any liabilities
+    return allRows.filter((x) => {
+      if (x.key === 'other') {
+        // Always show "Other" if there are non-CC/non-mortgage liabilities
+        const otherLiabs = (summary.liabilities?.total || 0) - (summary.liabilities?.creditCard || 0) - (summary.liabilities?.mortgage || 0);
+        return (x.value || 0) !== 0 || (x.pct || 0) !== 0 || otherLiabs > 0;
+      }
+      return (x.value || 0) > 0 || (x.pct || 0) > 0;
+    });
   }, [summary]);
 
   const sectorAllocationData = useMemo(() => {
@@ -818,47 +859,51 @@ export default function Portfolio() {
               </div>
               {[
                 {
-                  key: 'securities', label: 'Securities', color: '#4f46e5',
+                  key: 'securities', label: 'Securities', color: '#4f46e5', perfKey: 'security',
                   market: summary?.assetAllocation?.securities?.value,
                   cost: summary?.assetAllocation?.securities?.costBasis,
                   gain: summary?.assetAllocation?.securities?.gainLoss,
                   gainPct: summary?.assetAllocation?.securities?.gainLossPercent
                 },
                 {
-                  key: 'cash', label: 'Cash', color: '#10b981',
+                  key: 'cash', label: 'Cash', color: '#10b981', perfKey: 'cash',
                   market: summary?.assetAllocation?.cash?.value,
                   cost: summary?.assetAllocation?.cash?.costBasis
                 },
                 {
-                  key: 'crypto', label: 'Crypto', color: '#8b5cf6',
+                  key: 'crypto', label: 'Crypto', color: '#8b5cf6', perfKey: 'crypto',
                   market: summary?.assetAllocation?.crypto?.value,
                   cost: summary?.assetAllocation?.crypto?.costBasis,
                   gain: summary?.assetAllocation?.crypto?.gainLoss,
                   gainPct: summary?.assetAllocation?.crypto?.gainLossPercent
                 },
                 {
-                  key: 'metals', label: 'Metals', color: '#f59e0b',
+                  key: 'metals', label: 'Metals', color: '#f59e0b', perfKey: 'metal',
                   market: summary?.assetAllocation?.metals?.value,
                   cost: summary?.assetAllocation?.metals?.costBasis,
                   gain: summary?.assetAllocation?.metals?.gainLoss,
                   gainPct: summary?.assetAllocation?.metals?.gainLossPercent
                 },
                 {
-                  key: 'otherAssets', label: 'Other Assets', color: '#6b7280',
+                  key: 'otherAssets', label: 'Other Assets', color: '#6b7280', perfKey: 'other_assets',
                   market: summary?.assetAllocation?.otherAssets?.value,
                   cost: summary?.assetAllocation?.otherAssets?.costBasis,
                   gain: summary?.assetAllocation?.otherAssets?.gainLoss,
                   gainPct: summary?.assetAllocation?.otherAssets?.gainLossPercent
                 },
-              ].map((r) => (
-                <InvestedRow
-                  key={r.key}
-                  {...r}
-                  showInThousands={showInThousands}
-                  sparkData={byClassTS[r.key] || null}
-                  onClick={() => { if (byClassTS[r.key]) { setModalAssetKey(r.key); setModalOpen(true); } }}
-                />
-              ))}
+              ].map((r) => {
+                // Use backend timeseries if available, otherwise generate from performance metrics
+                const sparkData = byClassTS[r.key] || generateSparklineData(r.perfKey, r.market);
+                return (
+                  <InvestedRow
+                    key={r.key}
+                    {...r}
+                    showInThousands={showInThousands}
+                    sparkData={sparkData}
+                    onClick={() => { if (sparkData) { setModalAssetKey(r.key); setModalOpen(true); } }}
+                  />
+                );
+              })}
               <div className="border-t border-gray-800 mt-2 pt-2 grid grid-cols-12 px-2 text-sm">
                 <div className="col-span-4 font-semibold">Total</div>
                 <div className="col-span-3 text-right text-indigo-300">{formatCurrency(summary?.totalAssets || 0, showInThousands)}</div>
