@@ -8,14 +8,29 @@
  * @param {object} [options] - Formatting options.
  * @param {number} [options.minimumFractionDigits=0] - Minimum decimal places.
  * @param {number} [options.maximumFractionDigits=0] - Maximum decimal places.
+ * @param {boolean} [options.compact=false] - Use compact notation (e.g., $1.2M instead of $1,234,567).
  * @returns {string} - The formatted currency string (e.g., "$1,234").
  */
 export const formatCurrency = (value, options = {}) => {
-  const { minimumFractionDigits = 0, maximumFractionDigits = 0 } = options;
+  const { minimumFractionDigits = 0, maximumFractionDigits = 0, compact = false } = options;
 
   if (value === undefined || value === null || isNaN(Number(value))) {
     // Return $0 for invalid inputs, adjusting decimals based on minimum required
     return `$0${minimumFractionDigits > 0 ? '.' + '0'.repeat(minimumFractionDigits) : ''}`;
+  }
+
+  const numValue = Number(value);
+
+  // Use compact notation if requested
+  if (compact) {
+    const absValue = Math.abs(numValue);
+    if (absValue >= 1_000_000_000) {
+      return `$${(numValue / 1_000_000_000).toFixed(1)}B`;
+    } else if (absValue >= 1_000_000) {
+      return `$${(numValue / 1_000_000).toFixed(1)}M`;
+    } else if (absValue >= 1_000) {
+      return `$${(numValue / 1_000).toFixed(0)}k`;
+    }
   }
 
   return new Intl.NumberFormat('en-US', {
@@ -23,7 +38,7 @@ export const formatCurrency = (value, options = {}) => {
     currency: 'USD',
     minimumFractionDigits: minimumFractionDigits,
     maximumFractionDigits: maximumFractionDigits,
-  }).format(Number(value));
+  }).format(numValue);
 };
 
 /**

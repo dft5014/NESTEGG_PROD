@@ -99,7 +99,10 @@ export default function PositionsPage() {
   // Process chart data based on timeframe (sorted ascending by date)
   const chartData = useMemo(() => {
     const data = Array.isArray(trends?.chartData) ? trends.chartData : [];
-    if (data.length === 0) return [];
+    if (data.length === 0) {
+      console.log(`[Chart Debug] No data available. Total records: ${data.length}`);
+      return [];
+    }
 
     const now = new Date();
     const cutoffDate = new Date();
@@ -121,14 +124,25 @@ export default function PositionsPage() {
         cutoffDate.setFullYear(now.getFullYear() - 1);
         break;
       case 'all':
-        return [...data].sort((a, b) => new Date(a.date) - new Date(b.date));
+        const allData = [...data].sort((a, b) => new Date(a.date) - new Date(b.date));
+        console.log(`[Chart Debug] Timeframe: ${selectedTimeframe}, Total records: ${data.length}, Filtered records: ${allData.length}`);
+        return allData;
       default:
         cutoffDate.setMonth(now.getMonth() - 1);
     }
 
-    return data
+    const filtered = data
       .filter((p) => new Date(p.date) >= cutoffDate)
       .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+    console.log(`[Chart Debug] Timeframe: ${selectedTimeframe}, Cutoff: ${cutoffDate.toISOString()}, Total records: ${data.length}, Filtered records: ${filtered.length}`);
+
+    // Show date range if data exists
+    if (filtered.length > 0) {
+      console.log(`[Chart Debug] Date range: ${filtered[0].date} to ${filtered[filtered.length - 1].date}`);
+    }
+
+    return filtered;
   }, [trends, selectedTimeframe]);
 
   // Custom tooltip for chart
