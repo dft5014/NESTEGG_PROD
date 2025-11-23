@@ -304,9 +304,12 @@ export default function Portfolio() {
       .filter((h) => h?.net_cash_basis_metrics?.net_cash_position !== undefined && h?.net_cash_basis_metrics?.net_cash_position !== null)
       .map((h) => {
         const dateStr = h.date || h.snapshot_date;
-        const [y, m, d] = (dateStr || '').split('-').map((n) => parseInt(n));
-        const dt = new Date(y, (m || 1) - 1, d || 1);
-        return { date: dateStr, displayDate: dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), netCashPosition: h.net_cash_basis_metrics.net_cash_position };
+        const dt = new Date(dateStr);
+        return {
+          date: dateStr,
+          displayDate: !isNaN(dt.getTime()) ? dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : dateStr,
+          netCashPosition: h.net_cash_basis_metrics.net_cash_position
+        };
       })
       .sort((a, b) => new Date(a.date) - new Date(b.date));
     return rows;
@@ -476,6 +479,18 @@ export default function Portfolio() {
             </div>
           </div>
           <div className="flex items-center gap-3">
+            {/* Mobile dropdown */}
+            <select
+              value={timeframe}
+              onChange={(e) => setTimeframe(e.target.value)}
+              className="sm:hidden text-sm bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              aria-label="Select timeframe"
+            >
+              {timeframeOptions.map((t) => (
+                <option key={t.id} value={t.id}>{t.label}</option>
+              ))}
+            </select>
+            {/* Desktop buttons */}
             <div className="hidden sm:block"><TimeframeSelector selected={timeframe} onChange={setTimeframe} /></div>
             <button
               aria-label="Refresh"
@@ -491,7 +506,7 @@ export default function Portfolio() {
 
         {/* KPI Row */}
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
-          <KPI label="Net Worth" value={formatCurrency(netWorth)} delta={<Delta value={periodChanges?.['1d']?.netWorthPercent} className="mt-1" />} icon={<DollarSign className="h-5 w-5" />} />
+          <KPI label="Net Worth" value={formatCurrency(netWorth)} delta={<Delta value={toFrac(periodChanges?.['1d']?.netWorthPercent)} className="mt-1" />} icon={<DollarSign className="h-5 w-5" />} />
           <KPI label="Total Assets" value={formatCurrency(totalAssets)} delta={<span className="text-xs text-gray-400 mt-1 block">{formatCurrency(liquidAssets)} liquid</span>} icon={<Wallet className="h-5 w-5" />} />
           <KPI label="Unrealized Gain" value={formatCurrency(unrealizedGain)} delta={<Delta value={unrealizedGainPct} className="mt-1" />} icon={<TrendingUp className="h-5 w-5" />} />
           <KPI label="Annual Income" value={formatCurrency(annualIncome)} delta={<span className="text-xs text-amber-300 mt-1 block">{formatPct((yieldPct || 0) * 100)} yield</span>} icon={<Gift className="h-5 w-5" />} />
@@ -517,7 +532,7 @@ export default function Portfolio() {
                 <div>
                   <p className="text-xs text-gray-400">{label}</p>
                   <p className="text-sm font-semibold">{formatCurrency(p?.netWorth || 0)}</p>
-                  <Delta value={p?.netWorthPercent} />
+                  <Delta value={toFrac(p?.netWorthPercent)} />
                 </div>
                 <Sparkline data={mini} dataKey="value" />
               </motion.div>
@@ -858,13 +873,12 @@ export default function Portfolio() {
             </Section>
 
             {/* Net Worth Breakdown */}
-            <div className="lg:col-span-4 space-y-6">
-              <NetWorthWidget
-                assets={totalAssets}
-                liabilities={totalLiabilities}
-                netWorth={netWorth}
-                showInThousands={showInThousands}
-              />
+            <NetWorthWidget
+              assets={totalAssets}
+              liabilities={totalLiabilities}
+              netWorth={netWorth}
+              showInThousands={showInThousands}
+            />
 
             {/* Liquidity Analysis */}
             {liquidAssets > 0 && (
@@ -977,7 +991,7 @@ export default function Portfolio() {
                         {topPerformersAmount.slice(0, 5).map((p, i) => (
                           <div key={i} className="flex items-center justify-between text-sm px-2 py-1 rounded hover:bg-gray-800/50">
                             <span className="truncate text-gray-200">{p.name || p.identifier}</span>
-                            <span className={`${(p.delta || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{formatCurrency(p.delta)}</span>
+                            <span className={`${(p.gain_loss_amount || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{formatCurrency(p.gain_loss_amount)}</span>
                           </div>
                         ))}
                       </div>
@@ -990,7 +1004,7 @@ export default function Portfolio() {
                         {topPerformersPercent.slice(0, 5).map((p, i) => (
                           <div key={i} className="flex items-center justify-between text-sm px-2 py-1 rounded hover:bg-gray-800/50">
                             <span className="truncate text-gray-200">{p.name || p.identifier}</span>
-                            <span className={`${(p.delta || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{formatPct((p.percent || 0) * 100)}</span>
+                            <span className={`${(p.gain_loss_percent || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{formatPct((p.gain_loss_percent || 0) * 100)}</span>
                           </div>
                         ))}
                       </div>
@@ -999,7 +1013,6 @@ export default function Portfolio() {
                 </div>
               </Section>
             )}
-          </div>
         </div>
       </div>
     </main>
