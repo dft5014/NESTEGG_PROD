@@ -560,7 +560,7 @@ export default function AccountsPage() {
                     {showValues ? formatCurrency(portfolioSummary.assetAllocation.securities?.value || 0) : '•••••'}
                   </div>
                   <div className="text-sm text-blue-400 font-medium">
-                    {(portfolioSummary.assetAllocation.securities?.percentage || 0).toFixed(1)}% of portfolio
+                    {((portfolioSummary.assetAllocation.securities?.percentage || 0) * 100).toFixed(1)}% of portfolio
                   </div>
                   {portfolioSummary.assetAllocation.securities?.count > 0 && (
                     <div className="text-xs text-gray-500">
@@ -574,13 +574,13 @@ export default function AccountsPage() {
                       {portfolioSummary.assetAllocation.securities.gainLoss >= 0 ? '+' : ''}
                       {showValues ? formatCurrency(portfolioSummary.assetAllocation.securities.gainLoss) : '•••••'}
                       {' '}({portfolioSummary.assetAllocation.securities.gainLossPercent >= 0 ? '+' : ''}
-                      {portfolioSummary.assetAllocation.securities.gainLossPercent?.toFixed(1) || '0.0'}%)
+                      {((portfolioSummary.assetAllocation.securities.gainLossPercent || 0) * 100).toFixed(1)}%)
                     </div>
                   )}
                   <div className="w-full bg-gray-800 rounded-full h-2 mt-2">
                     <motion.div
                       initial={{ width: 0 }}
-                      animate={{ width: `${portfolioSummary.assetAllocation.securities?.percentage || 0}%` }}
+                      animate={{ width: `${(portfolioSummary.assetAllocation.securities?.percentage || 0) * 100}%` }}
                       transition={{ duration: 0.5, delay: 0.4 }}
                       className="h-full bg-blue-500 rounded-full"
                     />
@@ -597,7 +597,7 @@ export default function AccountsPage() {
                     {showValues ? formatCurrency(portfolioSummary.assetAllocation.cash?.value || 0) : '•••••'}
                   </div>
                   <div className="text-sm text-green-400 font-medium">
-                    {(portfolioSummary.assetAllocation.cash?.percentage || 0).toFixed(1)}% of portfolio
+                    {((portfolioSummary.assetAllocation.cash?.percentage || 0) * 100).toFixed(1)}% of portfolio
                   </div>
                   {portfolioSummary.assetAllocation.cash?.count > 0 && (
                     <div className="text-xs text-gray-500">
@@ -607,7 +607,7 @@ export default function AccountsPage() {
                   <div className="w-full bg-gray-800 rounded-full h-2 mt-2">
                     <motion.div
                       initial={{ width: 0 }}
-                      animate={{ width: `${portfolioSummary.assetAllocation.cash?.percentage || 0}%` }}
+                      animate={{ width: `${(portfolioSummary.assetAllocation.cash?.percentage || 0) * 100}%` }}
                       transition={{ duration: 0.5, delay: 0.5 }}
                       className="h-full bg-green-500 rounded-full"
                     />
@@ -624,7 +624,7 @@ export default function AccountsPage() {
                     {showValues ? formatCurrency(portfolioSummary.assetAllocation.crypto?.value || 0) : '•••••'}
                   </div>
                   <div className="text-sm text-purple-400 font-medium">
-                    {(portfolioSummary.assetAllocation.crypto?.percentage || 0).toFixed(1)}% of portfolio
+                    {((portfolioSummary.assetAllocation.crypto?.percentage || 0) * 100).toFixed(1)}% of portfolio
                   </div>
                   {portfolioSummary.assetAllocation.crypto?.count > 0 && (
                     <div className="text-xs text-gray-500">
@@ -638,13 +638,13 @@ export default function AccountsPage() {
                       {portfolioSummary.assetAllocation.crypto.gainLoss >= 0 ? '+' : ''}
                       {showValues ? formatCurrency(portfolioSummary.assetAllocation.crypto.gainLoss) : '•••••'}
                       {' '}({portfolioSummary.assetAllocation.crypto.gainLossPercent >= 0 ? '+' : ''}
-                      {portfolioSummary.assetAllocation.crypto.gainLossPercent?.toFixed(1) || '0.0'}%)
+                      {((portfolioSummary.assetAllocation.crypto.gainLossPercent || 0) * 100).toFixed(1)}%)
                     </div>
                   )}
                   <div className="w-full bg-gray-800 rounded-full h-2 mt-2">
                     <motion.div
                       initial={{ width: 0 }}
-                      animate={{ width: `${portfolioSummary.assetAllocation.crypto?.percentage || 0}%` }}
+                      animate={{ width: `${(portfolioSummary.assetAllocation.crypto?.percentage || 0) * 100}%` }}
                       transition={{ duration: 0.5, delay: 0.6 }}
                       className="h-full bg-purple-500 rounded-full"
                     />
@@ -661,7 +661,7 @@ export default function AccountsPage() {
                     {showValues ? formatCurrency(portfolioSummary.assetAllocation.metals?.value || 0) : '•••••'}
                   </div>
                   <div className="text-sm text-yellow-400 font-medium">
-                    {(portfolioSummary.assetAllocation.metals?.percentage || 0).toFixed(1)}% of portfolio
+                    {((portfolioSummary.assetAllocation.metals?.percentage || 0) * 100).toFixed(1)}% of portfolio
                   </div>
                   {portfolioSummary.assetAllocation.metals?.count > 0 && (
                     <div className="text-xs text-gray-500">
@@ -675,13 +675,13 @@ export default function AccountsPage() {
                       {portfolioSummary.assetAllocation.metals.gainLoss >= 0 ? '+' : ''}
                       {showValues ? formatCurrency(portfolioSummary.assetAllocation.metals.gainLoss) : '•••••'}
                       {' '}({portfolioSummary.assetAllocation.metals.gainLossPercent >= 0 ? '+' : ''}
-                      {portfolioSummary.assetAllocation.metals.gainLossPercent?.toFixed(1) || '0.0'}%)
+                      {((portfolioSummary.assetAllocation.metals.gainLossPercent || 0) * 100).toFixed(1)}%)
                     </div>
                   )}
                   <div className="w-full bg-gray-800 rounded-full h-2 mt-2">
                     <motion.div
                       initial={{ width: 0 }}
-                      animate={{ width: `${portfolioSummary.assetAllocation.metals?.percentage || 0}%` }}
+                      animate={{ width: `${(portfolioSummary.assetAllocation.metals?.percentage || 0) * 100}%` }}
                       transition={{ duration: 0.5, delay: 0.7 }}
                       className="h-full bg-yellow-500 rounded-full"
                     />
@@ -698,7 +698,7 @@ export default function AccountsPage() {
                     {showValues ? formatCurrency(portfolioSummary.assetAllocation.realEstate?.value || 0) : '•••••'}
                   </div>
                   <div className="text-sm text-teal-400 font-medium">
-                    {(portfolioSummary.assetAllocation.realEstate?.percentage || 0).toFixed(1)}% of portfolio
+                    {((portfolioSummary.assetAllocation.realEstate?.percentage || 0) * 100).toFixed(1)}% of portfolio
                   </div>
                   {portfolioSummary.assetAllocation.realEstate?.count > 0 && (
                     <div className="text-xs text-gray-500">
@@ -712,13 +712,13 @@ export default function AccountsPage() {
                       {portfolioSummary.assetAllocation.realEstate.gainLoss >= 0 ? '+' : ''}
                       {showValues ? formatCurrency(portfolioSummary.assetAllocation.realEstate.gainLoss) : '•••••'}
                       {' '}({portfolioSummary.assetAllocation.realEstate.gainLossPercent >= 0 ? '+' : ''}
-                      {portfolioSummary.assetAllocation.realEstate.gainLossPercent?.toFixed(1) || '0.0'}%)
+                      {((portfolioSummary.assetAllocation.realEstate.gainLossPercent || 0) * 100).toFixed(1)}%)
                     </div>
                   )}
                   <div className="w-full bg-gray-800 rounded-full h-2 mt-2">
                     <motion.div
                       initial={{ width: 0 }}
-                      animate={{ width: `${portfolioSummary.assetAllocation.realEstate?.percentage || 0}%` }}
+                      animate={{ width: `${(portfolioSummary.assetAllocation.realEstate?.percentage || 0) * 100}%` }}
                       transition={{ duration: 0.5, delay: 0.8 }}
                       className="h-full bg-teal-500 rounded-full"
                     />
