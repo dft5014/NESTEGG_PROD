@@ -21,6 +21,32 @@
 
 ---
 
+## 📋 TODO List & Task Tracking
+
+**IMPORTANT:** A comprehensive TODO list is maintained in `/TODO.md` at the root of the repository. This list tracks all outstanding tasks, improvements, bugs, and technical debt.
+
+### Instructions for Claude Code Sessions:
+
+1. **Review TODO.md at the start of each session** to understand current priorities and known issues
+2. **Update TODO.md as you work:**
+   - Check off completed tasks using `[x]`
+   - Add new bugs or issues as they are discovered
+   - Add new tasks or improvements identified during code review
+   - Update the "Last Updated" date at the top
+3. **Reference TODO items in commits:** When completing tasks, reference them in commit messages (e.g., "Fix modal styling issue (TODO.md)")
+4. **Keep it organized:** Move completed items to the "Completed Tasks" section at the bottom
+5. **Add context where helpful:** Add notes, file references, or technical details under TODO items
+
+### Priority Levels in TODO.md:
+- **🔥 Critical:** Must be done before production launch
+- **🚀 High:** Important for product quality and user experience
+- **📋 Medium:** Should be done but not blocking
+- **🔮 Future:** Nice to have, plan for later phases
+
+**See `/TODO.md` for the complete list of tasks.**
+
+---
+
 ## Technology Stack
 
 ### Backend
@@ -539,6 +565,8 @@ const response = await fetchWithAuth('/api/endpoint', {
 ---
 
 ## Common Development Tasks
+
+**Before starting any task:** Review `/TODO.md` to check for related tasks or known issues. Update the TODO list as you complete work or discover new items.
 
 ### Adding a New API Endpoint
 
