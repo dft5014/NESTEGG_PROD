@@ -1121,9 +1121,9 @@ function Row({ label, value }) {
 }
 
 function NetWorthWidget({ assets=0, liabilities=0, netWorth=0, showInThousands=false }) {
-  const total = Math.max(assets + Math.max(liabilities, 0), 1); // avoid /0
-  const assetsPct = Math.min((assets / total) * 100, 100);
-  const liabsPct = Math.min((Math.max(liabilities,0) / total) * 100, 100);
+  // Calculate percentages relative to assets (the baseline)
+  const liabilitiesPct = assets > 0 ? Math.min((liabilities / assets) * 100, 100) : 0;
+  const netWorthPct = assets > 0 ? Math.max((netWorth / assets) * 100, 0) : 0;
 
   return (
     <Section title="Net Worth" icon={<DollarSign className="h-5 w-5 text-indigo-300" />}>
@@ -1143,25 +1143,77 @@ function NetWorthWidget({ assets=0, liabilities=0, netWorth=0, showInThousands=f
         </div>
       </div>
 
-      {/* simple stacked bar for visual context */}
-      <div className="mt-4">
-        <div className="flex items-center justify-between text-xs text-gray-400 mb-1">
-          <span>Composition</span>
-          <span>{assetsPct.toFixed(0)}% assets • {liabsPct.toFixed(0)}% liabilities</span>
+      {/* Diverging bar showing offsetting relationship */}
+      <div className="mt-6">
+        <div className="flex items-center justify-between text-xs text-gray-400 mb-3">
+          <span className="font-medium">Asset Composition</span>
+          <span>{netWorthPct.toFixed(1)}% equity • {liabilitiesPct.toFixed(1)}% leveraged</span>
         </div>
-        <div className="w-full h-3 rounded-full bg-gray-800 overflow-hidden border border-gray-800">
-          <div className="h-full" style={{ width: `${assetsPct}%`, background: 'linear-gradient(90deg,#10b981,#34d399)' }} />
-          <div className="h-full" style={{ width: `${liabsPct}%`, background: 'linear-gradient(90deg,#f43f5e,#fb7185)', marginTop: '-0.75rem' }} />
+
+        {/* Main visualization bar */}
+        <div className="relative">
+          {/* Background track (represents total assets) */}
+          <div className="w-full h-8 rounded-xl bg-gray-800/50 border border-gray-700/50 overflow-hidden">
+            {/* Net Worth (green) - flows from left */}
+            <motion.div
+              initial={{ width: 0 }}
+              animate={{ width: `${netWorthPct}%` }}
+              transition={{ duration: 0.8, ease: 'easeOut' }}
+              className="absolute left-0 top-0 h-full"
+              style={{ background: 'linear-gradient(90deg, #10b981 0%, #34d399 100%)' }}
+            />
+
+            {/* Liabilities (red) - flows from right, offsetting assets */}
+            <motion.div
+              initial={{ width: 0 }}
+              animate={{ width: `${liabilitiesPct}%` }}
+              transition={{ duration: 0.8, ease: 'easeOut', delay: 0.2 }}
+              className="absolute right-0 top-0 h-full"
+              style={{ background: 'linear-gradient(270deg, #f43f5e 0%, #fb7185 100%)' }}
+            />
+          </div>
+
+          {/* Value labels on the bar */}
+          {netWorthPct > 15 && (
+            <div className="absolute left-2 top-1/2 -translate-y-1/2 text-xs font-semibold text-white/90 pointer-events-none">
+              {formatCurrency(netWorth, true)}
+            </div>
+          )}
+          {liabilitiesPct > 15 && (
+            <div className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-semibold text-white/90 pointer-events-none">
+              {formatCurrency(liabilities, true)}
+            </div>
+          )}
         </div>
-        <div className="mt-2 grid grid-cols-2 gap-3 text-[11px] text-gray-400">
-          <div className="flex items-center gap-2">
-            <span className="inline-block w-2.5 h-2.5 rounded-full" style={{background:'#10b981'}}></span>
-            Assets include cash & investments
+
+        {/* Legend with visual flow indicators */}
+        <div className="mt-3 flex items-center justify-between text-xs">
+          <div className="flex items-center gap-2 text-gray-400">
+            <div className="flex items-center gap-1.5">
+              <div className="w-3 h-3 rounded-sm bg-gradient-to-r from-emerald-500 to-emerald-400" />
+              <span>Net Worth</span>
+            </div>
+            <span className="text-gray-600">•</span>
+            <span className="text-gray-500">Assets - Liabilities</span>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="inline-block w-2.5 h-2.5 rounded-full" style={{background:'#f43f5e'}}></span>
-            Liabilities include loans & cards
+          <div className="flex items-center gap-1.5 text-gray-400">
+            <div className="w-3 h-3 rounded-sm bg-gradient-to-l from-rose-500 to-rose-400" />
+            <span>Debt Offset</span>
           </div>
+        </div>
+
+        {/* Insight text */}
+        <div className="mt-3 p-3 rounded-lg bg-gray-900/40 border border-gray-800/50">
+          <p className="text-xs text-gray-400 leading-relaxed">
+            {liabilitiesPct > 50
+              ? `High leverage: Liabilities represent ${liabilitiesPct.toFixed(0)}% of total assets`
+              : liabilitiesPct > 25
+              ? `Moderate leverage: ${liabilitiesPct.toFixed(0)}% of assets offset by debt`
+              : liabilitiesPct > 0
+              ? `Low leverage: ${liabilitiesPct.toFixed(0)}% debt-to-asset ratio`
+              : 'No liabilities: 100% equity position'
+            }
+          </p>
         </div>
       </div>
     </Section>
