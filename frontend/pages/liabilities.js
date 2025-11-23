@@ -4,34 +4,21 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Receipt, TrendingDown, CreditCard, Home, DollarSign, Percent,
   AlertCircle, Target, Shield, Zap, Plus, RefreshCw, Eye, EyeOff,
-  TrendingUp, Calendar, Award, Flame, BarChart3, Info, Clock,
-  ArrowUpRight, ArrowDownRight, Activity, CheckCircle, XCircle
+  TrendingUp, Calendar, Award, Info, Activity, CheckCircle, XCircle,
+  Edit2, Calculator
 } from "lucide-react";
-import {
-  AreaChart, Area, LineChart, Line,
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
-} from 'recharts';
 import LiabilityTable from '@/components/tables/LiabilityTable';
 import { AddLiabilitiesModal } from '@/components/modals/AddLiabilitiesModal';
 import { useGroupedLiabilities } from '@/store/hooks/useGroupedLiabilities';
 import { useDataStore } from '@/store/DataStore';
 import { formatCurrency, formatPercentage } from '@/utils/formatters';
 
-// Time periods for chart
-const timeframeOptions = [
-  { id: '1m', label: '1M' },
-  { id: '3m', label: '3M' },
-  { id: '6m', label: '6M' },
-  { id: 'ytd', label: 'YTD' },
-  { id: '1y', label: '1Y' },
-  { id: 'all', label: 'All' }
-];
-
 export default function LiabilitiesPage() {
   // State management
   const [showValues, setShowValues] = useState(true);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [selectedTimeframe, setSelectedTimeframe] = useState('6m');
+  const [payoffYears, setPayoffYears] = useState(3);
+  const [isEditingYears, setIsEditingYears] = useState(false);
 
   // Get data from DataStore hooks - COMPLETE integration
   const {
@@ -53,14 +40,15 @@ export default function LiabilitiesPage() {
     return (numerator / denominator) * 100;
   };
 
-  // Calculate debt payoff insights
+  // Calculate debt payoff insights based on user-selected years
   const payoffInsights = useMemo(() => {
     if (!summary || summary.total_debt === 0) {
       return {
         monthsToPayoff: 0,
         monthlyPaymentNeeded: 0,
         totalInterestPaid: 0,
-        payoffProgress: 0
+        payoffProgress: 0,
+        totalPaid: 0
       };
     }
 
@@ -71,60 +59,33 @@ export default function LiabilitiesPage() {
     // Calculate payoff progress
     const payoffProgress = safePercentage(totalPaid, totalOriginal);
 
-    // Estimate monthly payment based on 3-year payoff
-    const monthsToPayoff = 36;
+    // Use user-selected payoff timeframe
+    const monthsToPayoff = payoffYears * 12;
     const monthlyRate = avgInterestRate / 12;
-    const monthlyPaymentNeeded = summary.total_debt *
-      (monthlyRate * Math.pow(1 + monthlyRate, monthsToPayoff)) /
-      (Math.pow(1 + monthlyRate, monthsToPayoff) - 1);
 
-    // Estimate total interest
-    const totalInterestPaid = (monthlyPaymentNeeded * monthsToPayoff) - summary.total_debt;
+    // Calculate monthly payment needed using amortization formula
+    let monthlyPaymentNeeded = 0;
+    if (monthlyRate > 0) {
+      monthlyPaymentNeeded = summary.total_debt *
+        (monthlyRate * Math.pow(1 + monthlyRate, monthsToPayoff)) /
+        (Math.pow(1 + monthlyRate, monthsToPayoff) - 1);
+    } else {
+      // If no interest, just divide principal by months
+      monthlyPaymentNeeded = summary.total_debt / monthsToPayoff;
+    }
+
+    // Calculate total amount paid and total interest
+    const totalPaidAmount = monthlyPaymentNeeded * monthsToPayoff;
+    const totalInterestPaid = totalPaidAmount - summary.total_debt;
 
     return {
       monthsToPayoff,
       monthlyPaymentNeeded: safeNumber(monthlyPaymentNeeded, 0),
       totalInterestPaid: safeNumber(totalInterestPaid, 0),
-      payoffProgress: safeNumber(payoffProgress, 0)
+      payoffProgress: safeNumber(payoffProgress, 0),
+      totalPaid: safeNumber(totalPaidAmount, 0)
     };
-  }, [summary]);
-
-  // Generate mock historical data for debt reduction trend
-  const historicalDebtData = useMemo(() => {
-    if (!summary || summary.total_debt === 0) return [];
-
-    const now = new Date();
-    const data = [];
-    const monthsBack = selectedTimeframe === 'all' ? 24 :
-                      selectedTimeframe === '1y' ? 12 :
-                      selectedTimeframe === 'ytd' ? new Date().getMonth() + 1 :
-                      selectedTimeframe === '6m' ? 6 :
-                      selectedTimeframe === '3m' ? 3 : 1;
-
-    const totalOriginal = summary.total_original_debt || summary.total_debt;
-    const totalPaid = summary.total_paid_down || 0;
-    const currentDebt = summary.total_debt || 0;
-
-    // Generate historical points showing debt reduction
-    for (let i = monthsBack; i >= 0; i--) {
-      const date = new Date(now);
-      date.setMonth(date.getMonth() - i);
-
-      // Linear reduction assumption (could be enhanced with actual data)
-      const progress = (monthsBack - i) / monthsBack;
-      const debtAtTime = totalOriginal - (totalPaid * progress);
-      const paidAtTime = totalPaid * progress;
-
-      data.push({
-        date: date.toISOString().split('T')[0],
-        totalDebt: Math.max(debtAtTime, currentDebt),
-        paidDown: paidAtTime,
-        interestCost: (summary.total_annual_interest / 12) * (monthsBack - i)
-      });
-    }
-
-    return data;
-  }, [summary, selectedTimeframe]);
+  }, [summary, payoffYears]);
 
   // Handle modal close and refresh
   const handleLiabilitiesAdded = async (count, savedLiabilities) => {
@@ -134,6 +95,14 @@ export default function LiabilitiesPage() {
     // Mark data as stale and refresh
     actions.markDataStale();
     await refreshData();
+  };
+
+  // Handle years input change
+  const handleYearsChange = (e) => {
+    const value = parseInt(e.target.value);
+    if (value > 0 && value <= 50) {
+      setPayoffYears(value);
+    }
   };
 
   // Loading state
@@ -288,25 +257,6 @@ export default function LiabilitiesPage() {
       </div>
     );
   }
-
-  // Custom tooltip for chart
-  const CustomTooltip = ({ active, payload, label }) => {
-    if (active && payload && payload.length) {
-      return (
-        <div className="bg-gray-800 p-3 rounded-lg shadow-xl border border-gray-700">
-          <p className="text-xs text-gray-400 mb-2">
-            {new Date(label).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
-          </p>
-          {payload.map((entry, index) => (
-            <p key={index} className="text-sm font-medium" style={{ color: entry.color }}>
-              {entry.name}: {showValues ? formatCurrency(entry.value) : '•••••'}
-            </p>
-          ))}
-        </div>
-      );
-    }
-    return null;
-  };
 
   // Main content with liabilities
   return (
@@ -508,154 +458,12 @@ export default function LiabilitiesPage() {
           ))}
         </section>
 
-        {/* Debt Reduction Trend Chart */}
-        {historicalDebtData.length > 0 && (
-          <motion.section
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="mb-6"
-          >
-            <div className="bg-gray-900/70 border border-gray-800 rounded-2xl p-6">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-                <div>
-                  <h3 className="text-xl font-bold flex items-center gap-2">
-                    <BarChart3 className="w-5 h-5 text-red-400" />
-                    Debt Reduction Trend
-                  </h3>
-                  <p className="text-sm text-gray-400 mt-1">Track your paydown progress over time</p>
-                </div>
-                <div className="flex gap-2">
-                  {timeframeOptions.map((option) => (
-                    <button
-                      key={option.id}
-                      onClick={() => setSelectedTimeframe(option.id)}
-                      className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
-                        selectedTimeframe === option.id
-                          ? 'bg-red-600 text-white'
-                          : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white'
-                      }`}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="h-64 md:h-80">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={historicalDebtData}>
-                    <defs>
-                      <linearGradient id="debtGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3}/>
-                        <stop offset="95%" stopColor="#ef4444" stopOpacity={0}/>
-                      </linearGradient>
-                      <linearGradient id="paidGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
-                        <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                    <XAxis
-                      dataKey="date"
-                      stroke="#9ca3af"
-                      tick={{ fill: '#9ca3af', fontSize: 12 }}
-                      tickFormatter={(date) => new Date(date).toLocaleDateString('en-US', { month: 'short' })}
-                    />
-                    <YAxis
-                      stroke="#9ca3af"
-                      tick={{ fill: '#9ca3af', fontSize: 12 }}
-                      tickFormatter={(value) => showValues ? `$${(value / 1000).toFixed(0)}k` : '•••'}
-                    />
-                    <Tooltip content={<CustomTooltip />} />
-                    <Area
-                      type="monotone"
-                      dataKey="totalDebt"
-                      name="Total Debt"
-                      stroke="#ef4444"
-                      strokeWidth={2}
-                      fill="url(#debtGradient)"
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="paidDown"
-                      name="Paid Down"
-                      stroke="#10b981"
-                      strokeWidth={2}
-                      fill="url(#paidGradient)"
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          </motion.section>
-        )}
-
-        {/* Payoff Insights */}
-        {summary.total_debt > 0 && (
-          <motion.section
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className="mb-6"
-          >
-            <div className="bg-gradient-to-br from-blue-900/20 to-indigo-900/20 border border-blue-800/30 rounded-2xl p-6">
-              <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-                <Award className="w-5 h-5 text-blue-400" />
-                Payoff Insights
-              </h3>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="bg-gray-900/50 rounded-xl p-4 border border-gray-700/50">
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-gray-400 text-sm">3-Year Payoff</p>
-                    <Calendar className="w-4 h-4 text-green-400" />
-                  </div>
-                  <p className="text-2xl font-bold text-green-400">
-                    {showValues ? formatCurrency(payoffInsights.monthlyPaymentNeeded) : '•••••'}
-                  </p>
-                  <p className="text-xs text-gray-500">per month needed</p>
-                </div>
-
-                <div className="bg-gray-900/50 rounded-xl p-4 border border-gray-700/50">
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-gray-400 text-sm">Total Interest</p>
-                    <DollarSign className="w-4 h-4 text-orange-400" />
-                  </div>
-                  <p className="text-2xl font-bold text-orange-400">
-                    {showValues ? formatCurrency(payoffInsights.totalInterestPaid) : '•••••'}
-                  </p>
-                  <p className="text-xs text-gray-500">over 36 months</p>
-                </div>
-
-                <div className="bg-gray-900/50 rounded-xl p-4 border border-gray-700/50">
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-gray-400 text-sm">Progress</p>
-                    <Activity className="w-4 h-4 text-purple-400" />
-                  </div>
-                  <p className="text-2xl font-bold text-purple-400">
-                    {payoffInsights.payoffProgress.toFixed(1)}%
-                  </p>
-                  <p className="text-xs text-gray-500">debt eliminated</p>
-                </div>
-              </div>
-
-              <div className="mt-4 flex items-start gap-2 text-sm text-gray-400 bg-blue-900/20 rounded-lg p-3">
-                <Info className="w-4 h-4 mt-0.5 text-blue-400 flex-shrink-0" />
-                <p>
-                  Calculations assume standard amortization over 36 months. Actual payoff may vary based on payment amounts and interest accrual.
-                </p>
-              </div>
-            </div>
-          </motion.section>
-        )}
-
         {/* Debt Breakdown by Type */}
         {Object.keys(summary.liability_type_breakdown || {}).length > 0 && (
           <motion.section
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 }}
+            transition={{ delay: 0.2 }}
             className="mb-6"
           >
             <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
@@ -723,7 +531,7 @@ export default function LiabilitiesPage() {
         <motion.section
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.5 }}
+          transition={{ delay: 0.3 }}
           className="mb-8"
         >
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4">
@@ -746,7 +554,7 @@ export default function LiabilitiesPage() {
           <motion.section
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.6 }}
+            transition={{ delay: 0.4 }}
             className="mb-8"
           >
             <div className="bg-gradient-to-br from-red-900/30 to-orange-900/20 border border-red-800/50 rounded-2xl p-6">
@@ -781,6 +589,111 @@ export default function LiabilitiesPage() {
                     </div>
                   </div>
                 )}
+              </div>
+            </div>
+          </motion.section>
+        )}
+
+        {/* Payoff Calculator - Now at the bottom with user input */}
+        {summary.total_debt > 0 && (
+          <motion.section
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.5 }}
+            className="mb-8"
+          >
+            <div className="bg-gradient-to-br from-blue-900/20 to-indigo-900/20 border border-blue-800/30 rounded-2xl p-6">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+                <div>
+                  <h3 className="text-lg font-bold flex items-center gap-2">
+                    <Calculator className="w-5 h-5 text-blue-400" />
+                    Debt Payoff Calculator
+                  </h3>
+                  <p className="text-sm text-gray-400 mt-1">Adjust your target timeline to see projections</p>
+                </div>
+
+                {/* Years Input */}
+                <div className="flex items-center gap-3 bg-gray-900/50 rounded-lg p-3 border border-gray-700/50">
+                  <label className="text-sm text-gray-400 whitespace-nowrap">Target:</label>
+                  <div className="relative">
+                    {isEditingYears ? (
+                      <input
+                        type="number"
+                        value={payoffYears}
+                        onChange={handleYearsChange}
+                        onBlur={() => setIsEditingYears(false)}
+                        min="1"
+                        max="50"
+                        autoFocus
+                        className="w-16 px-2 py-1 bg-gray-800 border border-blue-500 rounded text-center text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    ) : (
+                      <button
+                        onClick={() => setIsEditingYears(true)}
+                        className="flex items-center gap-2 px-3 py-1 bg-gray-800 hover:bg-gray-700 rounded transition-colors"
+                      >
+                        <span className="text-white font-semibold">{payoffYears}</span>
+                        <span className="text-sm text-gray-400">{payoffYears === 1 ? 'year' : 'years'}</span>
+                        <Edit2 className="w-3 h-3 text-gray-400" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                <div className="bg-gray-900/50 rounded-xl p-4 border border-gray-700/50">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-gray-400 text-sm">Monthly Payment</p>
+                    <Calendar className="w-4 h-4 text-green-400" />
+                  </div>
+                  <p className="text-2xl font-bold text-green-400">
+                    {showValues ? formatCurrency(payoffInsights.monthlyPaymentNeeded) : '•••••'}
+                  </p>
+                  <p className="text-xs text-gray-500">for {payoffYears} {payoffYears === 1 ? 'year' : 'years'}</p>
+                </div>
+
+                <div className="bg-gray-900/50 rounded-xl p-4 border border-gray-700/50">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-gray-400 text-sm">Total Paid</p>
+                    <DollarSign className="w-4 h-4 text-blue-400" />
+                  </div>
+                  <p className="text-2xl font-bold text-blue-400">
+                    {showValues ? formatCurrency(payoffInsights.totalPaid) : '•••••'}
+                  </p>
+                  <p className="text-xs text-gray-500">principal + interest</p>
+                </div>
+
+                <div className="bg-gray-900/50 rounded-xl p-4 border border-gray-700/50">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-gray-400 text-sm">Total Interest</p>
+                    <TrendingUp className="w-4 h-4 text-orange-400" />
+                  </div>
+                  <p className="text-2xl font-bold text-orange-400">
+                    {showValues ? formatCurrency(payoffInsights.totalInterestPaid) : '•••••'}
+                  </p>
+                  <p className="text-xs text-gray-500">over {payoffInsights.monthsToPayoff} months</p>
+                </div>
+
+                <div className="bg-gray-900/50 rounded-xl p-4 border border-gray-700/50">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-gray-400 text-sm">Progress</p>
+                    <Activity className="w-4 h-4 text-purple-400" />
+                  </div>
+                  <p className="text-2xl font-bold text-purple-400">
+                    {payoffInsights.payoffProgress.toFixed(1)}%
+                  </p>
+                  <p className="text-xs text-gray-500">debt eliminated</p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-2 text-sm text-gray-400 bg-blue-900/20 rounded-lg p-3">
+                <Info className="w-4 h-4 mt-0.5 text-blue-400 flex-shrink-0" />
+                <p>
+                  Calculations use standard amortization at {summary.avg_interest_rate?.toFixed(2)}% average interest rate.
+                  Actual payoff may vary based on payment amounts, timing, and interest accrual.
+                  This tool is for estimation purposes only.
+                </p>
               </div>
             </div>
           </motion.section>
