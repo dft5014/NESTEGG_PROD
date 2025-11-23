@@ -48,16 +48,19 @@ export default function LiabilitiesPage() {
         monthlyPaymentNeeded: 0,
         totalInterestPaid: 0,
         payoffProgress: 0,
-        totalPaid: 0
+        totalPaid: 0,
+        actualPaidDown: 0
       };
     }
 
-    const totalPaid = summary.total_paid_down || 0;
+    // Calculate actual amount paid down: Original - Current
     const totalOriginal = summary.total_original_debt || summary.total_debt;
+    const totalCurrent = summary.total_debt || 0;
+    const actualPaidDown = Math.max(0, totalOriginal - totalCurrent);
     const avgInterestRate = (summary.avg_interest_rate || 0) / 100;
 
-    // Calculate payoff progress
-    const payoffProgress = safePercentage(totalPaid, totalOriginal);
+    // Calculate payoff progress based on actual paid down amount
+    const payoffProgress = safePercentage(actualPaidDown, totalOriginal);
 
     // Use user-selected payoff timeframe
     const monthsToPayoff = payoffYears * 12;
@@ -83,7 +86,8 @@ export default function LiabilitiesPage() {
       monthlyPaymentNeeded: safeNumber(monthlyPaymentNeeded, 0),
       totalInterestPaid: safeNumber(totalInterestPaid, 0),
       payoffProgress: safeNumber(payoffProgress, 0),
-      totalPaid: safeNumber(totalPaidAmount, 0)
+      totalPaid: safeNumber(totalPaidAmount, 0),
+      actualPaidDown: safeNumber(actualPaidDown, 0)
     };
   }, [summary, payoffYears]);
 
@@ -328,7 +332,7 @@ export default function LiabilitiesPage() {
                   <p className="text-gray-400 text-sm">Total Debt</p>
                   <div className="flex items-center space-x-2">
                     <span className="text-xs text-gray-500">
-                      {formatPercentage(safePercentage(summary.total_paid_down, summary.total_original_debt))} paid off
+                      {payoffInsights.payoffProgress.toFixed(1)}% paid off
                     </span>
                   </div>
                 </div>
@@ -349,7 +353,7 @@ export default function LiabilitiesPage() {
                   <div className="flex items-center">
                     <TrendingDown className="w-4 h-4 text-green-400 mr-1" />
                     <span className="text-green-400">
-                      {showValues ? formatCurrency(summary.total_paid_down) : '•••••'} paid
+                      {showValues ? formatCurrency(payoffInsights.actualPaidDown) : '•••••'} paid
                     </span>
                   </div>
                   <div className="text-gray-400">
@@ -622,6 +626,12 @@ export default function LiabilitiesPage() {
                         value={payoffYears}
                         onChange={handleYearsChange}
                         onBlur={() => setIsEditingYears(false)}
+                        onFocus={(e) => e.target.select()}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            setIsEditingYears(false);
+                          }
+                        }}
                         min="1"
                         max="50"
                         autoFocus
