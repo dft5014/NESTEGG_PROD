@@ -336,7 +336,7 @@ export default function Portfolio() {
       { key: 'crypto', name: 'Crypto', value: summary.assetAllocation.crypto.value, pct: (summary.netWorthMix.crypto || 0) * 100, color: assetColors.crypto },
       { key: 'metals', name: 'Metals', value: summary.assetAllocation.metals.value, pct: (summary.netWorthMix.metals || 0) * 100, color: assetColors.metals },
       { key: 'realEstate', name: 'Real Estate', value: summary.altNetWorth.realEstate, pct: (summary.netWorthMix.realEstateEquity || 0) * 100, color: assetColors.real_estate },
-      { key: 'other', name: 'Other Assets', value: summary.altNetWorth.netOtherAssets, pct: (summary.netWorthMix.netOtherAssets || 0) * 100, color: assetColors.other },
+      { key: 'other', name: 'Other', value: summary.altNetWorth.netOtherAssets, pct: (summary.netWorthMix.netOtherAssets || 0) * 100, color: assetColors.other },
     ].filter((x) => (x.value || 0) > 0 || (x.pct || 0) > 0);
   }, [summary]);
 
