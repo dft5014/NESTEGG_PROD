@@ -344,8 +344,9 @@ const SidebarEggMascot = ({ isCollapsed }) => {
 
   const formatPercent = (value) => {
     if (value === null || value === undefined || isNaN(value)) return '0.00%';
-    const sign = value > 0 ? '+' : '';
-    return `${sign}${value.toFixed(2)}%`;
+    const val = Number(value) * 100; // Values from DataStore are decimals (0.0234 = 2.34%)
+    const sign = val > 0 ? '+' : '';
+    return `${sign}${val.toFixed(2)}%`;
   };
 
   const dayChange = summary?.periodChanges?.['1d']?.netWorth || 0;
@@ -363,6 +364,16 @@ const SidebarEggMascot = ({ isCollapsed }) => {
     const nextMilestone = EVOLUTION_MILESTONES[nextStage];
     const currentNetWorth = summary?.netWorth || 0;
     const currentStageMilestone = EVOLUTION_MILESTONES[evolutionStage];
+
+    // Special handling for progression to 'wise' stage (which has Infinity as maxNetWorth)
+    if (nextStage === 'wise') {
+      // Use $1M as the "goal" for wise stage progression (even though wise is infinite)
+      const wiseGoal = 1_000_000;
+      const range = wiseGoal - currentStageMilestone.maxNetWorth;
+      const progress = ((currentNetWorth - currentStageMilestone.maxNetWorth) / range) * 100;
+      return Math.min(Math.max(progress, 0), 100);
+    }
+
     const range = nextMilestone.maxNetWorth - currentStageMilestone.maxNetWorth;
     const progress = ((currentNetWorth - currentStageMilestone.maxNetWorth) / range) * 100;
 
@@ -516,7 +527,7 @@ const SidebarEggMascot = ({ isCollapsed }) => {
                 initial={{ opacity: 0, x: -20, scale: 0.9 }}
                 animate={{ opacity: 1, x: 0, scale: 1 }}
                 exit={{ opacity: 0, x: -20, scale: 0.9 }}
-                className="fixed left-24 bottom-20 w-80 bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl shadow-2xl border border-gray-700 z-[70] overflow-hidden"
+                className="fixed left-24 bottom-20 w-[22rem] bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl shadow-2xl border border-gray-700 z-[70] overflow-hidden"
               >
                 <QuickStatsContent
                   summary={summary}
@@ -572,9 +583,9 @@ const SidebarEggMascot = ({ isCollapsed }) => {
           ease: "easeInOut"
         }}
       >
-        {/* Animated Egg */}
+        {/* Evolution Stage Emoji */}
         <div className="flex justify-center mb-2">
-          <MiniAnimatedEgg evolutionStage={evolutionStage} mood={mood} size={60} />
+          <span className="text-5xl">{EVOLUTION_MILESTONES[evolutionStage].emoji}</span>
         </div>
 
         {/* Stage and Mood */}
@@ -689,7 +700,7 @@ const SidebarEggMascot = ({ isCollapsed }) => {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 20 }}
-              className="fixed left-64 bottom-4 w-96 bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl shadow-2xl border border-gray-700 z-[70] overflow-hidden"
+              className="fixed left-64 bottom-4 w-[26rem] bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl shadow-2xl border border-gray-700 z-[70] overflow-hidden"
             >
               <QuickStatsContent
                 summary={summary}
@@ -737,7 +748,7 @@ const QuickStatsContent = ({
       {/* Header */}
       <div className="flex items-start justify-between mb-4">
         <div className="flex items-center gap-3">
-          <span className="text-3xl">{EVOLUTION_MILESTONES[evolutionStage].emoji}</span>
+          <MiniAnimatedEgg evolutionStage={evolutionStage} mood={mood} size={50} />
           <div>
             <h3 className="text-lg font-bold text-white">{EVOLUTION_MILESTONES[evolutionStage].label} Egg</h3>
             <p className="text-sm text-gray-400">Mood: {getMoodEmoji} {mood.charAt(0).toUpperCase() + mood.slice(1)}</p>
@@ -809,10 +820,10 @@ const QuickStatsContent = ({
                 >
                   {EVOLUTION_MILESTONES[stage].emoji}
                 </motion.div>
-                <p className="text-[9px] text-gray-500 mt-1">{EVOLUTION_MILESTONES[stage].label}</p>
+                <p className="text-[9px] text-gray-500 mt-1 whitespace-nowrap">{EVOLUTION_MILESTONES[stage].label}</p>
               </div>
               {index < EVOLUTION_STAGES.length - 1 && (
-                <div className={`w-10 h-0.5 mx-1 ${index < currentStageIndex ? 'bg-gradient-to-r from-blue-500 to-purple-500' : 'bg-gray-700'}`} />
+                <div className={`w-8 h-0.5 mx-0.5 ${index < currentStageIndex ? 'bg-gradient-to-r from-blue-500 to-purple-500' : 'bg-gray-700'}`} />
               )}
             </div>
           ))}
