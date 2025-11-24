@@ -661,13 +661,14 @@ const QueueModal = ({ isOpen, onClose, positions, assetTypes, accounts, onClearC
 };
 
 const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPositions }) => {
-  // --- Seed identity ---
-  const seedString = JSON.stringify(seedPositions ?? {});
-  const seedId = React.useMemo(() => {
+  // --- Stable Seed ID (fixes remounting issues) ---
+  const [stableSeedId] = useState(() => {
+    const seedString = JSON.stringify(seedPositions ?? {});
     let h = 0;
     for (let i = 0; i < seedString.length; i++) h = (h * 31 + seedString.charCodeAt(i)) | 0;
     return String(h);
-  }, [seedString]);
+  });
+  const seedId = stableSeedId;
 
   // immutable initial seed per seedId
   const initialSeedRef = React.useRef({ seedId: null, value: null });
@@ -770,14 +771,14 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
       return { ok: missing.length === 0, missing };
     }, []);
 
-  // ── Compute status label for UI (authoritative)
-  const getRowStatus = (row) => {
+  // ── Compute status label for UI (authoritative) - Memoized for performance
+  const getRowStatus = useCallback((row) => {
     // If a server-side status is present, use it; otherwise fall back to validation
     if (row?.status === "submitting") return "submitting";
     if (row?.status === "added") return "added";
     if (row?.status === "error") return "error";
     return validateRow(row).ok ? "ready" : "draft";
-  };
+  }, []); // No dependencies - uses only row data passed in
 
   // 'any' | 'ready' | 'draft' | 'submitting' | 'added' | 'error' | 'issues'
   const [statusFilter, setStatusFilter] = useState('any');
@@ -1302,24 +1303,34 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
     }, [isOpen, seedId]);
 
 
-      // persist working copy keyed by seedId
+      // Debounced persist working copy (prevents localStorage spam on every keystroke)
       useEffect(() => {
         if (!isOpen) return;
-        const key = `quickpositions:work:${seedId}`;
-        localStorage.setItem(key, JSON.stringify(positions));
+
+        const timeoutId = setTimeout(() => {
+          const key = `quickpositions:work:${seedId}`;
+          try {
+            localStorage.setItem(key, JSON.stringify(positions));
+            console.log('💾 Draft auto-saved');
+          } catch (e) {
+            console.error('Failed to save draft:', e);
+          }
+        }, 1000); // Save 1 second after last change
+
+        return () => clearTimeout(timeoutId);
       }, [isOpen, seedId, positions]);
 
 
-  // If seeds arrived before accounts, fill in account_id once both are ready
+  // If seeds arrived before accounts, fill in account_id once both are ready (run once)
+  const accountsBackfilledRef = useRef(false);
   useEffect(() => {
     if (!isOpen) return;
     if (!accounts || accounts.length === 0) return;
+    if (accountsBackfilledRef.current) return; // Only run once
+
     backfillSeedAccountIds();
-    // persist after backfill so it sticks
-    const key = `quickpositions:work:${seedId}`;
-    setTimeout(() => {
-      try { localStorage.setItem(key, JSON.stringify(positions)); } catch {}
-    }, 0);
+    accountsBackfilledRef.current = true;
+    // Debounced effect will handle localStorage save
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, accounts.length]);
 
@@ -1650,44 +1661,52 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
   }, [positions, handleSelectSecurity]);
 
   const hydratedIdsRef = useRef(new Set());
+  const hydrationTimeoutRef = useRef(null);
 
-    // Run once when seeded rows are in state - only hydrate rows that haven't been hydrated yet
+    // Price hydration - debounced to prevent constant API calls during user input
     useEffect(() => {
         if (!isOpen) return;
 
-        const needsHydration = [];
-        
-        // Check security positions
-        positions.security.forEach(p => {
-          const q = p?.data?.ticker || p?.data?.symbol;
-          if (q && !hydratedIdsRef.current.has(p.id) && 
-              (p?.data?.price == null || p?.data?.price === '' || Number(p?.data?.price) === 0)) {
-            needsHydration.push({ type: 'security', id: p.id, q });
-          }
-        });
+        // Clear any pending hydration
+        if (hydrationTimeoutRef.current) {
+          clearTimeout(hydrationTimeoutRef.current);
+        }
 
-        // Check crypto positions
-        positions.crypto.forEach(p => {
-          const q = p?.data?.symbol || p?.data?.ticker;
-          if (q && !hydratedIdsRef.current.has(p.id) && 
-              (p?.data?.current_price == null || p?.data?.current_price === '' || Number(p?.data?.current_price) === 0)) {
-            needsHydration.push({ type: 'crypto', id: p.id, q });
-          }
-        });
+        // Debounce: wait 2 seconds after last position change before hydrating
+        hydrationTimeoutRef.current = setTimeout(async () => {
+          const needsHydration = [];
 
-        // Check metal positions
-        positions.metal.forEach(p => {
-          const q = p?.data?.symbol || metalSymbolByType[p?.data?.metal_type];
-          if (q && !hydratedIdsRef.current.has(p.id) && 
-              (p?.data?.current_price_per_unit == null || p?.data?.current_price_per_unit === '' || Number(p?.data?.current_price_per_unit) === 0)) {
-            needsHydration.push({ type: 'metal', id: p.id, q });
-          }
-        });
+          // Check security positions
+          positions.security.forEach(p => {
+            const q = p?.data?.ticker || p?.data?.symbol;
+            if (q && !hydratedIdsRef.current.has(p.id) &&
+                (p?.data?.price == null || p?.data?.price === '' || Number(p?.data?.price) === 0)) {
+              needsHydration.push({ type: 'security', id: p.id, q });
+            }
+          });
 
-        if (needsHydration.length === 0) return;
+          // Check crypto positions
+          positions.crypto.forEach(p => {
+            const q = p?.data?.symbol || p?.data?.ticker;
+            if (q && !hydratedIdsRef.current.has(p.id) &&
+                (p?.data?.current_price == null || p?.data?.current_price === '' || Number(p?.data?.current_price) === 0)) {
+              needsHydration.push({ type: 'crypto', id: p.id, q });
+            }
+          });
 
-        // Defer one tick so row UIs mount
-        const t = setTimeout(async () => {
+          // Check metal positions
+          positions.metal.forEach(p => {
+            const q = p?.data?.symbol || metalSymbolByType[p?.data?.metal_type];
+            if (q && !hydratedIdsRef.current.has(p.id) &&
+                (p?.data?.current_price_per_unit == null || p?.data?.current_price_per_unit === '' || Number(p?.data?.current_price_per_unit) === 0)) {
+              needsHydration.push({ type: 'metal', id: p.id, q });
+            }
+          });
+
+          if (needsHydration.length === 0) return;
+
+          console.log(`🔍 Hydrating prices for ${needsHydration.length} positions...`);
+
           try {
             // Hydrate and mark as hydrated
             const chunks = await Promise.all(
@@ -1719,33 +1738,39 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                 hydratedIdsRef.current.add(hit.id);
               }
             }
+            console.log('✅ Price hydration complete');
           } catch (e) {
-            console.error(e);
+            console.error('Price hydration error:', e);
           }
-        }, 0);
+        }, 2000); // Wait 2 seconds after last change
 
-        return () => clearTimeout(t);
+        return () => {
+          if (hydrationTimeoutRef.current) {
+            clearTimeout(hydrationTimeoutRef.current);
+          }
+        };
       }, [
         isOpen,
         positions.security.length,
         positions.crypto.length,
-        positions.metal.length
+        positions.metal.length,
+        handleSelectSecurity
       ]);
 
 
   
-  // Update position with search trigger
-  const updatePosition = (assetType, positionId, field, value) => {
+  // Update position with search trigger - Memoized for performance
+  const updatePosition = useCallback((assetType, positionId, field, value) => {
     setPositions(prev => ({
       ...prev,
       [assetType]: prev[assetType].map(pos => {
         if (pos.id === positionId) {
           const fieldConfig = assetTypes[assetType].fields.find(f => f.key === field);
-          
+
           if (fieldConfig?.transform === 'uppercase') {
             value = value.toUpperCase();
           }
-          
+
           // Special handling for metal type selection
           if (assetType === 'metal' && field === 'metal_type' && value) {
             const selectedOption = fieldConfig.options.find(o => o.value === value);
@@ -1757,10 +1782,10 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                 symbol: selectedOption.symbol,
                 name: `${value} Futures` // Or whatever naming convention you prefer
               };
-              
+
               // Still trigger search to get current price
               debouncedSearch(selectedOption.symbol, assetType, positionId);
-              
+
               return {
                 ...pos,
                 data: updatedData,
@@ -1774,7 +1799,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
           else if (fieldConfig?.searchable && assetTypes[assetType].searchable) {
             debouncedSearch(value, assetType, positionId);
           }
-          
+
           let error = null;
           if (validationMode === 'realtime') {
             if (fieldConfig?.required && !value) {
@@ -1785,7 +1810,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
               error = `Max: ${fieldConfig.max}`;
             }
           }
-          
+
           return {
             ...pos,
             data: { ...pos.data, [field]: value },
@@ -1797,7 +1822,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
         return pos;
       })
     }));
-  };
+  }, [assetTypes, debouncedSearch, validationMode]); // Stable dependencies
 
   const deletePosition = (assetType, positionId) => {
     const validPositions = assetType === 'otherAssets'
