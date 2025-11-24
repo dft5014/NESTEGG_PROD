@@ -456,7 +456,7 @@ const InstitutionCard = ({
       {/* Header */}
       <button
         onClick={() => onToggleExpanded(institution)}
-        className="w-full px-6 py-5 flex items-center justify-between bg-gray-900 hover:bg-gray-800 transition-colors border-b border-gray-800"
+        className="w-full px-6 py-6 flex items-center justify-between bg-gray-900 hover:bg-gray-800 transition-colors border-b border-gray-800"
       >
         <div className="flex items-center gap-4 flex-1 min-w-0">
           {logo ? (
@@ -468,14 +468,14 @@ const InstitutionCard = ({
           )}
 
           <div className="flex-1 text-left min-w-0">
-            <div className="flex items-center gap-3 mb-1.5 flex-wrap">
+            <div className="flex items-center gap-3 mb-2 flex-wrap">
               <h3 className="text-base font-bold text-white truncate max-w-sm leading-snug">{institution}</h3>
               <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold ${statusConfig.bg} ${statusConfig.border} border flex-shrink-0`}>
                 <StatusIcon className={`w-3.5 h-3.5 ${statusConfig.color}`} />
                 <span className={statusConfig.color}>{statusConfig.text}</span>
               </span>
             </div>
-            <div className="text-xs text-gray-400 leading-tight">
+            <div className="text-xs text-gray-400 leading-relaxed">
               {accounts.length} {accounts.length === 1 ? 'account' : 'accounts'}
               {totals.accountsWithInput > 0 && (
                 <span className="text-gray-500"> • {totals.accountsWithInput}/{accounts.length} entered</span>
@@ -484,10 +484,10 @@ const InstitutionCard = ({
           </div>
 
           <div className="text-right mr-4 flex-shrink-0">
-            <div className="text-xs text-gray-500 mb-1 font-semibold uppercase tracking-wide">NestEgg Total</div>
+            <div className="text-xs text-gray-500 mb-1.5 font-semibold uppercase tracking-wide">NestEgg Total</div>
             <div className="text-xl font-bold text-white tabular-nums leading-tight">{fmtCurrency(totals.nesteggTotal, hideValues)}</div>
             {totals.allInputted && Math.abs(totals.diff) >= 0.01 && (
-              <div className={`text-sm font-bold mt-1 tabular-nums leading-tight ${totals.diff > 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+              <div className={`text-sm font-bold mt-1.5 tabular-nums leading-tight ${totals.diff > 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                 {totals.diff > 0 ? '+' : ''}{fmtCurrency(totals.diff, hideValues)}
               </div>
             )}

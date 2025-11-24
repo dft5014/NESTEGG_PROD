@@ -760,15 +760,15 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
           <button
             onClick={() => setSelectedInstitution(null)}
-            className={`px-5 py-5 sm:py-6 rounded-xl border text-left ${
+            className={`px-5 py-6 sm:py-7 rounded-xl border text-left ${
               !selectedInstitution
                 ? "bg-blue-600 text-white border-blue-700"
                 : "bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800"
             }`}
             title="Show all"
           >
-            <div className="font-semibold text-base leading-tight">All Institutions</div>
-            <div className={`${!selectedInstitution ? "text-blue-100" : "text-zinc-600 dark:text-zinc-300"} text-xs mt-2 leading-relaxed`}>
+            <div className="font-semibold text-base leading-relaxed">All Institutions</div>
+            <div className={`${!selectedInstitution ? "text-blue-100" : "text-zinc-600 dark:text-zinc-300"} text-xs mt-2.5 leading-relaxed`}>
               View every cash line, liability & other asset
             </div>
           </button>
@@ -781,7 +781,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
               <button
                 key={g.inst}
                 onClick={() => setSelectedInstitution(g.inst)}
-                className={`px-5 py-5 sm:py-6 rounded-xl border text-left flex items-start gap-3 ${
+                className={`px-5 py-6 sm:py-7 rounded-xl border text-left flex items-start gap-3 ${
                   selected
                     ? "bg-blue-50 dark:bg-blue-900/20 border-blue-300 dark:border-blue-700/50"
                     : "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800"
@@ -790,8 +790,8 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
               >
                 {logo ? <img src={logo} alt={g.inst} className="w-7 h-7 rounded object-contain flex-shrink-0 mt-0.5" /> : <Building2 className="w-7 h-7 text-zinc-400 flex-shrink-0 mt-0.5" />}
                 <div className="flex-1 min-w-0">
-                  <div className="text-lg font-semibold leading-tight text-zinc-900 dark:text-zinc-100 truncate max-w-xs">{g.inst}</div>
-                  <div className="text-xs text-zinc-700 dark:text-zinc-300 mt-2.5 leading-relaxed">
+                  <div className="text-lg font-semibold leading-relaxed text-zinc-900 dark:text-zinc-100 truncate max-w-xs">{g.inst}</div>
+                  <div className="text-xs text-zinc-700 dark:text-zinc-300 mt-3 leading-relaxed">
                     A: {fmtUSD(g.assets, !showValues)} • L: {fmtUSD(g.liabs, !showValues)} • O: {fmtUSD(g.others, !showValues)} • Net:{" "}
                     <span className={`${net >= 0 ? "text-emerald-600" : "text-rose-500"} font-semibold`}>{fmtUSD(net, !showValues)}</span>
                   </div>
