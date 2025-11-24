@@ -727,7 +727,8 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
   const [showQueue, setShowQueue] = useState(false);
   const [selectedAccountFilter, setSelectedAccountFilter] = useState(new Set());
   const [selectedInstitutionFilter, setSelectedInstitutionFilter] = useState(new Set());
-  
+  const [unmappedImportCount, setUnmappedImportCount] = useState(0);
+
   // Search state
   const [searchResults, setSearchResults] = useState({});
   const [isSearching, setIsSearching] = useState({});
@@ -840,6 +841,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
 
   // Backfill any rows missing account_id after accounts load
   const backfillSeedAccountIds = () => {
+    let unmappedCount = 0;
     setPositions(prev => {
       const next = { ...prev };
       Object.keys(next).forEach(t => {
@@ -847,11 +849,16 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
           if (t === 'otherAssets') return p; // those don't use account_id
           if (p?.data?.account_id) return p;
           const mapped = mapSeedAccountId(p?.data);
+          // If mapping failed (no account_id), count it
+          if (!mapped.account_id) {
+            unmappedCount++;
+          }
           return mapped === p?.data ? p : { ...p, data: mapped };
         });
       });
       return next;
     });
+    setUnmappedImportCount(unmappedCount);
   };
 
 
@@ -1968,17 +1975,35 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
 
     const totalPerformance = totalCost > 0 ? ((totalValue - totalCost) / totalCost) * 100 : 0;
 
-    return { 
-      totalPositions, 
-      totalValue, 
+    // Count positions by status
+    let ready = 0, draft = 0, added = 0, submitting = 0, error = 0;
+    Object.entries(positions).forEach(([type, typePositions]) => {
+      typePositions.forEach(pos => {
+        const status = getRowStatus(pos);
+        if (status === 'ready') ready++;
+        else if (status === 'draft') draft++;
+        else if (status === 'added') added++;
+        else if (status === 'submitting') submitting++;
+        else if (status === 'error') error++;
+      });
+    });
+
+    return {
+      totalPositions,
+      totalValue,
       totalCost,
       totalPerformance,
-      byType, 
-      byAccount, 
+      byType,
+      byAccount,
       errors,
-      performance 
+      performance,
+      ready,
+      draft,
+      added,
+      submitting,
+      error
     };
-  }, [positions]);
+  }, [positions, getRowStatus]);
   
   // Helper to get all successfully added positions
   const getAllAddedPositions = useCallback(() => {
@@ -2078,12 +2103,22 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
         addMetalPositionBulk: typeof addMetalPositionBulk,
         addOtherAssetBulk: typeof addOtherAssetBulk
     });
-    
-    
-    
-    
+
     if (stats.totalPositions === 0) {
       showMessage('error', 'No positions to submit', ['Add at least one position before submitting']);
+      return;
+    }
+
+    // Confirmation dialog
+    const confirmMessage = [
+      `Submit all ${stats.totalPositions} positions?`,
+      '',
+      `✓ ${stats.ready} ready`,
+      stats.draft > 0 ? `⚠ ${stats.draft} draft (may fail validation)` : null,
+      stats.error > 0 ? `✗ ${stats.error} with errors (may fail)` : null
+    ].filter(Boolean).join('\n');
+
+    if (!window.confirm(confirmMessage)) {
       return;
     }
 
@@ -3792,7 +3827,45 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                     <AnimatedNumber value={stats.totalPositions} />
                   </span>
                 </div>
-                
+
+                {/* Status Breakdown */}
+                {stats.totalPositions > 0 && (
+                  <>
+                    <div className="flex items-center space-x-3 text-[11px]">
+                      {stats.ready > 0 && (
+                        <div className="flex items-center space-x-1">
+                          <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
+                          <span className="text-emerald-400 font-medium">{stats.ready}</span>
+                        </div>
+                      )}
+                      {stats.draft > 0 && (
+                        <div className="flex items-center space-x-1">
+                          <div className="w-2 h-2 rounded-full bg-amber-500"></div>
+                          <span className="text-amber-400 font-medium">{stats.draft}</span>
+                        </div>
+                      )}
+                      {stats.submitting > 0 && (
+                        <div className="flex items-center space-x-1">
+                          <Loader2 className="w-3 h-3 animate-spin text-blue-400" />
+                          <span className="text-blue-400 font-medium">{stats.submitting}</span>
+                        </div>
+                      )}
+                      {stats.added > 0 && (
+                        <div className="flex items-center space-x-1">
+                          <CheckCircle className="w-3 h-3 text-indigo-400" />
+                          <span className="text-indigo-400 font-medium">{stats.added}</span>
+                        </div>
+                      )}
+                      {stats.error > 0 && (
+                        <div className="flex items-center space-x-1">
+                          <XCircle className="w-3 h-3 text-rose-400" />
+                          <span className="text-rose-400 font-medium">{stats.error}</span>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+
                 <div className="w-px h-5 bg-gray-300" />
                 
                 <div className="flex items-center space-x-2">
@@ -3882,6 +3955,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                 <button
                   onClick={() => setShowQueue(true)}
                   className="px-3 py-2 text-xs bg-gray-900 border border-gray-600 text-gray-300 font-medium rounded-lg hover:bg-gray-800 hover:border-gray-400 transition-all flex items-center space-x-2 shadow-sm"
+                  title="View all positions in a detailed queue view"
                 >
                   <ClipboardList className="w-3.5 h-3.5" />
                   <span>Queue</span>
@@ -3891,13 +3965,37 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                     </span>
                   )}
                 </button>
-                
+
+                {/* Clear All Button */}
+                {stats.totalPositions > 0 && (
+                  <button
+                    onClick={() => {
+                      if (window.confirm(`Clear all ${stats.totalPositions} positions? This cannot be undone.${stats.ready > 0 ? `\n\nThis includes ${stats.ready} ready position(s).` : ''}`)) {
+                        setPositions({
+                          security: [],
+                          cash: [],
+                          crypto: [],
+                          metal: [],
+                          otherAssets: []
+                        });
+                        setMessage({ type: 'info', text: 'All positions cleared', details: [] });
+                      }
+                    }}
+                    className="px-3 py-2 text-xs bg-gray-900 border border-rose-600 text-rose-400 font-medium rounded-lg hover:bg-rose-900/20 hover:border-rose-500 transition-all flex items-center space-x-2 shadow-sm"
+                    title="Clear all positions (with confirmation)"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Clear All</span>
+                  </button>
+                )}
+
 
                {/* Submit Buttons Group */}
                 <div className="flex items-center space-x-2 px-3 py-2 bg-gradient-to-r from-emerald-500/10 to-emerald-500/50/5 rounded-lg border border-emerald-500/30 shadow-sm">
                   <button
                     onClick={submitReadyOnly}
                     disabled={isSubmitting || getAllReadyRows().length === 0}
+                    title={getAllReadyRows().length > 0 ? `Submit only the ${getAllReadyRows().length} position(s) marked as ready (green checkmark)` : 'No ready positions to submit'}
                     className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all flex items-center space-x-1.5 ${
                       isSubmitting || getAllReadyRows().length === 0
                         ? 'bg-gray-800 text-gray-500 cursor-not-allowed'
@@ -3907,10 +4005,11 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                     <CheckCircle className="w-3.5 h-3.5" />
                     <span>Ready ({getAllReadyRows().length})</span>
                   </button>
-                  
+
                   <button
                     onClick={submitAll}
                     disabled={stats.totalPositions === 0 || isSubmitting}
+                    title={stats.totalPositions > 0 ? `Submit all ${stats.totalPositions} positions (including drafts - may fail validation)` : 'No positions to submit'}
                     className={`px-4 py-1.5 text-xs font-semibold rounded-md transition-all flex items-center space-x-2 shadow-sm ${
                       stats.totalPositions === 0 || isSubmitting
                         ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
@@ -4053,23 +4152,75 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
               </div>
             )}
 
+            {/* Import Mapping Warning */}
+            {unmappedImportCount > 0 && (
+              <div className="mt-3 p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg animate-in slide-in-from-top duration-300">
+                <div className="flex items-start space-x-3">
+                  <AlertTriangle className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-amber-300">
+                      ⚠️ {unmappedImportCount} position{unmappedImportCount !== 1 ? 's' : ''} couldn't be mapped to accounts
+                    </p>
+                    <p className="text-xs text-amber-400/90 mt-1">
+                      These positions were imported but account names didn't match your existing accounts. Please select accounts manually.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setUnmappedImportCount(0)}
+                    className="p-1 hover:bg-amber-500/20 rounded transition-colors"
+                  >
+                    <X className="w-4 h-4 text-amber-400" />
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Keyboard shortcuts hint */}
             {showKeyboardShortcuts && (
-              <div className="mt-3 p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg animate-in slide-in-from-top duration-300">
+              <div className="mt-3 p-4 bg-blue-500/10 border border-blue-500/30 rounded-lg animate-in slide-in-from-top duration-300">
                 <div className="flex items-start space-x-2">
-                  <Keyboard className="w-4 h-4 text-blue-400 flex-shrink-0 mt-0.5" />
-                  <div className="flex-1">
-                    <p className="text-xs font-medium text-blue-300 mb-1">Keyboard Shortcuts</p>
-                    <div className="grid grid-cols-3 gap-x-4 gap-y-1 text-[10px] text-blue-400">
-                      <div><kbd className="px-1 py-0.5 bg-gray-900 rounded text-blue-300 font-mono">Tab</kbd> Next field</div>
-                      <div><kbd className="px-1 py-0.5 bg-gray-900 rounded text-blue-300 font-mono">Enter</kbd> Next field / New row</div>
-                      <div><kbd className="px-1 py-0.5 bg-gray-900 rounded text-blue-300 font-mono">Ctrl+Enter</kbd> Submit all</div>
-                      <div><kbd className="px-1 py-0.5 bg-gray-900 rounded text-blue-300 font-mono">↑↓</kbd> Navigate rows</div>
-                      <div><kbd className="px-1 py-0.5 bg-gray-900 rounded text-blue-300 font-mono">Ctrl+D</kbd> Duplicate row</div>
-                      <div><kbd className="px-1 py-0.5 bg-gray-900 rounded text-blue-300 font-mono">Ctrl+Del</kbd> Delete row</div>
-                      <div><kbd className="px-1 py-0.5 bg-gray-900 rounded text-blue-300 font-mono">Alt+↑↓</kbd> Move row</div>
-                      <div><kbd className="px-1 py-0.5 bg-gray-900 rounded text-blue-300 font-mono">Shift+Enter</kbd> Insert above</div>
-                      <div><kbd className="px-1 py-0.5 bg-gray-900 rounded text-blue-300 font-mono">Ctrl+K</kbd> Toggle shortcuts</div>
+                  <Info className="w-4 h-4 text-blue-400 flex-shrink-0 mt-0.5" />
+                  <div className="flex-1 space-y-3">
+                    {/* How to Use */}
+                    <div>
+                      <p className="text-xs font-semibold text-blue-300 mb-1.5">📘 How to Use Quick Position Entry</p>
+                      <div className="space-y-1 text-[10px] text-blue-400/90">
+                        <div className="flex items-start space-x-1.5">
+                          <span className="text-blue-300 font-medium mt-0.5">1.</span>
+                          <span>Select an asset type (Securities, Cash, Crypto, Metals, Other)</span>
+                        </div>
+                        <div className="flex items-start space-x-1.5">
+                          <span className="text-blue-300 font-medium mt-0.5">2.</span>
+                          <span>Click "+ Add" to create new rows, then fill required fields (marked with *)</span>
+                        </div>
+                        <div className="flex items-start space-x-1.5">
+                          <span className="text-blue-300 font-medium mt-0.5">3.</span>
+                          <span>Status changes: <span className="text-amber-400">Draft</span> → <span className="text-emerald-400">Ready ✓</span> when complete</span>
+                        </div>
+                        <div className="flex items-start space-x-1.5">
+                          <span className="text-blue-300 font-medium mt-0.5">4.</span>
+                          <span>Submit individual positions (✓ button) or batch submit ready/all positions</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Keyboard Shortcuts */}
+                    <div>
+                      <p className="text-xs font-semibold text-blue-300 mb-1.5 flex items-center space-x-1">
+                        <Keyboard className="w-3 h-3" />
+                        <span>Keyboard Shortcuts</span>
+                      </p>
+                      <div className="grid grid-cols-3 gap-x-4 gap-y-1 text-[10px] text-blue-400">
+                        <div><kbd className="px-1 py-0.5 bg-gray-900 rounded text-blue-300 font-mono text-[9px]">Tab</kbd> Next field</div>
+                        <div><kbd className="px-1 py-0.5 bg-gray-900 rounded text-blue-300 font-mono text-[9px]">Enter</kbd> Next field / New row</div>
+                        <div><kbd className="px-1 py-0.5 bg-gray-900 rounded text-blue-300 font-mono text-[9px]">Ctrl+Enter</kbd> Submit all</div>
+                        <div><kbd className="px-1 py-0.5 bg-gray-900 rounded text-blue-300 font-mono text-[9px]">↑↓</kbd> Navigate rows</div>
+                        <div><kbd className="px-1 py-0.5 bg-gray-900 rounded text-blue-300 font-mono text-[9px]">Ctrl+D</kbd> Duplicate row</div>
+                        <div><kbd className="px-1 py-0.5 bg-gray-900 rounded text-blue-300 font-mono text-[9px]">Ctrl+Del</kbd> Delete row</div>
+                        <div><kbd className="px-1 py-0.5 bg-gray-900 rounded text-blue-300 font-mono text-[9px]">Alt+↑↓</kbd> Move row</div>
+                        <div><kbd className="px-1 py-0.5 bg-gray-900 rounded text-blue-300 font-mono text-[9px]">Shift+Enter</kbd> Insert above</div>
+                        <div><kbd className="px-1 py-0.5 bg-gray-900 rounded text-blue-300 font-mono text-[9px]">Ctrl+K</kbd> Toggle help</div>
+                      </div>
                     </div>
                   </div>
                   <button
