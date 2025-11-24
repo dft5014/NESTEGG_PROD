@@ -2,7 +2,6 @@
 import "@/styles/globals.css";
 import Sidebar from "@/components/sidebar";
 import Navbar from "@/components/navbar";
-import EggMascot from "@/components/EggMascot";
 
 import { AuthProvider, AuthContext } from "@/context/AuthContext";
 import { EggMascotProvider, useEggMascot } from "@/context/EggMascotContext";
@@ -69,8 +68,6 @@ function LayoutWrapper({ children }) {
         >
           {children}
         </div>
-
-        {!hideNavigation.includes(router.pathname) && mounted && <EggMascotWithState />}
       </div>
     </SidebarContext.Provider>
   );
@@ -160,12 +157,4 @@ export default function App({ Component, pageProps }) {
 function AuthSessionGate({ children }) {
   // Exists so hooks used below are safely under providers.
   return children;
-}
-
-function EggMascotWithState() {
-  const { isDoingCartwheel } = useEggMascot();
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
-  if (!mounted) return null;
-  return <EggMascot isDoingCartwheel={isDoingCartwheel} />;
 }

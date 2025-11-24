@@ -11,6 +11,7 @@ import { UserButton, UserProfile, useUser } from '@clerk/nextjs';
 import { useRouter } from 'next/router';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSidebar } from '@/pages/_app';
+import SidebarEggMascot from '@/components/SidebarEggMascot';
 
 const Sidebar = () => {
   const { logout, user: authUser } = useContext(AuthContext);
@@ -340,6 +341,9 @@ const Sidebar = () => {
             ))}
           </div>
         </nav>
+
+        {/* Egg Mascot */}
+        <SidebarEggMascot isCollapsed={sidebarCollapsed} />
 
         {/* Footer: User dropdown + Logout */}
         <div className="border-t border-gray-800/50 p-2 relative">
