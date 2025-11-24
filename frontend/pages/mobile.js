@@ -58,10 +58,10 @@ const fmtCurrency = (value, inThousands = false) => {
   }).format(value);
 };
 
-// Normalize percentages: if > 1 assume it's already a percentage, divide by 100
+// Percent normalizer: convert to number, treat value as fraction directly
+// (e.g., 0.3 = 30%, 7.65 = 765%)
 const toFrac = (x) => {
-  const n = Number(x ?? 0);
-  return Math.abs(n) > 1 ? n / 100 : n;
+  return Number(x ?? 0);
 };
 
 // Format percentage from decimal (0.025 -> "+2.50%")
