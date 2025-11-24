@@ -49,10 +49,10 @@ const ASSET_TYPES = {
     color: {
       main: 'blue',
       bg: 'bg-blue-600',
-      lightBg: 'bg-blue-50',
-      border: 'border-blue-200',
-      text: 'text-blue-700',
-      hover: 'hover:bg-blue-100',
+      lightBg: 'bg-blue-500/10',
+      border: 'border-blue-500/30',
+      text: 'text-blue-400',
+      hover: 'hover:bg-blue-500/20',
       gradient: 'from-blue-500 to-blue-600'
     },
     fields: ['ticker', 'name', 'shares', 'price', 'cost_basis', 'purchase_date']
@@ -63,10 +63,10 @@ const ASSET_TYPES = {
     color: {
       main: 'orange',
       bg: 'bg-orange-600',
-      lightBg: 'bg-orange-50',
-      border: 'border-orange-200',
-      text: 'text-orange-700',
-      hover: 'hover:bg-orange-100',
+      lightBg: 'bg-orange-500/10',
+      border: 'border-orange-500/50',
+      text: 'text-orange-400',
+      hover: 'hover:bg-orange-500/20',
       gradient: 'from-orange-500 to-orange-600'
     },
     fields: ['symbol', 'quantity', 'purchase_price', 'current_price', 'purchase_date']
@@ -77,10 +77,10 @@ const ASSET_TYPES = {
     color: {
       main: 'yellow',
       bg: 'bg-yellow-600',
-      lightBg: 'bg-yellow-50',
-      border: 'border-yellow-200',
-      text: 'text-yellow-700',
-      hover: 'hover:bg-yellow-100',
+      lightBg: 'bg-yellow-500/10',
+      border: 'border-yellow-500/50',
+      text: 'text-yellow-400',
+      hover: 'hover:bg-yellow-500/20',
       gradient: 'from-yellow-500 to-yellow-600'
     },
     fields: ['metal_type', 'quantity', 'purchase_price', 'current_price_per_unit', 'purchase_date']
@@ -91,11 +91,11 @@ const ASSET_TYPES = {
     color: {
       main: 'green',
       bg: 'bg-green-600',
-      lightBg: 'bg-green-50',
-      border: 'border-green-200',
-      text: 'text-green-700',
-      hover: 'hover:bg-green-100',
-      gradient: 'from-green-500 to-green-600'
+      lightBg: 'bg-emerald-500/100/10',
+      border: 'border-emerald-500/30',
+      text: 'text-emerald-400',
+      hover: 'hover:bg-emerald-500/100/20',
+      gradient: 'from-emerald-500/100 to-green-600'
     },
     fields: ['asset_name', 'asset_type', 'cost', 'current_value', 'purchase_date', 'notes']
   },
@@ -105,10 +105,10 @@ const ASSET_TYPES = {
     color: {
       main: 'purple',
       bg: 'bg-purple-600',
-      lightBg: 'bg-purple-50',
+      lightBg: 'bg-purple-500/10',
       border: 'border-purple-200',
-      text: 'text-purple-700',
-      hover: 'hover:bg-purple-100',
+      text: 'text-purple-400',
+      hover: 'hover:bg-purple-500/20',
       gradient: 'from-purple-500 to-purple-600'
     },
     fields: ['currency', 'amount', 'account_type', 'interest_rate']
@@ -153,7 +153,7 @@ const InstitutionBadge = ({ name }) => {
   }, [name]);
 
   if (!name) {
-    return <span className="text-gray-400">—</span>;
+    return <span className="text-gray-500">—</span>;
   }
 
   return (
@@ -166,7 +166,7 @@ const InstitutionBadge = ({ name }) => {
           onError={(e) => { e.currentTarget.style.display = 'none'; }}
         />
       )}
-      <span className="text-gray-800">{name}</span>
+      <span className="text-gray-200">{name}</span>
     </span>
   );
 };
@@ -204,9 +204,9 @@ const EnhancedDropdown = ({
       <button
         onClick={() => setIsOpen(!isOpen)}
         className={`
-          flex items-center px-4 py-2 bg-white rounded-lg shadow-sm
+          flex items-center px-4 py-2 bg-gray-900 rounded-lg shadow-sm
           transition-all duration-200 text-sm border
-          ${isOpen ? 'ring-2 ring-blue-500 border-blue-300 shadow-md' : 'border-gray-200 hover:border-gray-300'}
+          ${isOpen ? 'ring-2 ring-blue-500 border-blue-500/50 shadow-md' : 'border-gray-700 hover:border-gray-600'}
           transform hover:scale-[1.02] active:scale-[0.98]
         `}
       >
@@ -216,11 +216,11 @@ const EnhancedDropdown = ({
       </button>
       
       {isOpen && (
-        <div className={`absolute z-50 right-0 mt-2 ${width} bg-white border border-gray-200 rounded-xl shadow-2xl animate-in slide-in-from-top-2 duration-200 overflow-hidden`}>
-          <div className="p-3 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
+        <div className={`absolute z-50 right-0 mt-2 ${width} bg-gray-900 border border-gray-700 rounded-xl shadow-2xl animate-in slide-in-from-top-2 duration-200 overflow-hidden`}>
+          <div className="p-3 border-b border-gray-800 bg-gradient-to-r from-gray-900 to-gray-800">
             <div className="flex items-center space-x-2">
-              <DropdownIcon className="w-4 h-4 text-gray-700" />
-              <span className="text-sm font-semibold text-gray-800">{title}</span>
+              <DropdownIcon className="w-4 h-4 text-gray-300" />
+              <span className="text-sm font-semibold text-gray-200">{title}</span>
             </div>
           </div>
           
@@ -240,8 +240,8 @@ const EnhancedDropdown = ({
                     w-full px-3 py-2.5 flex items-center justify-between rounded-lg
                     transition-all duration-200 text-sm group
                     ${isSelected 
-                      ? 'bg-blue-50 hover:bg-blue-100 border border-blue-200' 
-                      : 'hover:bg-gray-50 border border-transparent'
+                      ? 'bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30' 
+                      : 'hover:bg-gray-800 border border-transparent'
                     }
                   `}
                 >
@@ -251,16 +251,16 @@ const EnhancedDropdown = ({
                       transition-all duration-200 group-hover:scale-110
                       ${isSelected 
                         ? 'bg-blue-600 border-blue-600 shadow-sm' 
-                        : 'border-gray-300 group-hover:border-gray-400'
+                        : 'border-gray-600 group-hover:border-gray-400'
                       }
                     `}>
                       {isSelected && <Check className="w-3 h-3 text-white" />}
                     </div>
                     <div className="flex items-center flex-1">
                       {OptionIcon && (
-                        <OptionIcon className={`w-4 h-4 mr-2 ${isSelected ? 'text-blue-600' : 'text-gray-400'}`} />
+                        <OptionIcon className={`w-4 h-4 mr-2 ${isSelected ? 'text-blue-400' : 'text-gray-500'}`} />
                       )}
-                      <span className={`font-medium ${isSelected ? 'text-gray-900' : 'text-gray-600'}`}>
+                      <span className={`font-medium ${isSelected ? 'text-white' : 'text-gray-400'}`}>
                         {option.name}
                       </span>
                     </div>
@@ -347,12 +347,12 @@ const FilterDropdown = ({
       <button
         onClick={() => setIsOpen(!isOpen)}
         className={`
-          flex items-center px-4 py-2 bg-white rounded-lg shadow-sm
+          flex items-center px-4 py-2 bg-gray-900 rounded-lg shadow-sm
           transition-all duration-200 text-sm border
-          ${isOpen ? 'ring-2 ring-blue-500 border-blue-300 shadow-md' : ''}
+          ${isOpen ? 'ring-2 ring-blue-500 border-blue-500/50 shadow-md' : ''}
           ${selectedCount > 0 && !isAllSelected 
-            ? 'border-blue-300 text-blue-700 bg-blue-50 hover:bg-blue-100' 
-            : 'border-gray-200 text-gray-700 hover:bg-gray-50 hover:border-gray-300'
+            ? 'border-blue-500/50 text-blue-400 bg-blue-500/10 hover:bg-blue-500/20' 
+            : 'border-gray-700 text-gray-300 hover:bg-gray-800 hover:border-gray-600'
           }
           transform hover:scale-[1.02] active:scale-[0.98]
         `}
@@ -368,23 +368,23 @@ const FilterDropdown = ({
       </button>
       
       {isOpen && (
-        <div className="absolute z-50 right-0 mt-2 w-80 bg-white border border-gray-200 rounded-xl shadow-2xl animate-in slide-in-from-top-2 duration-200 overflow-hidden">
-          <div className="p-3 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
+        <div className="absolute z-50 right-0 mt-2 w-80 bg-gray-900 border border-gray-700 rounded-xl shadow-2xl animate-in slide-in-from-top-2 duration-200 overflow-hidden">
+          <div className="p-3 border-b border-gray-800 bg-gradient-to-r from-gray-900 to-gray-800">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center space-x-2">
-                <Icon className="w-5 h-5 text-gray-700" />
-                <span className="text-sm font-semibold text-gray-800">{title}</span>
+                <Icon className="w-5 h-5 text-gray-300" />
+                <span className="text-sm font-semibold text-gray-200">{title}</span>
               </div>
               <div className="flex items-center space-x-2">
                 <button
                   onClick={handleSelectAll}
-                  className="text-xs text-blue-600 hover:text-blue-700 font-medium px-2 py-1 hover:bg-blue-50 rounded transition-all duration-200"
+                  className="text-xs text-blue-400 hover:text-blue-400 font-medium px-2 py-1 hover:bg-blue-500/10 rounded transition-all duration-200"
                 >
                   All
                 </button>
                 <button
                   onClick={handleSelectNone}
-                  className="text-xs text-gray-600 hover:text-gray-700 font-medium px-2 py-1 hover:bg-gray-100 rounded transition-all duration-200"
+                  className="text-xs text-gray-400 hover:text-gray-300 font-medium px-2 py-1 hover:bg-gray-800 rounded transition-all duration-200"
                 >
                   None
                 </button>
@@ -400,16 +400,16 @@ const FilterDropdown = ({
           </div>
           
               {/* Search bar */}
-          <div className="p-2 border-b border-gray-100">
+          <div className="p-2 border-b border-gray-800">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-500" />
               <input
                 ref={searchInputRef}
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder={`Search ${title.toLowerCase()}...`}
-                className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full pl-9 pr-3 py-2 text-sm border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
           </div>
@@ -429,7 +429,7 @@ const FilterDropdown = ({
                     transition-all duration-200 text-sm group
                     ${isSelected 
                       ? `bg-${color}-50 hover:bg-${color}-100 border border-${color}-200` 
-                      : 'hover:bg-gray-50 border border-transparent'
+                      : 'hover:bg-gray-800 border border-transparent'
                     }
                   `}
                 >
@@ -439,7 +439,7 @@ const FilterDropdown = ({
                       transition-all duration-200 group-hover:scale-110
                       ${isSelected 
                         ? `bg-${color}-600 border-${color}-600 shadow-sm` 
-                        : 'border-gray-300 group-hover:border-gray-400'
+                        : 'border-gray-600 group-hover:border-gray-400'
                       }
                     `}>
                       {isSelected && <Check className="w-3 h-3 text-white" />}
@@ -447,10 +447,10 @@ const FilterDropdown = ({
 
                       <div className="flex items-start flex-1">
                         {OptionIcon && (
-                          <OptionIcon className={`w-4 h-4 mr-2 mt-0.5 flex-shrink-0 ${isSelected ? `text-${color}-600` : 'text-gray-400'}`} />
+                          <OptionIcon className={`w-4 h-4 mr-2 mt-0.5 flex-shrink-0 ${isSelected ? `text-${color}-600` : 'text-gray-500'}`} />
                         )}
                         <div className="flex flex-col items-start flex-1">
-                          <span className={`font-medium text-left ${isSelected ? 'text-gray-900' : 'text-gray-600'}`}>
+                          <span className={`font-medium text-left ${isSelected ? 'text-white' : 'text-gray-400'}`}>
                           {option.label}
                       </span>
                         {(option.institution || option.categoryName) && (
@@ -461,7 +461,7 @@ const FilterDropdown = ({
                               </span>
                             )}
                             {option.institution && option.categoryName && (
-                              <span className="text-[10px] text-gray-400">•</span>
+                              <span className="text-[10px] text-gray-500">•</span>
                             )}
                             {option.categoryName && (
                               <span className={`text-[10px] font-medium text-${option.categoryColor || 'gray'}-600`}>
@@ -480,7 +480,7 @@ const FilterDropdown = ({
                       px-2 py-1 rounded-full text-xs font-bold
                       ${isSelected 
                         ? `bg-${color}-200 text-${color}-800` 
-                        : 'bg-gray-100 text-gray-600'
+                        : 'bg-gray-800 text-gray-400'
                       }
                     `}>
                       {option.count}
@@ -589,18 +589,18 @@ const useSelectionState = () => {
 // Dashboard stats card component
 const StatsCard = ({ title, value, icon: Icon, color, trend = null, subtext = null }) => {
   return (
-    <div className={`bg-white rounded-xl shadow-sm border border-gray-100 p-4 hover:shadow-md transition-shadow relative overflow-hidden group`}>
+    <div className={`bg-gray-900 rounded-xl shadow-sm border border-gray-800 p-4 hover:shadow-md transition-shadow relative overflow-hidden group`}>
       <div className={`absolute top-0 left-0 w-full h-1 bg-${color}-500`}></div>
       <div className="flex items-start justify-between">
         <div>
           <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">{title}</p>
-          <h3 className="text-2xl font-bold text-gray-900 mb-1 flex items-center">
+          <h3 className="text-2xl font-bold text-white mb-1 flex items-center">
             {typeof value === 'number' ? (
               <AnimatedCounter value={value} />
             ) : value}
             
             {trend && (
-              <span className={`ml-2 text-sm font-medium flex items-center ${trend > 0 ? 'text-green-600' : trend < 0 ? 'text-red-600' : 'text-gray-500'}`}>
+              <span className={`ml-2 text-sm font-medium flex items-center ${trend > 0 ? 'text-emerald-400' : trend < 0 ? 'text-rose-400' : 'text-gray-500'}`}>
                 {trend > 0 ? (
                   <TrendingUp className="w-3 h-3 mr-1" />
                 ) : trend < 0 ? (
@@ -624,9 +624,9 @@ const StatsCard = ({ title, value, icon: Icon, color, trend = null, subtext = nu
 // Progress bar component for asset type distribution
 const AssetTypeDistribution = ({ assetCounts, totalCount }) => {
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 hover:shadow-md transition-shadow">
+    <div className="bg-gray-900 rounded-xl shadow-sm border border-gray-800 p-4 hover:shadow-md transition-shadow">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-medium text-gray-700">Asset Distribution</h3>
+        <h3 className="text-sm font-medium text-gray-300">Asset Distribution</h3>
         <div className="text-xs text-gray-500">{totalCount} total positions</div>
       </div>
       
@@ -640,11 +640,11 @@ const AssetTypeDistribution = ({ assetCounts, totalCount }) => {
               <div className="flex items-center justify-between text-xs">
                 <div className="flex items-center">
                   <config.icon className={`w-3.5 h-3.5 mr-1.5 ${config.color.text}`} />
-                  <span className="font-medium text-gray-700">{config.name}</span>
+                  <span className="font-medium text-gray-300">{config.name}</span>
                 </div>
-                <div className="text-gray-600 font-medium">{count} ({percentage.toFixed(1)}%)</div>
+                <div className="text-gray-400 font-medium">{count} ({percentage.toFixed(1)}%)</div>
               </div>
-              <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+              <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
                 <div 
                   className={`h-full ${config.color.bg} transition-all duration-500 ease-out`}
                   style={{ width: `${percentage}%` }}
@@ -695,7 +695,7 @@ const InstitutionSelect = ({ value, onChange, placeholder = 'Type to search.' })
           onFocus={() => setOpen(true)}
           onChange={(e) => { setInput(e.target.value); setOpen(true); }}
           placeholder={placeholder}
-          className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg hover:border-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all pr-10"
+          className="w-full px-3 py-2 bg-gray-900 border border-gray-600 rounded-lg hover:border-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all pr-10"
           style={{ paddingLeft: selected?.logo ? '2.5rem' : undefined }}
         />
         {selected?.logo && (
@@ -708,24 +708,24 @@ const InstitutionSelect = ({ value, onChange, placeholder = 'Type to search.' })
         )}
         <button
           type="button"
-          className="absolute right-0 top-0 bottom-0 px-3 flex items-center justify-center hover:bg-gray-50 rounded-r-lg transition-colors"
+          className="absolute right-0 top-0 bottom-0 px-3 flex items-center justify-center hover:bg-gray-800 rounded-r-lg transition-colors"
           onClick={() => setOpen(o => !o)}
         >
-          <svg className={`w-4 h-4 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none"><path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+          <svg className={`w-4 h-4 text-gray-500 transition-transform ${open ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none"><path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
         </button>
       </div>
 
       {open && (
-        <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-xl max-h-64 overflow-y-auto">
+        <div className="absolute z-50 mt-1 w-full bg-gray-900 border border-gray-700 rounded-lg shadow-xl max-h-64 overflow-y-auto">
           {/* “Use custom” row when input not an exact match */}
           {input &&
             !popularBrokerages.find(b => b.name.toLowerCase() === input.toLowerCase()) && (
               <button
                 type="button"
                 onClick={() => { onChange(input); setOpen(false); }}
-                className="w-full px-3 py-2 flex items-center bg-blue-50 hover:bg-blue-100 transition-colors border-b border-gray-100 text-left"
+                className="w-full px-3 py-2 flex items-center bg-blue-500/10 hover:bg-blue-500/20 transition-colors border-b border-gray-800 text-left"
               >
-                <span className="text-sm text-blue-700 font-medium">Use “{input}” (custom)</span>
+                <span className="text-sm text-blue-400 font-medium">Use “{input}” (custom)</span>
               </button>
             )
           }
@@ -735,7 +735,7 @@ const InstitutionSelect = ({ value, onChange, placeholder = 'Type to search.' })
               key={b.name}
               type="button"
               onClick={() => { onChange(b.name); setInput(b.name); setOpen(false); }}
-              className={`w-full px-3 py-2 flex items-center hover:bg-gray-50 transition-colors text-left ${value === b.name ? 'bg-blue-50' : ''}`}
+              className={`w-full px-3 py-2 flex items-center hover:bg-gray-800 transition-colors text-left ${value === b.name ? 'bg-blue-500/10' : ''}`}
             >
               {b.logo && (
                 <img
@@ -745,14 +745,14 @@ const InstitutionSelect = ({ value, onChange, placeholder = 'Type to search.' })
                   onError={(e) => { e.currentTarget.style.display = 'none'; }}
                 />
               )}
-              <span className="text-sm text-gray-900">{b.name}</span>
+              <span className="text-sm text-white">{b.name}</span>
               {value === b.name && (
-                <svg className="w-4 h-4 text-blue-600 ml-auto" viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                <svg className="w-4 h-4 text-blue-400 ml-auto" viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
               )}
             </button>
           ))}
 
-          <div className="p-2 border-t border-gray-100 bg-gray-50 text-center">
+          <div className="p-2 border-t border-gray-800 bg-gray-800 text-center">
             <p className="text-xs text-gray-500">Select an institution or type a custom name</p>
           </div>
         </div>
@@ -840,20 +840,20 @@ const EditAccountForm = ({ account, onSave, onCancel }) => {
   const Icon = category?.icon || Building;
 
   return (
-    <div className="space-y-4 p-6 bg-white rounded-xl border border-gray-200">
+    <div className="space-y-4 p-6 bg-gray-900 rounded-xl border border-gray-700">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center space-x-3">
           <div className={`p-3 rounded-xl bg-${category?.color || 'gray'}-100`}>
             <Icon className={`w-6 h-6 text-${category?.color || 'gray'}-600`} />
           </div>
           <div>
-            <h3 className="text-lg font-semibold text-gray-900">Edit Account</h3>
+            <h3 className="text-lg font-semibold text-white">Edit Account</h3>
             <p className="text-sm text-gray-500">Update account information</p>
           </div>
         </div>
         <button
           onClick={onCancel}
-          className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+          className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
         >
           <X className="w-5 h-5 text-gray-500" />
         </button>
@@ -861,7 +861,7 @@ const EditAccountForm = ({ account, onSave, onCancel }) => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-medium text-gray-300 mb-1">
             Account Name
           </label>
           <input
@@ -871,25 +871,25 @@ const EditAccountForm = ({ account, onSave, onCancel }) => {
             className={`
               w-full px-3 py-2 border rounded-lg text-sm
               ${errors.account_name 
-                ? 'border-red-300 focus:ring-red-500 focus:border-red-500' 
+                ? 'border-red-500/50 focus:ring-red-500 focus:border-red-500' 
                 : isFieldModified('account_name')
-                  ? 'border-blue-300 bg-blue-50 focus:ring-blue-500 focus:border-blue-500'
-                  : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+                  ? 'border-blue-500/50 bg-blue-500/10 focus:ring-blue-500 focus:border-blue-500'
+                  : 'bg-gray-800 text-white border-gray-600 focus:ring-blue-500 focus:border-blue-500'
               }
               transition-colors
             `}
             placeholder="My Investment Account"
           />
           {errors.account_name && (
-            <p className="mt-1 text-xs text-red-600">{errors.account_name}</p>
+            <p className="mt-1 text-xs text-rose-400">{errors.account_name}</p>
           )}
           {isFieldModified('account_name') && !errors.account_name && (
-            <p className="mt-1 text-xs text-blue-600">Modified</p>
+            <p className="mt-1 text-xs text-blue-400">Modified</p>
           )}
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-medium text-gray-300 mb-1">
             Institution
           </label>
           <InstitutionSelect
@@ -898,15 +898,15 @@ const EditAccountForm = ({ account, onSave, onCancel }) => {
             placeholder="Type to search."
           />
           {errors.institution && (
-            <p className="mt-1 text-xs text-red-600">{errors.institution}</p>
+            <p className="mt-1 text-xs text-rose-400">{errors.institution}</p>
           )}
           {isFieldModified('institution') && !errors.institution && (
-            <p className="mt-1 text-xs text-blue-600">Modified</p>
+            <p className="mt-1 text-xs text-blue-400">Modified</p>
           )}
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-medium text-gray-300 mb-1">
             Account Type
           </label>
           <select
@@ -923,10 +923,10 @@ const EditAccountForm = ({ account, onSave, onCancel }) => {
             className={`
               w-full px-3 py-2 border rounded-lg text-sm
               ${errors.type 
-                ? 'border-red-300 focus:ring-red-500 focus:border-red-500' 
+                ? 'border-red-500/50 focus:ring-red-500 focus:border-red-500' 
                 : isFieldModified('type')
-                  ? 'border-blue-300 bg-blue-50 focus:ring-blue-500 focus:border-blue-500'
-                  : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+                  ? 'border-blue-500/50 bg-blue-500/10 focus:ring-blue-500 focus:border-blue-500'
+                  : 'bg-gray-800 text-white border-gray-600 focus:ring-blue-500 focus:border-blue-500'
               }
               transition-colors
             `}
@@ -940,15 +940,15 @@ const EditAccountForm = ({ account, onSave, onCancel }) => {
           </select>
 
           {errors.type && (
-            <p className="mt-1 text-xs text-red-600">{errors.type}</p>
+            <p className="mt-1 text-xs text-rose-400">{errors.type}</p>
           )}
           {isFieldModified('type') && !errors.type && (
-            <p className="mt-1 text-xs text-blue-600">Modified</p>
+            <p className="mt-1 text-xs text-blue-400">Modified</p>
           )}
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-medium text-gray-300 mb-1">
             Category
           </label>
           <select
@@ -963,10 +963,10 @@ const EditAccountForm = ({ account, onSave, onCancel }) => {
             className={`
               w-full px-3 py-2 border rounded-lg text-sm
               ${errors.account_category 
-                ? 'border-red-300 focus:ring-red-500 focus:border-red-500' 
+                ? 'border-red-500/50 focus:ring-red-500 focus:border-red-500' 
                 : isFieldModified('account_category')
-                  ? 'border-blue-300 bg-blue-50 focus:ring-blue-500 focus:border-blue-500'
-                  : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+                  ? 'border-blue-500/50 bg-blue-500/10 focus:ring-blue-500 focus:border-blue-500'
+                  : 'bg-gray-800 text-white border-gray-600 focus:ring-blue-500 focus:border-blue-500'
               }
               transition-colors
             `}
@@ -979,15 +979,15 @@ const EditAccountForm = ({ account, onSave, onCancel }) => {
             ))}
           </select>
           {errors.account_category && (
-            <p className="mt-1 text-xs text-red-600">{errors.account_category}</p>
+            <p className="mt-1 text-xs text-rose-400">{errors.account_category}</p>
           )}
           {isFieldModified('account_category') && !errors.account_category && (
-            <p className="mt-1 text-xs text-blue-600">Modified</p>
+            <p className="mt-1 text-xs text-blue-400">Modified</p>
           )}
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-medium text-gray-300 mb-1">
             Starting Balance
           </label>
           <div className="relative">
@@ -999,8 +999,8 @@ const EditAccountForm = ({ account, onSave, onCancel }) => {
               className={`
                 w-full pl-8 pr-3 py-2 border rounded-lg text-sm
                 ${isFieldModified('balance')
-                  ? 'border-blue-300 bg-blue-50 focus:ring-blue-500 focus:border-blue-500'
-                  : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+                  ? 'border-blue-500/50 bg-blue-500/10 focus:ring-blue-500 focus:border-blue-500'
+                  : 'bg-gray-800 text-white border-gray-600 focus:ring-blue-500 focus:border-blue-500'
                 }
                 transition-colors
               `}
@@ -1009,7 +1009,7 @@ const EditAccountForm = ({ account, onSave, onCancel }) => {
             />
           </div>
           {isFieldModified('balance') && (
-            <p className="mt-1 text-xs text-blue-600">Modified</p>
+            <p className="mt-1 text-xs text-blue-400">Modified</p>
           )}
         </div>
       </div>
@@ -1017,7 +1017,7 @@ const EditAccountForm = ({ account, onSave, onCancel }) => {
       <div className="flex justify-end space-x-3 pt-4 border-t">
         <button
           onClick={onCancel}
-          className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+          className="px-4 py-2 text-sm font-medium text-gray-300 bg-gray-900 border border-gray-600 rounded-lg hover:bg-gray-800 transition-colors"
         >
           Cancel
         </button>
@@ -1239,20 +1239,20 @@ const EditPositionForm = ({ position, assetType, onSave, onCancel, accounts }) =
   };
 
   return (
-    <div className="space-y-4 p-6 bg-white rounded-xl border border-gray-200">
+    <div className="space-y-4 p-6 bg-gray-900 rounded-xl border border-gray-700">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center space-x-3">
           <div className={`p-3 rounded-xl ${config.color.lightBg}`}>
             <config.icon className={`w-6 h-6 ${config.color.text}`} />
           </div>
           <div>
-            <h3 className="text-lg font-semibold text-gray-900">Edit {config.name} Position</h3>
+            <h3 className="text-lg font-semibold text-white">Edit {config.name} Position</h3>
             <p className="text-sm text-gray-500">Update position details</p>
           </div>
         </div>
         <button
           onClick={onCancel}
-          className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+          className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
         >
           <X className="w-5 h-5 text-gray-500" />
         </button>
@@ -1267,7 +1267,7 @@ const EditPositionForm = ({ position, assetType, onSave, onCancel, accounts }) =
           if (assetType === 'otherAssets' && field === 'asset_type' && isEditable) {
             return (
               <div key={field}>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-300 mb-1">
                   Asset Type
                 </label>
                 <select
@@ -1276,10 +1276,10 @@ const EditPositionForm = ({ position, assetType, onSave, onCancel, accounts }) =
                   className={`
                     w-full px-3 py-2 border rounded-lg text-sm
                     ${errors.asset_type 
-                      ? 'border-red-300 focus:ring-red-500 focus:border-red-500'
+                      ? 'border-red-500/50 focus:ring-red-500 focus:border-red-500'
                       : isModified
-                        ? 'border-blue-400 bg-blue-50 focus:ring-blue-500 focus:border-blue-500'
-                        : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+                        ? 'border-blue-500/70 bg-blue-500/10 focus:ring-blue-500 focus:border-blue-500'
+                        : 'bg-gray-800 text-white border-gray-600 focus:ring-blue-500 focus:border-blue-500'
                     }
                   `}
                 >
@@ -1315,7 +1315,7 @@ const EditPositionForm = ({ position, assetType, onSave, onCancel, accounts }) =
 
       return (
         <div key={field} className={field === 'notes' ? 'md:col-span-2' : ''}>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-medium text-gray-300 mb-1">
             {getFieldLabel(field, assetType)}
             {!isEditable && <span className="text-xs text-gray-500 ml-2">(Read-only)</span>}
               </label>
@@ -1328,21 +1328,21 @@ const EditPositionForm = ({ position, assetType, onSave, onCancel, accounts }) =
                 className={`
                   w-full px-3 py-2 border rounded-lg text-sm transition-all
                   ${!isEditable 
-                    ? 'bg-gray-50 text-gray-500 cursor-not-allowed border-gray-200' 
+                    ? 'bg-gray-800 text-gray-500 cursor-not-allowed border-gray-700' 
                     : errors[field]
-                      ? 'border-red-300 focus:ring-red-500 focus:border-red-500'
+                      ? 'border-red-500/50 focus:ring-red-500 focus:border-red-500'
                       : isModified
-                        ? 'border-blue-400 bg-blue-50 focus:ring-blue-500 focus:border-blue-500'
-                        : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+                        ? 'border-blue-500/70 bg-blue-500/10 focus:ring-blue-500 focus:border-blue-500'
+                        : 'bg-gray-800 text-white border-gray-600 focus:ring-blue-500 focus:border-blue-500'
                   }
                 `}
                 step={field.includes('price') || field.includes('value') ? '0.01' : '1'}
               />
               {errors[field] && (
-                <p className="mt-1 text-xs text-red-600">{errors[field]}</p>
+                <p className="mt-1 text-xs text-rose-400">{errors[field]}</p>
               )}
               {isModified && !errors[field] && (
-                <p className="mt-1 text-xs text-blue-600">Modified</p>
+                <p className="mt-1 text-xs text-blue-400">Modified</p>
               )}
             </div>
           );
@@ -1352,7 +1352,7 @@ const EditPositionForm = ({ position, assetType, onSave, onCancel, accounts }) =
       <div className="flex justify-end space-x-3 pt-4 border-t">
         <button
           onClick={onCancel}
-          className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+          className="px-4 py-2 text-sm font-medium text-gray-300 bg-gray-900 border border-gray-600 rounded-lg hover:bg-gray-800 transition-colors"
         >
           Cancel
         </button>
@@ -1431,20 +1431,20 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
   const Icon = typeConfig?.icon || Banknote;
 
   return (
-    <div className="space-y-4 p-6 bg-white rounded-xl border border-gray-200">
+    <div className="space-y-4 p-6 bg-gray-900 rounded-xl border border-gray-700">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center space-x-3">
-          <div className="p-3 rounded-xl bg-red-100">
-            <Icon className="w-6 h-6 text-red-600" />
+          <div className="p-3 rounded-xl bg-rose-500/20">
+            <Icon className="w-6 h-6 text-rose-400" />
           </div>
           <div>
-            <h3 className="text-lg font-semibold text-gray-900">Edit Liability</h3>
+            <h3 className="text-lg font-semibold text-white">Edit Liability</h3>
             <p className="text-sm text-gray-500">Update liability details</p>
           </div>
         </div>
         <button
           onClick={onCancel}
-          className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+          className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
         >
           <X className="w-5 h-5 text-gray-500" />
         </button>
@@ -1452,7 +1452,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-medium text-gray-300 mb-1">
             Name
           </label>
           <input
@@ -1462,25 +1462,25 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
             className={`
               w-full px-3 py-2 border rounded-lg text-sm
               ${errors.name 
-                ? 'border-red-300 focus:ring-red-500 focus:border-red-500' 
+                ? 'border-red-500/50 focus:ring-red-500 focus:border-red-500' 
                 : isFieldModified('name')
-                  ? 'border-blue-300 bg-blue-50 focus:ring-blue-500 focus:border-blue-500'
-                  : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+                  ? 'border-blue-500/50 bg-blue-500/10 focus:ring-blue-500 focus:border-blue-500'
+                  : 'bg-gray-800 text-white border-gray-600 focus:ring-blue-500 focus:border-blue-500'
               }
               transition-colors
             `}
             placeholder="Chase Sapphire Card"
           />
           {errors.name && (
-            <p className="mt-1 text-xs text-red-600">{errors.name}</p>
+            <p className="mt-1 text-xs text-rose-400">{errors.name}</p>
           )}
           {isFieldModified('name') && !errors.name && (
-            <p className="mt-1 text-xs text-blue-600">Modified</p>
+            <p className="mt-1 text-xs text-blue-400">Modified</p>
           )}
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-medium text-gray-300 mb-1">
             Type
           </label>
           <select
@@ -1489,10 +1489,10 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
             className={`
               w-full px-3 py-2 border rounded-lg text-sm
               ${errors.liability_type 
-                ? 'border-red-300 focus:ring-red-500 focus:border-red-500' 
+                ? 'border-red-500/50 focus:ring-red-500 focus:border-red-500' 
                 : isFieldModified('liability_type')
-                  ? 'border-blue-300 bg-blue-50 focus:ring-blue-500 focus:border-blue-500'
-                  : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+                  ? 'border-blue-500/50 bg-blue-500/10 focus:ring-blue-500 focus:border-blue-500'
+                  : 'bg-gray-800 text-white border-gray-600 focus:ring-blue-500 focus:border-blue-500'
               }
               transition-colors
             `}
@@ -1505,15 +1505,15 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
             ))}
           </select>
           {errors.liability_type && (
-            <p className="mt-1 text-xs text-red-600">{errors.liability_type}</p>
+            <p className="mt-1 text-xs text-rose-400">{errors.liability_type}</p>
           )}
           {isFieldModified('liability_type') && !errors.liability_type && (
-            <p className="mt-1 text-xs text-blue-600">Modified</p>
+            <p className="mt-1 text-xs text-blue-400">Modified</p>
           )}
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-medium text-gray-300 mb-1">
             Current Balance
           </label>
           <div className="relative">
@@ -1525,10 +1525,10 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
               className={`
                 w-full pl-8 pr-3 py-2 border rounded-lg text-sm
                 ${errors.current_balance 
-                  ? 'border-red-300 focus:ring-red-500 focus:border-red-500' 
+                  ? 'border-red-500/50 focus:ring-red-500 focus:border-red-500' 
                   : isFieldModified('current_balance')
-                    ? 'border-blue-300 bg-blue-50 focus:ring-blue-500 focus:border-blue-500'
-                    : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+                    ? 'border-blue-500/50 bg-blue-500/10 focus:ring-blue-500 focus:border-blue-500'
+                    : 'bg-gray-800 text-white border-gray-600 focus:ring-blue-500 focus:border-blue-500'
                 }
               `}
               placeholder="0.00"
@@ -1536,15 +1536,15 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
             />
           </div>
           {errors.current_balance && (
-            <p className="mt-1 text-xs text-red-600">{errors.current_balance}</p>
+            <p className="mt-1 text-xs text-rose-400">{errors.current_balance}</p>
           )}
           {isFieldModified('current_balance') && !errors.current_balance && (
-            <p className="mt-1 text-xs text-blue-600">Modified</p>
+            <p className="mt-1 text-xs text-blue-400">Modified</p>
           )}
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-medium text-gray-300 mb-1">
             Original Amount
           </label>
           <div className="relative">
@@ -1556,8 +1556,8 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
               className={`
                 w-full pl-8 pr-3 py-2 border rounded-lg text-sm
                 ${isFieldModified('original_amount')
-                  ? 'border-blue-300 bg-blue-50 focus:ring-blue-500 focus:border-blue-500'
-                  : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+                  ? 'border-blue-500/50 bg-blue-500/10 focus:ring-blue-500 focus:border-blue-500'
+                  : 'bg-gray-800 text-white border-gray-600 focus:ring-blue-500 focus:border-blue-500'
                 }
               `}
               placeholder="0.00"
@@ -1565,12 +1565,12 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
             />
           </div>
           {isFieldModified('original_amount') && (
-            <p className="mt-1 text-xs text-blue-600">Modified</p>
+            <p className="mt-1 text-xs text-blue-400">Modified</p>
           )}
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-medium text-gray-300 mb-1">
             Interest Rate (%)
           </label>
           <input
@@ -1580,8 +1580,8 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
             className={`
               w-full px-3 py-2 border rounded-lg text-sm
               ${isFieldModified('interest_rate')
-                ? 'border-blue-300 bg-blue-50 focus:ring-blue-500 focus:border-blue-500'
-                : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+                ? 'border-blue-500/50 bg-blue-500/10 focus:ring-blue-500 focus:border-blue-500'
+                : 'bg-gray-800 text-white border-gray-600 focus:ring-blue-500 focus:border-blue-500'
               }
             `}
             placeholder="0.00"
@@ -1590,12 +1590,12 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
             max="100"
           />
           {isFieldModified('interest_rate') && (
-            <p className="mt-1 text-xs text-blue-600">Modified</p>
+            <p className="mt-1 text-xs text-blue-400">Modified</p>
           )}
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-medium text-gray-300 mb-1">
             Minimum Payment
           </label>
           <div className="relative">
@@ -1607,8 +1607,8 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
               className={`
                 w-full pl-8 pr-3 py-2 border rounded-lg text-sm
                 ${isFieldModified('minimum_payment')
-                  ? 'border-blue-300 bg-blue-50 focus:ring-blue-500 focus:border-blue-500'
-                  : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+                  ? 'border-blue-500/50 bg-blue-500/10 focus:ring-blue-500 focus:border-blue-500'
+                  : 'bg-gray-800 text-white border-gray-600 focus:ring-blue-500 focus:border-blue-500'
                 }
               `}
               placeholder="0.00"
@@ -1616,12 +1616,12 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
             />
           </div>
           {isFieldModified('minimum_payment') && (
-            <p className="mt-1 text-xs text-blue-600">Modified</p>
+            <p className="mt-1 text-xs text-blue-400">Modified</p>
           )}
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-medium text-gray-300 mb-1">
             Due Date
           </label>
           <input
@@ -1631,18 +1631,18 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
             className={`
               w-full px-3 py-2 border rounded-lg text-sm
               ${isFieldModified('due_date')
-                ? 'border-blue-300 bg-blue-50 focus:ring-blue-500 focus:border-blue-500'
-                : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+                ? 'border-blue-500/50 bg-blue-500/10 focus:ring-blue-500 focus:border-blue-500'
+                : 'bg-gray-800 text-white border-gray-600 focus:ring-blue-500 focus:border-blue-500'
               }
             `}
           />
           {isFieldModified('due_date') && (
-            <p className="mt-1 text-xs text-blue-600">Modified</p>
+            <p className="mt-1 text-xs text-blue-400">Modified</p>
           )}
         </div>
 
         <div className="md:col-span-2">
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-medium text-gray-300 mb-1">
             Notes
           </label>
           <textarea
@@ -1651,15 +1651,15 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
             className={`
               w-full px-3 py-2 border rounded-lg text-sm resize-none
               ${isFieldModified('notes')
-                ? 'border-blue-300 bg-blue-50 focus:ring-blue-500 focus:border-blue-500'
-                : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+                ? 'border-blue-500/50 bg-blue-500/10 focus:ring-blue-500 focus:border-blue-500'
+                : 'bg-gray-800 text-white border-gray-600 focus:ring-blue-500 focus:border-blue-500'
               }
             `}
             placeholder="Additional notes..."
             rows={3}
           />
           {isFieldModified('notes') && (
-            <p className="mt-1 text-xs text-blue-600">Modified</p>
+            <p className="mt-1 text-xs text-blue-400">Modified</p>
           )}
         </div>
       </div>
@@ -1667,7 +1667,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
       <div className="flex justify-end space-x-3 pt-4 border-t">
         <button
           onClick={onCancel}
-          className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+          className="px-4 py-2 text-sm font-medium text-gray-300 bg-gray-900 border border-gray-600 rounded-lg hover:bg-gray-800 transition-colors"
         >
           Cancel
         </button>
@@ -2651,7 +2651,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
 
     // Render dashboard
     const renderDashboard = () => (
-      <div className="p-6 bg-gray-50 border-b border-gray-200">
+      <div className="p-6 bg-gray-800 border-b border-gray-700">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <StatsCard
             title="Total Accounts"
@@ -2686,12 +2686,12 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
             />
           </div>
           
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 hover:shadow-md transition-shadow">
-            <h3 className="text-sm font-medium text-gray-700 mb-3">Actions</h3>
+          <div className="bg-gray-900 rounded-xl shadow-sm border border-gray-800 p-4 hover:shadow-md transition-shadow">
+            <h3 className="text-sm font-medium text-gray-300 mb-3">Actions</h3>
             <div className="space-y-2">
               <button
                 onClick={() => setCurrentView('accounts')}
-                className="w-full py-2 px-3 text-sm text-left font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors flex items-center"
+                className="w-full py-2 px-3 text-sm text-left font-medium text-blue-400 bg-blue-500/10 hover:bg-blue-500/20 rounded-lg transition-colors flex items-center"
               >
                 <Building className="w-4 h-4 mr-2" />
                 Manage Accounts
@@ -2699,7 +2699,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
               
               <button
                 onClick={() => setCurrentView('positions')}
-                className="w-full py-2 px-3 text-sm text-left font-medium text-purple-600 bg-purple-50 hover:bg-purple-100 rounded-lg transition-colors flex items-center"
+                className="w-full py-2 px-3 text-sm text-left font-medium text-purple-600 bg-purple-500/10 hover:bg-purple-500/20 rounded-lg transition-colors flex items-center"
               >
                 <BarChart2 className="w-4 h-4 mr-2" />
                 Manage Positions
@@ -2707,7 +2707,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
               
               <button
                 onClick={() => setCurrentView('liabilities')}
-                className="w-full py-2 px-3 text-sm text-left font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors flex items-center"
+                className="w-full py-2 px-3 text-sm text-left font-medium text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 rounded-lg transition-colors flex items-center"
               >
                 <CreditCard className="w-4 h-4 mr-2" />
                 Manage Liabilities
@@ -2728,24 +2728,24 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
                 <div className="inline-flex items-center justify-center w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl">
                   <Edit3 className="w-5 h-5 text-white" />
                 </div>
-                <h2 className="text-xl font-bold text-gray-900">Edit & Delete Manager</h2>
+                <h2 className="text-xl font-bold text-white">Edit & Delete Manager</h2>
               </div>
-              <p className="text-sm text-gray-600">Choose what you'd like to manage</p>
+              <p className="text-sm text-gray-400">Choose what you'd like to manage</p>
             </div>
 
             <div className="grid md:grid-cols-3 gap-4 max-w-3xl mx-auto">
             {/* Accounts Card */}
             <div 
               onClick={() => setCurrentView('accounts')}
-              className="group cursor-pointer bg-gradient-to-br from-blue-50 to-indigo-100 rounded-xl p-6 border-2 border-transparent hover:border-blue-300 hover:shadow-lg transition-all duration-200"
+              className="group cursor-pointer bg-gradient-to-br from-blue-50 to-indigo-100 rounded-xl p-6 border-2 border-transparent hover:border-blue-500/50 hover:shadow-lg transition-all duration-200"
             >
               <div className="flex flex-col items-center text-center">
                 <div className="p-3 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl text-white mb-3 group-hover:scale-110 transition-transform">
                   <Wallet className="w-8 h-8" />
                 </div>
-                <h3 className="text-lg font-bold text-gray-900 mb-1">Manage Accounts</h3>
-                <p className="text-xs text-gray-600 mb-3">Edit account details or delete accounts</p>
-                <div className="flex items-center text-sm text-blue-600 group-hover:text-blue-700">
+                <h3 className="text-lg font-bold text-white mb-1">Manage Accounts</h3>
+                <p className="text-xs text-gray-400 mb-3">Edit account details or delete accounts</p>
+                <div className="flex items-center text-sm text-blue-400 group-hover:text-blue-400">
                   <span>Manage Accounts</span>
                   <ChevronRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
                 </div>
@@ -2761,9 +2761,9 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
                 <div className="p-4 bg-gradient-to-br from-purple-500 to-pink-600 rounded-2xl text-white mb-4 group-hover:scale-110 transition-transform">
                   <Layers className="w-10 h-10" />
                 </div>
-                <h3 className="text-xl font-bold text-gray-900 mb-2">Manage Positions</h3>
-                <p className="text-gray-600 mb-4">Edit position details or delete positions</p>
-                <div className="flex items-center text-sm text-purple-600 group-hover:text-purple-700">
+                <h3 className="text-xl font-bold text-white mb-2">Manage Positions</h3>
+                <p className="text-gray-400 mb-4">Edit position details or delete positions</p>
+                <div className="flex items-center text-sm text-purple-600 group-hover:text-purple-400">
                   <span>Manage Positions</span>
                   <ChevronRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
                 </div>
@@ -2773,15 +2773,15 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
             {/* Liabilities Card */}
             <div 
               onClick={() => setCurrentView('liabilities')}
-              className="group cursor-pointer bg-gradient-to-br from-red-50 to-orange-100 rounded-2xl p-8 border-2 border-transparent hover:border-red-300 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1"
+              className="group cursor-pointer bg-gradient-to-br from-red-50 to-orange-100 rounded-2xl p-8 border-2 border-transparent hover:border-red-500/50 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1"
             >
               <div className="flex flex-col items-center text-center">
                 <div className="p-4 bg-gradient-to-br from-red-500 to-orange-600 rounded-2xl text-white mb-4 group-hover:scale-110 transition-transform">
                   <CreditCard className="w-10 h-10" />
                 </div>
-                <h3 className="text-xl font-bold text-gray-900 mb-2">Manage Liabilities</h3>
-                <p className="text-gray-600 mb-4">Edit liability details or delete debts</p>
-                <div className="flex items-center text-sm text-red-600 group-hover:text-red-700">
+                <h3 className="text-xl font-bold text-white mb-2">Manage Liabilities</h3>
+                <p className="text-gray-400 mb-4">Edit liability details or delete debts</p>
+                <div className="flex items-center text-sm text-rose-400 group-hover:text-rose-400">
                   <span>Manage Liabilities</span>
                   <ChevronRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
                 </div>
@@ -2790,9 +2790,9 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
           </div>
 
           <div className="mt-8 text-center">
-            <div className="inline-flex items-center px-4 py-2 bg-blue-50 rounded-lg">
-              <Info className="w-4 h-4 text-blue-600 mr-2" />
-              <span className="text-sm text-blue-700">
+            <div className="inline-flex items-center px-4 py-2 bg-blue-500/10 rounded-lg">
+              <Info className="w-4 h-4 text-blue-400 mr-2" />
+              <span className="text-sm text-blue-400">
                 You can delete multiple items at once, but edit one at a time
               </span>
             </div>
@@ -2814,10 +2814,10 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
         <tr 
           key={account.id}
           className={`
-            border-b border-gray-100 transition-all duration-200
+            border-b border-gray-800 transition-all duration-200
             ${accountSelection.isSelected(account.id) 
-              ? 'bg-blue-50 hover:bg-blue-100' 
-              : 'hover:bg-gray-50'
+              ? 'bg-blue-500/10 hover:bg-blue-500/20' 
+              : 'hover:bg-gray-800'
             }
           `}
         >
@@ -2831,7 +2831,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
                 e.shiftKey, 
                 filteredAccounts
               )}
-              className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+              className="w-4 h-4 text-blue-400 border-gray-600 rounded focus:ring-blue-500"
             />
           </td>
           
@@ -2841,7 +2841,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
                 <Icon className={`w-4 h-4 text-${category?.color || 'gray'}-600`} />
               </div>
               <div>
-                <div className="font-medium text-gray-900">{account.name}</div>
+                <div className="font-medium text-white">{account.name}</div>
                 <div className="text-sm text-gray-500">{category?.name}</div>
               </div>
             </div>
@@ -2852,11 +2852,11 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
             <InstitutionBadge name={account.institution} />
           </td>
           
-          <td className="px-4 py-3 text-sm text-gray-900">
+          <td className="px-4 py-3 text-sm text-white">
             {account.type}
           </td>
           
-          <td className="px-4 py-3 text-sm text-gray-900 text-right">
+          <td className="px-4 py-3 text-sm text-white text-right">
             {showValues ? formatCurrency(balance) : '••••'}
           </td>
           
@@ -2864,7 +2864,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
             <div className="flex items-center justify-end space-x-2">
               <button
                 onClick={() => handleEditAccount(account)}
-                className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                className="p-1.5 text-gray-500 hover:text-blue-400 hover:bg-blue-500/10 rounded-lg transition-all"
                 title="Edit"
               >
                 <Edit3 className="w-4 h-4" />
@@ -2875,7 +2875,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
                   accountSelection.toggleSelection(account.id);
                   handleDeleteSelected();
                 }}
-                className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                className="p-1.5 text-gray-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-all"
                 title="Delete"
               >
                 <Trash2 className="w-4 h-4" />
@@ -2908,8 +2908,8 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
           name: 'Other',
           icon: Package,
           color: {
-            lightBg: 'bg-gray-50',
-            text: 'text-gray-700'
+            lightBg: 'bg-gray-800',
+            text: 'text-gray-300'
           }
         };
         return renderPositionRowWithConfig(position, index, fallbackConfig);
@@ -2925,10 +2925,10 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
         <tr 
           key={position.id}
           className={`
-            border-b border-gray-100 transition-all duration-200
+            border-b border-gray-800 transition-all duration-200
             ${positionSelection.isSelected(position.id) 
-              ? 'bg-blue-50 hover:bg-blue-100' 
-              : 'hover:bg-gray-50'
+              ? 'bg-blue-500/10 hover:bg-blue-500/20' 
+              : 'hover:bg-gray-800'
             }
           `}
         >
@@ -2942,7 +2942,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
                 e.shiftKey, 
                 filteredPositions
               )}
-              className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+              className="w-4 h-4 text-blue-400 border-gray-600 rounded focus:ring-blue-500"
             />
           </td>
           
@@ -2952,7 +2952,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
                 <Icon className={`w-4 h-4 ${config.color.text}`} />
               </div>
               <div>
-                <div className="font-medium text-gray-900">
+                <div className="font-medium text-white">
                   {position.identifier || position.name || 'Unknown'}
                 </div>
                 <div className="text-sm text-gray-500">{position.name || config.name}</div>
@@ -2960,22 +2960,22 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
             </div>
           </td>
           
-          <td className="px-4 py-3 text-sm text-gray-900">
+          <td className="px-4 py-3 text-sm text-white">
             {position.account_name || 'No Account'}
           </td>
           
-          <td className="px-4 py-3 text-sm text-gray-900 text-right">
+          <td className="px-4 py-3 text-sm text-white text-right">
             {position.quantity || '-'}
           </td>
           
-          <td className="px-4 py-3 text-sm text-gray-900 text-right">
+          <td className="px-4 py-3 text-sm text-white text-right">
             {showValues ? formatCurrency(value) : '••••'}
           </td>
           
           <td className="px-4 py-3 text-sm text-right">
             <div className={`
               flex items-center justify-end space-x-1
-              ${gainLoss >= 0 ? 'text-green-600' : 'text-red-600'}
+              ${gainLoss >= 0 ? 'text-emerald-400' : 'text-rose-400'}
             `}>
               {gainLoss >= 0 ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
               <span>{showValues ? formatCurrency(Math.abs(gainLoss)) : '••••'}</span>
@@ -2987,7 +2987,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
             <div className="flex items-center justify-end space-x-2">
               <button
                 onClick={() => handleEditPosition(position)}
-                className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                className="p-1.5 text-gray-500 hover:text-blue-400 hover:bg-blue-500/10 rounded-lg transition-all"
                 title="Edit"
               >
                 <Edit3 className="w-4 h-4" />
@@ -2998,7 +2998,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
                   positionSelection.toggleSelection(position.id);
                   handleDeleteSelected();
                 }}
-                className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                className="p-1.5 text-gray-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-all"
                 title="Delete"
               >
                 <Trash2 className="w-4 h-4" />
@@ -3020,10 +3020,10 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
         <tr 
           key={liability.id}
           className={`
-            border-b border-gray-100 transition-all duration-200
+            border-b border-gray-800 transition-all duration-200
             ${liabilitySelection.isSelected(liability.id) 
-              ? 'bg-red-50 hover:bg-red-100' 
-              : 'hover:bg-gray-50'
+              ? 'bg-rose-500/10 hover:bg-rose-500/20' 
+              : 'hover:bg-gray-800'
             }
           `}
         >
@@ -3037,35 +3037,35 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
                 e.shiftKey, 
                 filteredLiabilities
               )}
-              className="w-4 h-4 text-red-600 border-gray-300 rounded focus:ring-red-500"
+              className="w-4 h-4 text-rose-400 border-gray-600 rounded focus:ring-red-500"
             />
           </td>
           
           <td className="px-4 py-3">
             <div className="flex items-center space-x-3">
-              <div className="p-2 rounded-lg bg-red-100">
-                <Icon className="w-4 h-4 text-red-600" />
+              <div className="p-2 rounded-lg bg-rose-500/20">
+                <Icon className="w-4 h-4 text-rose-400" />
               </div>
               <div>
-                <div className="font-medium text-gray-900">{liability.name}</div>
+                <div className="font-medium text-white">{liability.name}</div>
                 <div className="text-sm text-gray-500">{typeConfig?.label}</div>
               </div>
             </div>
           </td>
           
-          <td className="px-4 py-3 text-sm text-gray-900 text-right">
+          <td className="px-4 py-3 text-sm text-white text-right">
             {showValues ? `-${formatCurrency(balance)}` : '••••'}
           </td>
           
-          <td className="px-4 py-3 text-sm text-gray-900 text-right">
+          <td className="px-4 py-3 text-sm text-white text-right">
             {interestRate.toFixed(2)}%
           </td>
           
-          <td className="px-4 py-3 text-sm text-gray-900 text-right">
+          <td className="px-4 py-3 text-sm text-white text-right">
             {showValues && liability.minimum_payment ? formatCurrency(liability.minimum_payment) : '-'}
           </td>
           
-          <td className="px-4 py-3 text-sm text-gray-900">
+          <td className="px-4 py-3 text-sm text-white">
             {liability.due_date ? new Date(liability.due_date).toLocaleDateString() : '-'}
           </td>
           
@@ -3073,7 +3073,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
             <div className="flex items-center justify-end space-x-2">
               <button
                 onClick={() => handleEditLiability(liability)}
-                className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                className="p-1.5 text-gray-500 hover:text-blue-400 hover:bg-blue-500/10 rounded-lg transition-all"
                 title="Edit"
               >
                 <Edit3 className="w-4 h-4" />
@@ -3084,7 +3084,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
                   liabilitySelection.toggleSelection(liability.id);
                   handleDeleteSelected();
                 }}
-                className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                className="p-1.5 text-gray-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-all"
                 title="Delete"
               >
                 <Trash2 className="w-4 h-4" />
@@ -3137,7 +3137,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
           <div className="flex flex-col items-center justify-center h-64">
             <Database className="w-12 h-12 text-gray-300 mb-4" />
             <p className="text-gray-500 text-lg font-medium">No data found</p>
-            <p className="text-gray-400 text-sm mt-1">
+            <p className="text-gray-500 text-sm mt-1">
               Try adjusting your filters or grouping options
             </p>
           </div>
@@ -3147,10 +3147,10 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
       return (
         <div className="space-y-6">
           {Object.entries(groups).map(([groupName, items]) => (
-            <div key={groupName} className="bg-white rounded-xl shadow-sm overflow-hidden">
-              <div className="bg-gray-50 px-6 py-3 border-b border-gray-200">
+            <div key={groupName} className="bg-gray-900 rounded-xl shadow-sm overflow-hidden">
+              <div className="bg-gray-800 px-6 py-3 border-b border-gray-700">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-semibold text-gray-700">{groupName}</h3>
+                  <h3 className="text-sm font-semibold text-gray-300">{groupName}</h3>
                   <div className="text-xs text-gray-500">
                     {items.length} {items.length === 1 ? 'item' : 'items'}
                   </div>
@@ -3159,7 +3159,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
               
               <div className="overflow-x-auto">
                 <table className="w-full">
-                  <thead className="bg-gray-50 border-b border-gray-200">
+                  <thead className="bg-gray-800 border-b border-gray-700">
                     <tr>
                       <th className="w-12 px-4 py-3">
                         <input
@@ -3190,7 +3190,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
                               }
                             }
                           }}
-                          className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                          className="w-4 h-4 text-blue-400 border-gray-600 rounded focus:ring-blue-500"
                         />
                       </th>
                       
@@ -3202,7 +3202,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
                                 key: 'account_name',
                                 direction: sortConfig.key === 'account_name' && sortConfig.direction === 'asc' ? 'desc' : 'asc'
                               })}
-                              className="flex items-center text-xs font-semibold text-gray-600 uppercase tracking-wider hover:text-gray-900"
+                              className="flex items-center text-xs font-semibold text-gray-400 uppercase tracking-wider hover:text-white"
                             >
                               Account
                               <ArrowUpDown className="w-3 h-3 ml-1" />
@@ -3214,7 +3214,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
                                 key: 'institution',
                                 direction: sortConfig.key === 'institution' && sortConfig.direction === 'asc' ? 'desc' : 'asc'
                               })}
-                              className="flex items-center text-xs font-semibold text-gray-600 uppercase tracking-wider hover:text-gray-900"
+                              className="flex items-center text-xs font-semibold text-gray-400 uppercase tracking-wider hover:text-white"
                             >
                               Institution
                               <ArrowUpDown className="w-3 h-3 ml-1" />
@@ -3226,7 +3226,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
                                 key: 'type',
                                 direction: sortConfig.key === 'type' && sortConfig.direction === 'asc' ? 'desc' : 'asc'
                               })}
-                              className="flex items-center text-xs font-semibold text-gray-600 uppercase tracking-wider hover:text-gray-900"
+                              className="flex items-center text-xs font-semibold text-gray-400 uppercase tracking-wider hover:text-white"
                             >
                               Type
                               <ArrowUpDown className="w-3 h-3 ml-1" />
@@ -3238,7 +3238,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
                                 key: 'totalValue',
                                 direction: sortConfig.key === 'totalValue' && sortConfig.direction === 'asc' ? 'desc' : 'asc'
                               })}
-                              className="flex items-center justify-end text-xs font-semibold text-gray-600 uppercase tracking-wider hover:text-gray-900"
+                              className="flex items-center justify-end text-xs font-semibold text-gray-400 uppercase tracking-wider hover:text-white"
                             >
                               Balance
                               <ArrowUpDown className="w-3 h-3 ml-1" />
@@ -3253,7 +3253,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
                                 key: 'identifier',
                                 direction: sortConfig.key === 'identifier' && sortConfig.direction === 'asc' ? 'desc' : 'asc'
                               })}
-                              className="flex items-center text-xs font-semibold text-gray-600 uppercase tracking-wider hover:text-gray-900"
+                              className="flex items-center text-xs font-semibold text-gray-400 uppercase tracking-wider hover:text-white"
                             >
                               Asset
                               <ArrowUpDown className="w-3 h-3 ml-1" />
@@ -3265,7 +3265,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
                                 key: 'account_name',
                                 direction: sortConfig.key === 'account_name' && sortConfig.direction === 'asc' ? 'desc' : 'asc'
                               })}
-                              className="flex items-center text-xs font-semibold text-gray-600 uppercase tracking-wider hover:text-gray-900"
+                              className="flex items-center text-xs font-semibold text-gray-400 uppercase tracking-wider hover:text-white"
                             >
                               Account
                               <ArrowUpDown className="w-3 h-3 ml-1" />
@@ -3277,7 +3277,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
                                 key: 'quantity',
                                 direction: sortConfig.key === 'quantity' && sortConfig.direction === 'asc' ? 'desc' : 'asc'
                               })}
-                              className="flex items-center justify-end text-xs font-semibold text-gray-600 uppercase tracking-wider hover:text-gray-900"
+                              className="flex items-center justify-end text-xs font-semibold text-gray-400 uppercase tracking-wider hover:text-white"
                             >
                               Quantity
                               <ArrowUpDown className="w-3 h-3 ml-1" />
@@ -3289,7 +3289,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
                                 key: 'current_value',
                                 direction: sortConfig.key === 'current_value' && sortConfig.direction === 'asc' ? 'desc' : 'asc'
                               })}
-                              className="flex items-center justify-end text-xs font-semibold text-gray-600 uppercase tracking-wider hover:text-gray-900"
+                              className="flex items-center justify-end text-xs font-semibold text-gray-400 uppercase tracking-wider hover:text-white"
                             >
                               Value
                               <ArrowUpDown className="w-3 h-3 ml-1" />
@@ -3301,7 +3301,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
                                 key: 'gain_loss_amt',
                                 direction: sortConfig.key === 'gain_loss_amt' && sortConfig.direction === 'asc' ? 'desc' : 'asc'
                               })}
-                              className="flex items-center justify-end text-xs font-semibold text-gray-600 uppercase tracking-wider hover:text-gray-900"
+                              className="flex items-center justify-end text-xs font-semibold text-gray-400 uppercase tracking-wider hover:text-white"
                             >
                               Gain/Loss
                               <ArrowUpDown className="w-3 h-3 ml-1" />
@@ -3316,7 +3316,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
                                 key: 'name',
                                 direction: sortConfig.key === 'name' && sortConfig.direction === 'asc' ? 'desc' : 'asc'
                               })}
-                              className="flex items-center text-xs font-semibold text-gray-600 uppercase tracking-wider hover:text-gray-900"
+                              className="flex items-center text-xs font-semibold text-gray-400 uppercase tracking-wider hover:text-white"
                             >
                               Liability
                               <ArrowUpDown className="w-3 h-3 ml-1" />
@@ -3328,7 +3328,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
                                 key: 'current_balance',
                                 direction: sortConfig.key === 'current_balance' && sortConfig.direction === 'asc' ? 'desc' : 'asc'
                               })}
-                              className="flex items-center justify-end text-xs font-semibold text-gray-600 uppercase tracking-wider hover:text-gray-900"
+                              className="flex items-center justify-end text-xs font-semibold text-gray-400 uppercase tracking-wider hover:text-white"
                             >
                               Balance
                               <ArrowUpDown className="w-3 h-3 ml-1" />
@@ -3340,14 +3340,14 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
                                 key: 'interest_rate',
                                 direction: sortConfig.key === 'interest_rate' && sortConfig.direction === 'asc' ? 'desc' : 'asc'
                               })}
-                              className="flex items-center justify-end text-xs font-semibold text-gray-600 uppercase tracking-wider hover:text-gray-900"
+                              className="flex items-center justify-end text-xs font-semibold text-gray-400 uppercase tracking-wider hover:text-white"
                             >
                               Rate
                               <ArrowUpDown className="w-3 h-3 ml-1" />
                             </button>
                           </th>
                           <th className="px-4 py-3 text-right">
-                            <span className="text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                            <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
                               Min Payment
                             </span>
                           </th>
@@ -3357,7 +3357,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
                                 key: 'due_date',
                                 direction: sortConfig.key === 'due_date' && sortConfig.direction === 'asc' ? 'desc' : 'asc'
                               })}
-                              className="flex items-center text-xs font-semibold text-gray-600 uppercase tracking-wider hover:text-gray-900"
+                              className="flex items-center text-xs font-semibold text-gray-400 uppercase tracking-wider hover:text-white"
                             >
                               Due Date
                               <ArrowUpDown className="w-3 h-3 ml-1" />
@@ -3367,13 +3367,13 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
                       )}
                       
                       <th className="px-4 py-3 text-right">
-                        <span className="text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                        <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
                           Actions
                         </span>
                       </th>
                     </tr>
                   </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
+                  <tbody className="bg-gray-900 divide-y divide-gray-800">
                     {currentView === 'accounts' ? (
                       items.map((account, index) => renderAccountRow(account, 
                         filteredAccounts.findIndex(a => a.id === account.id)
@@ -3392,11 +3392,11 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
               </div>
               
               {/* Group summary - Calculate total for this specific group */}
-              <div className="bg-gray-50 px-6 py-2 border-t border-gray-200 text-xs text-gray-500">
+              <div className="bg-gray-800 px-6 py-2 border-t border-gray-700 text-xs text-gray-500">
                 {currentView === 'accounts' ? (
                   <div className="flex justify-between items-center">
                     <span>{items.length} account{items.length !== 1 ? 's' : ''}</span>
-                    <span className="font-medium text-gray-700">
+                    <span className="font-medium text-gray-300">
                       {groupBy === 'none' ? 'Total' : 'Subtotal'}: {showValues ? formatCurrency(
                         items.reduce((sum, acc) => sum + (acc.totalValue || 0), 0)
                       ) : '••••'}
@@ -3405,7 +3405,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
                 ) : currentView === 'positions' ? (
                   <div className="flex justify-between items-center">
                     <span>{items.length} position{items.length !== 1 ? 's' : ''}</span>
-                    <span className="font-medium text-gray-700">
+                    <span className="font-medium text-gray-300">
                       {groupBy === 'none' ? 'Total' : 'Subtotal'}: {showValues ? formatCurrency(
                         items.reduce((sum, pos) => sum + (pos.current_value || 0), 0)
                       ) : '••••'}
@@ -3414,7 +3414,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
                 ) : (
                   <div className="flex justify-between items-center">
                     <span>{items.length} liabilit{items.length !== 1 ? 'ies' : 'y'}</span>
-                    <span className="font-medium text-gray-700">
+                    <span className="font-medium text-gray-300">
                       {groupBy === 'none' ? 'Total' : 'Subtotal'}: {showValues ? formatCurrency(
                         items.reduce((sum, liab) => sum + (liab.current_balance || 0), 0)
                       ) : '••••'}
@@ -3445,13 +3445,13 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
         }
         size="max-w-7xl"
       >
-        <div className="h-[85vh] flex flex-col bg-gray-50">
+        <div className="h-[85vh] flex flex-col bg-gray-800">
           {currentView === 'selection' ? (
             renderSelectionScreen()
           ) : (
             <>
               {/* Header */}
-              <div className="flex-shrink-0 bg-white border-b border-gray-200 px-6 py-4">
+              <div className="flex-shrink-0 bg-gray-900 border-b border-gray-700 px-6 py-4">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center space-x-6">
                     {/* Back button */}
@@ -3461,27 +3461,27 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
                         setEditingItem(null);
                         setEditingType(null);
                       }}
-                      className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                      className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
                     >
-                      <ArrowLeft className="w-5 h-5 text-gray-600" />
+                      <ArrowLeft className="w-5 h-5 text-gray-400" />
                     </button>
 
                     {/* Search */}
                     <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
                       <input
                         type="text"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         placeholder={`Search ${currentView}...`}
-                        className="pl-10 pr-4 py-2 w-64 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        className="pl-10 pr-4 py-2 w-64 text-sm border border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       />
                       {searchQuery && (
                         <button
                           onClick={() => setSearchQuery('')}
-                          className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-gray-100 rounded"
+                          className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-gray-800 rounded"
                         >
-                          <X className="w-3 h-3 text-gray-400" />
+                          <X className="w-3 h-3 text-gray-500" />
                         </button>
                       )}
                     </div>
@@ -3492,8 +3492,8 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
                       className={`
                         p-2 rounded-lg transition-all
                         ${showValues 
-                          ? 'bg-blue-100 text-blue-700' 
-                          : 'bg-gray-100 text-gray-600'
+                          ? 'bg-blue-500/20 text-blue-400' 
+                          : 'bg-gray-800 text-gray-400'
                         }
                       `}
                       title={showValues ? 'Hide values' : 'Show values'}
@@ -3514,20 +3514,20 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
                   {/* Right side actions */}
                   <div className="flex items-center space-x-3">
                     {stats.selected > 0 && (
-                      <div className="flex items-center space-x-3 px-4 py-2 bg-blue-50 rounded-lg">
-                        <span className="text-sm font-medium text-blue-700">
+                      <div className="flex items-center space-x-3 px-4 py-2 bg-blue-500/10 rounded-lg">
+                        <span className="text-sm font-medium text-blue-400">
                           {stats.selected} selected
                         </span>
                         <button
                           onClick={handleExport}
-                          className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                          className="text-sm text-blue-400 hover:text-blue-400 font-medium"
                         >
                           Export
                         </button>
                         <button
                           onClick={handleDeleteSelected}
                           disabled={isSubmitting}
-                          className="text-sm text-red-600 hover:text-red-700 font-medium"
+                          className="text-sm text-rose-400 hover:text-rose-400 font-medium"
                         >
                           Delete
                         </button>
@@ -3540,7 +3540,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
                         currentView === 'positions' ? refreshPositions :
                         refreshLiabilities
                       }
-                      className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                      className="p-2 text-gray-400 hover:bg-gray-800 rounded-lg transition-colors"
                       title="Refresh"
                     >
                       <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
@@ -3576,7 +3576,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
                           setSelectedCategories(new Set());
                           setSelectedInstitutionFilter(new Set());
                         }}
-                        className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                        className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-gray-400 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors"
                       >
                         <FilterX className="w-3 h-3 mr-1" />
                         Clear Filters
@@ -3636,7 +3636,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
                             {count > 0 && (
                               <span className={`
                                 ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold
-                                ${isSelected ? 'bg-white/20' : 'bg-gray-500/10'}
+                                ${isSelected ? 'bg-gray-900/20' : 'bg-gray-8000/10'}
                               `}>
                                 {count}
                               </span>
@@ -3662,7 +3662,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
                           setSelectedAssetTypes(new Set());
                           setSelectedAccountFilter(new Set());
                         }}
-                        className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                        className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-gray-400 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors"
                       >
                         <FilterX className="w-3 h-3 mr-1" />
                         Clear Filters
@@ -3696,7 +3696,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
                               transition-all duration-200 transform hover:scale-105
                               ${isSelected 
                                 ? 'bg-red-600 text-white shadow-sm' 
-                                : 'bg-red-50 text-red-700 hover:bg-red-100'
+                                : 'bg-rose-500/10 text-rose-400 hover:bg-rose-500/20'
                               }
                             `}
                           >
@@ -3705,7 +3705,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
                             {option.count > 0 && (
                               <span className={`
                                 ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold
-                                ${isSelected ? 'bg-white/20' : 'bg-red-200'}
+                                ${isSelected ? 'bg-gray-900/20' : 'bg-red-200'}
                               `}>
                                 {option.count}
                               </span>
@@ -3718,7 +3718,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
                     {selectedLiabilityTypes.size > 0 && (
                       <button
                         onClick={() => setSelectedLiabilityTypes(new Set())}
-                        className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                        className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-gray-400 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors"
                       >
                         <FilterX className="w-3 h-3 mr-1" />
                         Clear Filters
@@ -3732,7 +3732,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
               <div className="flex-1 overflow-y-auto p-6">
                 {loading ? (
                   <div className="flex items-center justify-center h-64">
-                    <Loader2 className="w-8 h-8 text-gray-400 animate-spin" />
+                    <Loader2 className="w-8 h-8 text-gray-500 animate-spin" />
                   </div>
                 ) : editingItem ? (
                   <div>
@@ -3773,9 +3773,9 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
 
                 {/* Grand Total when grouping */}
                 {!loading && !editingItem && groupBy !== 'none' && (
-                  <div className="bg-white border-t-2 border-gray-300 px-6 py-3">
+                  <div className="bg-gray-900 border-t-2 border-gray-600 px-6 py-3">
                     <div className="flex justify-between items-center">
-                      <span className="text-sm font-semibold text-gray-700">
+                      <span className="text-sm font-semibold text-gray-300">
                         Grand Total ({currentView === 'accounts' 
                           ? `${filteredAccounts.length} account${filteredAccounts.length !== 1 ? 's' : ''}`
                           : currentView === 'positions'
@@ -3783,7 +3783,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
                           : `${filteredLiabilities.length} liabilit${filteredLiabilities.length !== 1 ? 'ies' : 'y'}`
                         })
                       </span>
-                      <span className="text-sm font-bold text-gray-900">
+                      <span className="text-sm font-bold text-white">
                         {showValues ? formatCurrency(
                           currentView === 'accounts' 
                             ? filteredAccounts.reduce((sum, acc) => sum + (acc.totalValue || 0), 0)
@@ -3803,7 +3803,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
                       <div className="flex flex-col items-center justify-center h-64">
                         <Building className="w-12 h-12 text-gray-300 mb-4" />
                         <p className="text-gray-500 text-lg font-medium">No accounts found</p>
-                        <p className="text-gray-400 text-sm mt-1">
+                        <p className="text-gray-500 text-sm mt-1">
                           {searchQuery || selectedCategories.size > 0 || selectedInstitutionFilter.size > 0 
                             ? 'Try adjusting your filters' 
                             : 'Add accounts to get started'}
@@ -3815,7 +3815,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
                       <div className="flex flex-col items-center justify-center h-64">
                         <Database className="w-12 h-12 text-gray-300 mb-4" />
                         <p className="text-gray-500 text-lg font-medium">No positions found</p>
-                        <p className="text-gray-400 text-sm mt-1">
+                        <p className="text-gray-500 text-sm mt-1">
                           {searchQuery || selectedAssetTypes.size > 0 || selectedAccountFilter.size > 0 
                             ? 'Try adjusting your filters' 
                             : 'Add positions to get started'}
@@ -3827,7 +3827,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
                       <div className="flex flex-col items-center justify-center h-64">
                         <CreditCard className="w-12 h-12 text-gray-300 mb-4" />
                         <p className="text-gray-500 text-lg font-medium">No liabilities found</p>
-                        <p className="text-gray-400 text-sm mt-1">
+                        <p className="text-gray-500 text-sm mt-1">
                           {searchQuery || selectedLiabilityTypes.size > 0 
                             ? 'Try adjusting your filters' 
                             : 'Add liabilities to track your debts'}
@@ -3840,13 +3840,13 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
 
               {/* Stats bar */}
               {stats.selected > 0 && !editingItem && (
-                <div className="flex-shrink-0 px-6 py-3 bg-gradient-to-r from-blue-50 to-indigo-50 border-t border-blue-200">
+                <div className="flex-shrink-0 px-6 py-3 bg-gradient-to-r from-blue-50 to-indigo-50 border-t border-blue-500/30">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-6 text-sm">
-                      <span className="font-medium text-blue-900">
+                      <span className="font-medium text-blue-300">
                         <AnimatedCounter value={stats.selected} /> selected
                       </span>
-                      <div className="flex items-center space-x-4 text-blue-700">
+                      <div className="flex items-center space-x-4 text-blue-400">
                         {currentView === 'accounts' && (
                           <span>
                             Total Value: {showValues ? (
@@ -3868,7 +3868,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
                               ) : '••••'}
                             </span>
                             <span className="text-blue-400">•</span>
-                            <span className={`font-medium ${stats.gainLoss >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+                            <span className={`font-medium ${stats.gainLoss >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                               {stats.gainLoss >= 0 ? '+' : '-'}
                               {showValues ? (
                                 <AnimatedCounter value={Math.abs(stats.gainLoss)} prefix="$" />
@@ -3890,7 +3890,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
                     <div className="flex items-center space-x-3">
                       <button
                         onClick={handleExport}
-                        className="px-3 py-1.5 text-sm font-medium text-blue-700 bg-white border border-blue-300 rounded-lg hover:bg-blue-50 transition-colors"
+                        className="px-3 py-1.5 text-sm font-medium text-blue-400 bg-gray-900 border border-blue-500/50 rounded-lg hover:bg-blue-500/10 transition-colors"
                       >
                         <Download className="w-4 h-4 inline mr-1.5" />
                         Export
@@ -3924,7 +3924,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
                             liabilitySelection.clearSelection();
                           }
                         }}
-                        className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                        className="text-sm text-blue-400 hover:text-blue-400 font-medium"
                       >
                         Clear Selection
                       </button>
@@ -3943,7 +3943,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
               ${message.type === 'error' 
                 ? 'bg-red-600 text-white' 
                 : message.type === 'warning'
-                  ? 'bg-amber-500 text-white'
+                  ? 'bg-amber-500/100 text-white'
                   : message.type === 'success'
                     ? 'bg-green-600 text-white'
                     : 'bg-blue-600 text-white'
@@ -3956,7 +3956,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
               <span className="font-medium">{message.text}</span>
               <button
                 onClick={() => setMessage({ type: '', text: '' })}
-                className="ml-4 p-1 hover:bg-white/20 rounded transition-colors"
+                className="ml-4 p-1 hover:bg-gray-900/20 rounded transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>

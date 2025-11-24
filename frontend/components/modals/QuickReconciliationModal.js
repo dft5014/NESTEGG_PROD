@@ -234,7 +234,7 @@ function ModalShell({ isOpen, onClose, title, children }) {
               <X className="w-5 h-5 text-zinc-900 dark:text-zinc-100" />
             </button>
           </div>
-          <div className="p-4 sm:p-6 max-h-[85vh] overflow-auto">{children}</div>
+          <div className="p-5 sm:p-7 max-h-[85vh] overflow-auto">{children}</div>
         </div>
       </div>
     </div>
@@ -749,7 +749,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
   return (
     <ModalShell isOpen={isOpen} onClose={onClose} title="Quick Update & Reconcile">
       <div
-        className="flex flex-col gap-4 pb-28"
+        className="flex flex-col gap-6 pb-28"
         onPaste={(e) => {
           const isField = e.target?.closest?.("input, textarea, [contenteditable='true']");
           if (isField && !(e.metaKey || e.altKey)) return; // bulk paste only outside inputs unless modifier
@@ -757,10 +757,10 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
         }}
       >
         {/* Institution grid (3 columns on xl) */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
           <button
             onClick={() => setSelectedInstitution(null)}
-            className={`px-4 py-6 rounded-xl border text-left ${
+            className={`px-5 py-5 sm:py-6 rounded-xl border text-left ${
               !selectedInstitution
                 ? "bg-blue-600 text-white border-blue-700"
                 : "bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800"
@@ -768,7 +768,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
             title="Show all"
           >
             <div className="font-semibold text-base leading-tight">All Institutions</div>
-            <div className={`${!selectedInstitution ? "text-blue-100" : "text-zinc-600 dark:text-zinc-300"} text-xs mt-1.5`}>
+            <div className={`${!selectedInstitution ? "text-blue-100" : "text-zinc-600 dark:text-zinc-300"} text-xs mt-2 leading-relaxed`}>
               View every cash line, liability & other asset
             </div>
           </button>
@@ -781,29 +781,29 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
               <button
                 key={g.inst}
                 onClick={() => setSelectedInstitution(g.inst)}
-                className={`px-4 py-6 rounded-xl border text-left flex items-start gap-3 ${
+                className={`px-5 py-5 sm:py-6 rounded-xl border text-left flex items-start gap-3 ${
                   selected
                     ? "bg-blue-50 dark:bg-blue-900/20 border-blue-300 dark:border-blue-700/50"
                     : "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800"
                 }`}
                 title={g.inst}
               >
-                {logo ? <img src={logo} alt={g.inst} className="w-7 h-7 rounded object-contain flex-shrink-0" /> : <Building2 className="w-7 h-7 text-zinc-400 flex-shrink-0" />}
+                {logo ? <img src={logo} alt={g.inst} className="w-7 h-7 rounded object-contain flex-shrink-0 mt-0.5" /> : <Building2 className="w-7 h-7 text-zinc-400 flex-shrink-0 mt-0.5" />}
                 <div className="flex-1 min-w-0">
                   <div className="text-lg font-semibold leading-tight text-zinc-900 dark:text-zinc-100 truncate max-w-xs">{g.inst}</div>
-                  <div className="text-xs text-zinc-700 dark:text-zinc-300 mt-2 leading-snug">
+                  <div className="text-xs text-zinc-700 dark:text-zinc-300 mt-2.5 leading-relaxed">
                     A: {fmtUSD(g.assets, !showValues)} • L: {fmtUSD(g.liabs, !showValues)} • O: {fmtUSD(g.others, !showValues)} • Net:{" "}
                     <span className={`${net >= 0 ? "text-emerald-600" : "text-rose-500"} font-semibold`}>{fmtUSD(net, !showValues)}</span>
                   </div>
                 </div>
-                {selected ? <CheckCircle className="w-5 h-5 text-emerald-600 flex-shrink-0" /> : null}
+                {selected ? <CheckCircle className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5" /> : null}
               </button>
             );
           })}
         </div>
 
         {/* Controls + KPIs */}
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-3 flex-wrap">
           <label className="inline-flex items-center gap-2 text-sm text-zinc-800 dark:text-zinc-100">
             <input type="checkbox" checked={showAssets} onChange={e=>setShowAssets(e.target.checked)} />
             Assets (cash)
@@ -830,7 +830,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
               <ArrowUpDown className="w-4 h-4" />
               <span className="text-sm">Sort: {sortBy} ({sortDir})</span>
             </button>
-            <div className="flex gap-1 mt-1">
+            <div className="flex gap-1.5 mt-2">
               {["institution","delta","pct","kind","updated"].map(k => (
                 <button
                   key={k}
@@ -888,50 +888,50 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
         </div>
 
         {/* KPIs */}
-        <div className="flex flex-wrap items-center gap-3 text-sm">
-          <span className="px-2 py-1 rounded-lg bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100">
+        <div className="flex flex-wrap items-center gap-3 text-sm mt-1">
+          <span className="px-3 py-1.5 rounded-lg bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100">
             Visible: {kpis.count} rows
           </span>
-          <span className="px-2 py-1 rounded-lg bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100">
+          <span className="px-3 py-1.5 rounded-lg bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100">
             Assets: {fmtUSD(kpis.assets, !showValues)}
           </span>
-          <span className="px-2 py-1 rounded-lg bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100">
+          <span className="px-3 py-1.5 rounded-lg bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100">
             Liabs: {fmtUSD(kpis.liabilities, !showValues)}
           </span>
-          <span className="px-2 py-1 rounded-lg bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100">
+          <span className="px-3 py-1.5 rounded-lg bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100">
             Other: {fmtUSD(kpis.others, !showValues)}
           </span>
-          <span className={`px-2 py-1 rounded-lg border text-zinc-900 dark:text-zinc-100 ${
+          <span className={`px-3 py-1.5 rounded-lg border text-zinc-900 dark:text-zinc-100 ${
             kpis.delta === 0
               ? 'bg-zinc-100 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700'
               : 'bg-blue-50 dark:bg-blue-950/40 border-blue-200 dark:border-blue-900/50'
           }`}>
             Δ if saved: {fmtUSD(kpis.delta, !showValues)}
           </span>
-          <span className="px-2 py-1 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200">
+          <span className="px-3 py-1.5 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200">
             Changed: {kpis.changed}
           </span>
         </div>
 
         {/* Editable table */}
         <div className="border border-zinc-200 dark:border-zinc-800 rounded-xl overflow-hidden">
-          <div className="bg-zinc-50 dark:bg-zinc-800 px-4 py-2 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+          <div className="bg-zinc-50 dark:bg-zinc-800 px-5 py-3 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
             {selectedInstitution ? `Lines in ${selectedInstitution}` : "Cash-like Assets, Liabilities & Other Assets"}
           </div>
             <div className="max-h-[54vh] overflow-auto">
             <table className="w-full min-w-[1120px]">
               <thead className="bg-zinc-50 dark:bg-zinc-800 sticky top-0 z-10">
                 <tr className="text-xs uppercase text-zinc-600 dark:text-zinc-300">
-                  <th className="px-4 py-2 text-left cursor-pointer" onClick={()=>toggleSort('institution')}>Institution</th>
-                  <th className="px-3 py-2 text-left">Name</th>
-                  <th className="px-3 py-2 text-left">Identifier</th>
-                  <th className="px-3 py-2 text-left cursor-pointer" onClick={()=>toggleSort('kind')}>Type</th>
-                  <th className="px-3 py-2 text-left cursor-pointer" onClick={()=>toggleSort('updated')}>Last Update</th>
-                  <th className="px-3 py-2 text-left">Age</th>
-                  <th className="px-3 py-2 text-right">Nest</th>
-                  <th className="px-3 py-2 text-center">Statement</th>
-                  <th className="px-3 py-2 text-right cursor-pointer" onClick={()=>toggleSort('delta')}>Δ</th>
-                  <th className="px-3 py-2 text-right cursor-pointer" onClick={()=>toggleSort('pct')}>%</th>
+                  <th className="px-4 py-3 text-left cursor-pointer" onClick={()=>toggleSort('institution')}>Institution</th>
+                  <th className="px-3 py-3 text-left">Name</th>
+                  <th className="px-3 py-3 text-left">Identifier</th>
+                  <th className="px-3 py-3 text-left cursor-pointer" onClick={()=>toggleSort('kind')}>Type</th>
+                  <th className="px-3 py-3 text-left cursor-pointer" onClick={()=>toggleSort('updated')}>Last Update</th>
+                  <th className="px-3 py-3 text-left">Age</th>
+                  <th className="px-3 py-3 text-right">Nest</th>
+                  <th className="px-3 py-3 text-center">Statement</th>
+                  <th className="px-3 py-3 text-right cursor-pointer" onClick={()=>toggleSort('delta')}>Δ</th>
+                  <th className="px-3 py-3 text-right cursor-pointer" onClick={()=>toggleSort('pct')}>%</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
@@ -939,7 +939,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
                   if (r._loading) {
                     return (
                       <tr key={`skeleton-${idx}`}>
-                        <td className="px-4 py-3" colSpan={10}>
+                        <td className="px-4 py-4" colSpan={10}>
                           <div className="flex items-center gap-2 text-zinc-600 dark:text-zinc-300"><Loader2 className="w-4 h-4 animate-spin" /> Loading…</div>
                         </td>
                       </tr>
@@ -961,13 +961,13 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
                       className={changed ? "bg-blue-50/40 dark:bg-blue-950/30" : ""}
                       style={changed ? { borderLeft: '3px solid rgba(59,130,246,0.8)' } : undefined}
                     >
-                      <td className="px-4 py-2">
+                      <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
                           {logo ? <img src={logo} alt={r.institution} className="w-6 h-6 rounded object-contain" /> : <Building2 className="w-5 h-5 text-zinc-400" />}
                           <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{r.institution}</span>
                         </div>
                       </td>
-                      <td className="px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100">
+                      <td className="px-3 py-3 text-sm text-zinc-900 dark:text-zinc-100">
                         <div className="flex items-center gap-2">
                           <span>{r.name}</span>
                           {r.nest === 0 && r.stmt !== 0 ? (
@@ -977,10 +977,10 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
                             <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800">Failed</span>
                           ) : null}
                         </div>
-                        {r.sub ? <div className="text-xs text-zinc-600 dark:text-zinc-300">{r.sub}</div> : null}
+                        {r.sub ? <div className="text-xs text-zinc-600 dark:text-zinc-300 mt-1">{r.sub}</div> : null}
                       </td>
-                      <td className="px-3 py-2 text-sm text-zinc-700 dark:text-zinc-300">{r.identifier || "—"}</td>
-                      <td className="px-3 py-2 text-sm text-zinc-700 dark:text-zinc-300">
+                      <td className="px-3 py-3 text-sm text-zinc-700 dark:text-zinc-300">{r.identifier || "—"}</td>
+                      <td className="px-3 py-3 text-sm text-zinc-700 dark:text-zinc-300">
                         <div className="flex items-center gap-2">
                           <span>{r.type || "—"}</span>
                           <span className={`text-[10px] px-1.5 py-0.5 rounded border ${kindBadge}`}>
@@ -988,7 +988,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
                           </span>
                         </div>
                       </td>
-                      <td className="px-3 py-2 text-sm text-zinc-700 dark:text-zinc-300">
+                      <td className="px-3 py-3 text-sm text-zinc-700 dark:text-zinc-300">
                         {r.last_update ? (
                         <time dateTime={toIsoAttr(r.last_update)} title={toIsoAttr(r.last_update)}>
                           {formatLocalDateTime(r.last_update)}
@@ -996,11 +996,11 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
                         ) : "—"}
                       </td>
 
-                      <td className="px-3 py-2 text-sm text-zinc-500 dark:text-zinc-400">
+                      <td className="px-3 py-3 text-sm text-zinc-500 dark:text-zinc-400">
                         {formatAge(r.last_update)}
                       </td>
-                      <td className="px-3 py-2 text-right text-zinc-900 dark:text-zinc-100">{fmtUSD(r.nest, !showValues)}</td>
-                      <td className="px-3 py-2 text-center">
+                      <td className="px-3 py-3 text-right text-sm text-zinc-900 dark:text-zinc-100">{fmtUSD(r.nest, !showValues)}</td>
+                      <td className="px-3 py-3 text-center">
                         <CurrencyInput
                           id={`qr-input-${r._key}`}
                           value={r.stmt}
@@ -1010,12 +1010,12 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
                           className={changed ? "border-blue-500 ring-2 ring-blue-200 dark:ring-blue-900/60" : ""}
                         />
                       </td>
-                      <td className={`px-3 py-2 text-right font-semibold ${
+                      <td className={`px-3 py-3 text-right text-sm font-semibold ${
                         r.diff > 0 ? "text-emerald-600" : r.diff < 0 ? "text-rose-600" : "text-zinc-500 dark:text-zinc-400"
                       }`}>
                         {fmtUSD(r.diff, !showValues)}
                       </td>
-                      <td className={`px-3 py-2 text-right ${
+                      <td className={`px-3 py-3 text-right text-sm ${
                         r.nest === 0 ? "text-zinc-500 dark:text-zinc-400" : (r.diff > 0 ? "text-emerald-600" : "text-rose-600")
                       }`}>
                         {r.nest === 0 ? "—" : `${r.pct.toFixed(2)}%`}
@@ -1025,7 +1025,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
                 })}
                 {!loading && filteredCalc.length === 0 && (
                   <tr>
-                    <td className="px-4 py-6 text-sm text-zinc-600 dark:text-zinc-300 text-center" colSpan={10}>
+                    <td className="px-4 py-8 text-sm text-zinc-600 dark:text-zinc-300 text-center" colSpan={10}>
                       No lines for this selection.
                     </td>
                   </tr>
@@ -1038,7 +1038,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
         {/* Positions drilldown */}
         {selectedInstitution && (
           <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 overflow-hidden">
-            <div className="bg-zinc-50 dark:bg-zinc-800 px-4 py-2 flex items-center gap-2">
+            <div className="bg-zinc-50 dark:bg-zinc-800 px-5 py-3 flex items-center gap-2">
               <Info className="w-4 h-4 text-zinc-700 dark:text-zinc-200" />
               <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
                 Detailed positions in {selectedInstitution}
@@ -1049,62 +1049,62 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2">
               <div className="border-r border-zinc-200 dark:border-zinc-800 min-h-[180px]">
-                <div className="px-4 py-2 text-xs uppercase text-zinc-600 dark:text-zinc-300 bg-white dark:bg-zinc-900 sticky top-0">Positions</div>
+                <div className="px-5 py-2.5 text-xs uppercase text-zinc-600 dark:text-zinc-300 bg-white dark:bg-zinc-900 sticky top-0 font-semibold">Positions</div>
                 <div className="max-h-[32vh] overflow-auto">
                   <table className="w-full min-w-[560px]">
                     <thead className="bg-zinc-50 dark:bg-zinc-800 sticky top-0 z-10">
                       <tr className="text-xs uppercase text-zinc-600 dark:text-zinc-300">
-                        <th className="px-4 py-2 text-left">Name</th>
-                        <th className="px-3 py-2 text-left">Identifier</th>
-                        <th className="px-3 py-2 text-left">Type</th>
-                        <th className="px-3 py-2 text-right">Value</th>
+                        <th className="px-4 py-2.5 text-left">Name</th>
+                        <th className="px-3 py-2.5 text-left">Identifier</th>
+                        <th className="px-3 py-2.5 text-left">Type</th>
+                        <th className="px-3 py-2.5 text-right">Value</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
                       {(positionsByInstitution.get(selectedInstitution) || []).map(p => (
                         <tr key={p.id}>
-                          <td className="px-4 py-2 text-sm text-zinc-900 dark:text-zinc-100">
+                          <td className="px-4 py-3 text-sm text-zinc-900 dark:text-zinc-100">
                             {p.name}
-                            {p.accountName ? <div className="text-xs text-zinc-600 dark:text-zinc-300">{p.accountName}</div> : null}
+                            {p.accountName ? <div className="text-xs text-zinc-600 dark:text-zinc-300 mt-1">{p.accountName}</div> : null}
                           </td>
-                          <td className="px-3 py-2 text-sm text-zinc-700 dark:text-zinc-300">{p.identifier || "—"}</td>
-                          <td className="px-3 py-2 text-sm text-zinc-700 dark:text-zinc-300">{p.type || "—"}</td>
-                          <td className="px-3 py-2 text-right text-sm text-zinc-900 dark:text-zinc-100">{fmtUSD(p.value, !showValues)}</td>
+                          <td className="px-3 py-3 text-sm text-zinc-700 dark:text-zinc-300">{p.identifier || "—"}</td>
+                          <td className="px-3 py-3 text-sm text-zinc-700 dark:text-zinc-300">{p.type || "—"}</td>
+                          <td className="px-3 py-3 text-right text-sm text-zinc-900 dark:text-zinc-100">{fmtUSD(p.value, !showValues)}</td>
                         </tr>
                       ))}
                       {(positionsByInstitution.get(selectedInstitution) || []).length === 0 && (
-                        <tr><td className="px-4 py-3 text-sm text-zinc-600 dark:text-zinc-300" colSpan={4}>No positions.</td></tr>
+                        <tr><td className="px-4 py-6 text-sm text-zinc-600 dark:text-zinc-300" colSpan={4}>No positions.</td></tr>
                       )}
                     </tbody>
                   </table>
                 </div>
               </div>
               <div className="min-h-[180px]">
-                <div className="px-4 py-2 text-xs uppercase text-zinc-600 dark:text-zinc-300 bg-white dark:bg-zinc-900 sticky top-0">Liabilities</div>
+                <div className="px-5 py-2.5 text-xs uppercase text-zinc-600 dark:text-zinc-300 bg-white dark:bg-zinc-900 sticky top-0 font-semibold">Liabilities</div>
                 <div className="max-h-[32vh] overflow-auto">
                   <table className="w-full min-w-[520px]">
                     <thead className="bg-zinc-50 dark:bg-zinc-800 sticky top-0 z-10">
                       <tr className="text-xs uppercase text-zinc-600 dark:text-zinc-300">
-                        <th className="px-4 py-2 text-left">Name</th>
-                        <th className="px-3 py-2 text-left">Identifier</th>
-                        <th className="px-3 py-2 text-left">Type</th>
-                        <th className="px-3 py-2 text-right">Balance</th>
+                        <th className="px-4 py-2.5 text-left">Name</th>
+                        <th className="px-3 py-2.5 text-left">Identifier</th>
+                        <th className="px-3 py-2.5 text-left">Type</th>
+                        <th className="px-3 py-2.5 text-right">Balance</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
                       {(liabilitiesByInstitution.get(selectedInstitution) || []).map(l => (
                         <tr key={l.id}>
-                          <td className="px-4 py-2 text-sm text-zinc-900 dark:text-zinc-100">
+                          <td className="px-4 py-3 text-sm text-zinc-900 dark:text-zinc-100">
                             {l.name}
-                            {l.accountName ? <div className="text-xs text-zinc-600 dark:text-zinc-300">{l.accountName}</div> : null}
+                            {l.accountName ? <div className="text-xs text-zinc-600 dark:text-zinc-300 mt-1">{l.accountName}</div> : null}
                           </td>
-                          <td className="px-3 py-2 text-sm text-zinc-700 dark:text-zinc-300">{l.identifier || "—"}</td>
-                          <td className="px-3 py-2 text-sm text-zinc-700 dark:text-zinc-300">{l.type || "—"}</td>
-                          <td className="px-3 py-2 text-right text-sm text-zinc-900 dark:text-zinc-100">{fmtUSD(l.value, !showValues)}</td>
+                          <td className="px-3 py-3 text-sm text-zinc-700 dark:text-zinc-300">{l.identifier || "—"}</td>
+                          <td className="px-3 py-3 text-sm text-zinc-700 dark:text-zinc-300">{l.type || "—"}</td>
+                          <td className="px-3 py-3 text-right text-sm text-zinc-900 dark:text-zinc-100">{fmtUSD(l.value, !showValues)}</td>
                         </tr>
                       ))}
                       {(liabilitiesByInstitution.get(selectedInstitution) || []).length === 0 && (
-                        <tr><td className="px-4 py-3 text-sm text-zinc-600 dark:text-zinc-300" colSpan={4}>No liabilities.</td></tr>
+                        <tr><td className="px-4 py-6 text-sm text-zinc-600 dark:text-zinc-300" colSpan={4}>No liabilities.</td></tr>
                       )}
                     </tbody>
                   </table>
@@ -1115,17 +1115,23 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
         )}
 
         {/* Legend + paste warning + failed retry */}
-        <div className="flex items-center gap-3 text-xs text-zinc-600 dark:text-zinc-300">
-          <CheckCircle className="w-4 h-4 text-emerald-600" /> Unchanged rows are skipped
-          <AlertTriangle className="w-4 h-4 text-amber-500 ml-4" /> Paste tabs/commas/newlines to fill the visible list
+        <div className="flex items-center gap-4 text-xs text-zinc-600 dark:text-zinc-300 leading-relaxed">
+          <div className="flex items-center gap-2">
+            <CheckCircle className="w-4 h-4 text-emerald-600" />
+            <span>Unchanged rows are skipped</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-amber-500" />
+            <span>Paste tabs/commas/newlines to fill the visible list</span>
+          </div>
           {headerPasteWarn && (
-            <span className="ml-4 px-2 py-0.5 rounded bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300">
-              Heads up: first pasted token wasn’t numeric — likely headers ignored.
+            <span className="px-3 py-1.5 rounded bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300">
+              Heads up: first pasted token wasn't numeric — likely headers ignored.
             </span>
           )}
           {Array.isArray(failedRows) && failedRows.length > 0 && (
             <button
-              className="ml-auto px-2 py-1 rounded bg-amber-100 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-800 hover:opacity-90"
+              className="ml-auto px-3 py-1.5 rounded bg-amber-100 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-800 hover:opacity-90"
               onClick={retryFailed}
             >
               Retry failed ({failedRows.length})
@@ -1137,19 +1143,19 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
       {/* Sticky action bar when there are changes */}
       {kpis.changed > 0 && (
         <div className="fixed left-1/2 -translate-x-1/2 bottom-6 z-[10001]">
-          <div className="flex items-center gap-3 px-4 py-2 rounded-2xl shadow-lg border border-zinc-200 dark:border-zinc-800 bg-white/95 dark:bg-zinc-900/95 backdrop-blur">
-            <span className="text-sm text-zinc-800 dark:text-zinc-200">{kpis.changed} change(s)</span>
-            <span className="text-sm text-zinc-800 dark:text-zinc-200">Δ {fmtUSD(kpis.delta, !showValues)}</span>
+          <div className="flex items-center gap-4 px-5 py-3 rounded-2xl shadow-lg border border-zinc-200 dark:border-zinc-800 bg-white/95 dark:bg-zinc-900/95 backdrop-blur">
+            <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">{kpis.changed} change(s)</span>
+            <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">Δ {fmtUSD(kpis.delta, !showValues)}</span>
             <button
               onClick={saveAll}
-              className="px-3 py-1.5 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700"
+              className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700"
               title="Apply changed values (⌘/Ctrl + Enter)"
             >
               Update All
             </button>
             <button
               onClick={clearDrafts}
-              className="px-3 py-1.5 rounded-lg bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 text-sm border border-zinc-200 dark:border-zinc-700"
+              className="px-4 py-2 rounded-lg bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 text-sm border border-zinc-200 dark:border-zinc-700"
               title="Clear edits"
             >
               Clear
