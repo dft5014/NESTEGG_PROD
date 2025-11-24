@@ -71,22 +71,24 @@ const MiniAnimatedEgg = ({ evolutionStage, mood, size = 60 }) => {
   }, [controls]);
 
   const getEyePath = (isLeft) => {
-    if (isBlinking) return `M${isLeft ? 20 : 60} 50 Q${isLeft ? 30 : 70} 50 ${isLeft ? 40 : 80} 50`;
+    // When blinking, return a closed eye path (horizontal line)
+    if (isBlinking) return `M${isLeft ? 35 : 65} 50 Q${isLeft ? 45 : 75} 50 ${isLeft ? 55 : 85} 50`;
 
+    // For different moods, return null to show open eyes (circles)
     switch(mood) {
       case 'excited':
-        return `M${isLeft ? 20 : 60} 45 Q${isLeft ? 30 : 70} 40 ${isLeft ? 40 : 80} 45`;
+        return `M${isLeft ? 35 : 65} 45 Q${isLeft ? 45 : 75} 40 ${isLeft ? 55 : 85} 45`;
       case 'worried':
-        return null;
+        return null; // Show open eyes
       case 'sleepy':
-        return `M${isLeft ? 25 : 65} 50 Q${isLeft ? 30 : 70} 52 ${isLeft ? 35 : 75} 50`;
+        return `M${isLeft ? 35 : 65} 50 Q${isLeft ? 45 : 75} 52 ${isLeft ? 55 : 85} 50`;
       default:
-        return null;
+        return null; // Show open eyes (circles with pupils)
     }
   };
 
-  const eyeSize = 10;
-  const pupilSize = 6;
+  const eyeSize = 8;  // Larger eyes
+  const pupilSize = 4;  // Larger pupils
 
   return (
     <motion.div
@@ -121,21 +123,21 @@ const MiniAnimatedEgg = ({ evolutionStage, mood, size = 60 }) => {
 
           {/* Face - simplified */}
           <g transform="translate(0, -20)">
-            {/* Eyes */}
+            {/* Eyes - clearly visible with white background and black pupils */}
             {getEyePath(true) ? (
-              <path d={getEyePath(true)} stroke="#1A202C" strokeWidth="2.5" fill="none" />
+              <path d={getEyePath(true)} stroke="#1A202C" strokeWidth="3" fill="none" strokeLinecap="round" />
             ) : (
               <g>
-                <circle cx="45" cy="70" r={eyeSize} fill="white" stroke="#1A202C" strokeWidth="2" />
+                <circle cx="45" cy="70" r={eyeSize} fill="white" stroke="#1A202C" strokeWidth="2.5" />
                 <circle cx="45" cy="70" r={pupilSize} fill="#1A202C" />
               </g>
             )}
 
             {getEyePath(false) ? (
-              <path d={getEyePath(false)} stroke="#1A202C" strokeWidth="2.5" fill="none" />
+              <path d={getEyePath(false)} stroke="#1A202C" strokeWidth="3" fill="none" strokeLinecap="round" />
             ) : (
               <g>
-                <circle cx="75" cy="70" r={eyeSize} fill="white" stroke="#1A202C" strokeWidth="2" />
+                <circle cx="75" cy="70" r={eyeSize} fill="white" stroke="#1A202C" strokeWidth="2.5" />
                 <circle cx="75" cy="70" r={pupilSize} fill="#1A202C" />
               </g>
             )}
@@ -694,27 +696,33 @@ const QuickStatsContent = ({
   const weekChangePct = summary?.periodChanges?.['1w']?.netWorthPercent || 0;
   const monthChangePct = summary?.periodChanges?.['1m']?.netWorthPercent || 0;
 
-  // Calculate remaining amount needed for next stage
-  const getRemainingAmount = () => {
+  // Calculate threshold and remaining amount needed for next stage
+  const getProgressInfo = () => {
     const currentIndex = EVOLUTION_STAGES.indexOf(evolutionStage);
-    if (currentIndex >= EVOLUTION_STAGES.length - 1) return 0;
+    if (currentIndex >= EVOLUTION_STAGES.length - 1) return { threshold: 0, remaining: 0, isWise: false };
 
     const nextStage = EVOLUTION_STAGES[currentIndex + 1];
     const currentNetWorth = summary?.netWorth || 0;
-    const currentStageMilestone = EVOLUTION_MILESTONES[evolutionStage];
 
     // For wise stage, use $1M as goal (same as progress calculation)
     if (nextStage === 'wise') {
       const wiseGoal = 1_000_000;
-      return Math.max(0, wiseGoal - currentNetWorth);
+      return {
+        threshold: wiseGoal,
+        remaining: Math.max(0, wiseGoal - currentNetWorth),
+        isWise: true
+      };
     }
 
     const nextMilestone = EVOLUTION_MILESTONES[nextStage];
-    return Math.max(0, nextMilestone.maxNetWorth - currentNetWorth);
+    return {
+      threshold: nextMilestone.maxNetWorth,
+      remaining: Math.max(0, nextMilestone.maxNetWorth - currentNetWorth),
+      isWise: false
+    };
   };
 
-  const remainingAmount = getRemainingAmount();
-  const isProgressingToWise = evolutionStage === 'adult' && EVOLUTION_STAGES.indexOf(evolutionStage) < EVOLUTION_STAGES.length - 1 && EVOLUTION_STAGES[EVOLUTION_STAGES.indexOf(evolutionStage) + 1] === 'wise';
+  const progressInfo = getProgressInfo();
 
   return (
     <div className="p-5">
@@ -805,13 +813,15 @@ const QuickStatsContent = ({
         {/* Progress to next stage */}
         {evolutionStage !== 'wise' && (
           <>
-            <div className="flex justify-between text-xs text-gray-400 mb-2">
-              <span>Progress to {nextStageName}</span>
-              {isProgressingToWise ? (
-                <span className="text-purple-400 font-medium">{formatCurrency(remainingAmount)} remaining</span>
-              ) : (
-                <span>{evolutionProgress.toFixed(1)}%</span>
-              )}
+            <div className="space-y-1 mb-2">
+              <div className="flex justify-between text-xs">
+                <span className="text-gray-400">Next Stage: {nextStageName}</span>
+                <span className="text-blue-400 font-medium">{formatCurrency(progressInfo.threshold)} threshold</span>
+              </div>
+              <div className="flex justify-between text-xs">
+                <span className="text-gray-400">Remaining</span>
+                <span className="text-purple-400 font-semibold">{formatCurrency(progressInfo.remaining)}</span>
+              </div>
             </div>
             <div className="w-full bg-gray-700 rounded-full h-2.5 mb-2">
               <motion.div
@@ -822,7 +832,7 @@ const QuickStatsContent = ({
               />
             </div>
             <p className="text-[10px] text-gray-500 italic">
-              {isProgressingToWise
+              {progressInfo.isWise
                 ? `Reach $1M net worth to achieve mastery`
                 : evolutionProgress < 50
                 ? "Keep growing your wealth!"
