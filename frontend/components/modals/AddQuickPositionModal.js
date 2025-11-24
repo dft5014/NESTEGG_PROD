@@ -1283,11 +1283,22 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
         seedAppliedRef.current = true;
       }
 
-      // reset UI chrome each open (keep as you had it)
-      setExpandedSections({});
-      setAccountExpandedSections({});
+      // Restore UI state from localStorage (prevents collapse during work)
+      try {
+        const savedExpandedSections = localStorage.getItem(`quickpositions:expanded:${seedId}`);
+        const savedAccountExpandedSections = localStorage.getItem(`quickpositions:accountExpanded:${seedId}`);
+
+        if (savedExpandedSections) {
+          setExpandedSections(JSON.parse(savedExpandedSections));
+        }
+        if (savedAccountExpandedSections) {
+          setAccountExpandedSections(JSON.parse(savedAccountExpandedSections));
+        }
+      } catch (e) {
+        console.error('Failed to restore UI state:', e);
+      }
+
       setMessage({ type: '', text: '', details: [] });
-      setActiveFilter('all');
       setSearchResults({});
       setSelectedSecurities({});
       setShowKeyboardShortcuts(false);
@@ -1319,6 +1330,17 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
 
         return () => clearTimeout(timeoutId);
       }, [isOpen, seedId, positions]);
+
+  // Persist expanded sections to prevent collapse during work
+  useEffect(() => {
+    if (!isOpen) return;
+    try {
+      localStorage.setItem(`quickpositions:expanded:${seedId}`, JSON.stringify(expandedSections));
+      localStorage.setItem(`quickpositions:accountExpanded:${seedId}`, JSON.stringify(accountExpandedSections));
+    } catch (e) {
+      console.error('Failed to save UI state:', e);
+    }
+  }, [isOpen, seedId, expandedSections, accountExpandedSections]);
 
 
   // If seeds arrived before accounts, fill in account_id once both are ready (run once)
@@ -2685,8 +2707,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
     const empty = { security: [], cash: [], crypto: [], metal: [], otherAssets: [] };
     setPositions(empty);
     localStorage.removeItem(`quickpositions:work:${seedId}`); // <- nuke the draft
-    setExpandedSections({});
-    setAccountExpandedSections({});
+    // Keep expanded sections - user might want to add more in same sections
     showMessage('success', 'All positions cleared', ['Ready for new entries']);
   };
 
@@ -2890,23 +2911,23 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                 {...commonProps}
                 value={value}
                 onChange={(e) => updatePosition(assetType, position.id, field.key, parseInt(e.target.value))}
-                className={`${baseClass} pr-8 cursor-pointer appearance-none`}
+                className={`${baseClass} pr-8 cursor-pointer appearance-none [&>option]:bg-gray-800 [&>option]:text-white [&>optgroup]:bg-gray-900 [&>optgroup]:text-gray-300`}
               >
-                <option value="">Select account...</option>
+                <option value="" className="bg-gray-800 text-white">Select account...</option>
                 {recentlyUsedAccounts.length > 0 && (
-                  <optgroup label="Recent">
+                  <optgroup label="Recent" className="bg-gray-900 text-gray-300">
                     {accounts
                       .filter(a => recentlyUsedAccounts.includes(a.id))
                       .map(account => (
-                        <option key={account.id} value={account.id}>
+                        <option key={account.id} value={account.id} className="bg-gray-800 text-white">
                           ⭐ {account.account_name}
                         </option>
                       ))}
                   </optgroup>
                 )}
-                <optgroup label="All Accounts">
+                <optgroup label="All Accounts" className="bg-gray-900 text-gray-300">
                   {accounts.map(account => (
-                    <option key={account.id} value={account.id}>
+                    <option key={account.id} value={account.id} className="bg-gray-800 text-white">
                       {account.account_name}
                     </option>
                   ))}
@@ -2925,10 +2946,10 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                 {...commonProps}
                 value={value}
                 onChange={(e) => updatePosition(assetType, position.id, field.key, e.target.value)}
-                className={`${baseClass} pr-8 cursor-pointer appearance-none`}
+                className={`${baseClass} pr-8 cursor-pointer appearance-none [&>option]:bg-gray-800 [&>option]:text-white`}
               >
                 {field.options.map(option => (
-                  <option key={option.value} value={option.value}>
+                  <option key={option.value} value={option.value} className="bg-gray-800 text-white">
                     {option.label}
                   </option>
                 ))}
