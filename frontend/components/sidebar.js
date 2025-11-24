@@ -97,7 +97,7 @@ const Sidebar = () => {
     // Premium items grouped together at the bottom
     {
       href: "/command-center",
-      label: "Command Center",
+      label: "Analytics",
       icon: <BarChart3 className="w-5 h-5" />,
       isPremium: true,
       description: "Advanced analytics, insights, and reporting tools"
@@ -263,14 +263,6 @@ const Sidebar = () => {
         {/* Navigation */}
         <nav className="flex-1 p-2 overflow-y-auto custom-scrollbar">
           <div className="space-y-1">
-            {!sidebarCollapsed && (
-              <div className="px-3 py-2 mt-4 mb-2">
-                <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                  NestEgg Management
-                </span>
-              </div>
-            )}
-
             {filteredMenuItems.map((item, index) => (
               <motion.div
                 key={item.href}

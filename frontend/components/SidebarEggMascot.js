@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useAnimation } from 'framer-motion';
 import { usePortfolioSummary } from '@/store/hooks/usePortfolioSummary';
 import { useUser } from '@clerk/nextjs';
 import { fetchWithAuth } from '@/utils/api';
@@ -19,6 +19,169 @@ const EVOLUTION_MILESTONES = {
 };
 
 const EVOLUTION_STAGES = ['baby', 'child', 'teen', 'adult', 'wise'];
+
+// =============================================================================
+// MINI ANIMATED EGG COMPONENT
+// =============================================================================
+
+const MiniAnimatedEgg = ({ evolutionStage, mood, size = 60 }) => {
+  const controls = useAnimation();
+  const [isBlinking, setIsBlinking] = useState(false);
+
+  // Blinking animation
+  useEffect(() => {
+    const blinkInterval = setInterval(() => {
+      if (Math.random() > 0.9) {
+        setIsBlinking(true);
+        setTimeout(() => setIsBlinking(false), 150);
+      }
+    }, 2000);
+    return () => clearInterval(blinkInterval);
+  }, []);
+
+  // Idle animations
+  useEffect(() => {
+    const performIdleAnimation = async () => {
+      const animations = ['lookAround', 'bounce'];
+      const randomAnim = animations[Math.floor(Math.random() * animations.length)];
+
+      try {
+        switch(randomAnim) {
+          case 'lookAround':
+            await controls.start({
+              rotateY: [0, 15, -15, 0],
+              transition: { duration: 1.5 }
+            });
+            break;
+          case 'bounce':
+            await controls.start({
+              y: [0, -8, 0],
+              scale: [1, 1.05, 1],
+              transition: { duration: 0.6, type: "spring" }
+            });
+            break;
+        }
+      } catch (err) {
+        // Animation interrupted
+      }
+    };
+
+    const interval = setInterval(performIdleAnimation, 8000);
+    return () => clearInterval(interval);
+  }, [controls]);
+
+  const getEyePath = (isLeft) => {
+    if (isBlinking) return `M${isLeft ? 20 : 60} 50 Q${isLeft ? 30 : 70} 50 ${isLeft ? 40 : 80} 50`;
+
+    switch(mood) {
+      case 'excited':
+        return `M${isLeft ? 20 : 60} 45 Q${isLeft ? 30 : 70} 40 ${isLeft ? 40 : 80} 45`;
+      case 'worried':
+        return null;
+      case 'sleepy':
+        return `M${isLeft ? 25 : 65} 50 Q${isLeft ? 30 : 70} 52 ${isLeft ? 35 : 75} 50`;
+      default:
+        return null;
+    }
+  };
+
+  const eyeSize = 10;
+  const pupilSize = 6;
+
+  return (
+    <motion.div
+      animate={controls}
+      style={{ width: size, height: size * 1.25 }}
+    >
+      <motion.div
+        animate={{
+          y: [0, -3, 0],
+          rotate: [-1, 1, -1]
+        }}
+        transition={{
+          duration: 2.5,
+          repeat: Infinity,
+          ease: "easeInOut"
+        }}
+      >
+        <svg width={size} height={size * 1.25} viewBox="0 0 120 150" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <radialGradient id="miniBodyGradient" cx="50%" cy="40%" r="60%">
+              <stop offset="0%" stopColor="#FFFFFF" />
+              <stop offset="70%" stopColor="#F8F8F8" />
+              <stop offset="100%" stopColor="#E8E8E8" />
+            </radialGradient>
+            <filter id="miniGlow">
+              <feGaussianBlur stdDeviation="2"/>
+            </filter>
+          </defs>
+
+          {/* Body */}
+          <ellipse cx="60" cy="80" rx="45" ry="55" fill="url(#miniBodyGradient)" stroke="#4A5568" strokeWidth="3" filter="url(#miniGlow)" />
+
+          {/* Face - simplified */}
+          <g transform="translate(0, -20)">
+            {/* Eyes */}
+            {getEyePath(true) ? (
+              <path d={getEyePath(true)} stroke="#1A202C" strokeWidth="2.5" fill="none" />
+            ) : (
+              <g>
+                <circle cx="45" cy="70" r={eyeSize} fill="white" stroke="#1A202C" strokeWidth="2" />
+                <circle cx="45" cy="70" r={pupilSize} fill="#1A202C" />
+              </g>
+            )}
+
+            {getEyePath(false) ? (
+              <path d={getEyePath(false)} stroke="#1A202C" strokeWidth="2.5" fill="none" />
+            ) : (
+              <g>
+                <circle cx="75" cy="70" r={eyeSize} fill="white" stroke="#1A202C" strokeWidth="2" />
+                <circle cx="75" cy="70" r={pupilSize} fill="#1A202C" />
+              </g>
+            )}
+
+            {/* Mouth */}
+            <motion.path
+              d={mood === 'worried' ? "M50 90 Q60 85 70 90" :
+                 mood === 'excited' ? "M45 85 Q60 95 75 85" :
+                 "M50 85 Q60 90 70 85"}
+              stroke="#1A202C"
+              strokeWidth="2.5"
+              fill="none"
+              strokeLinecap="round"
+            />
+
+            {/* Cheeks */}
+            <circle cx="35" cy="75" r="4" fill="#FFB6C1" opacity="0.6" />
+            <circle cx="85" cy="75" r="4" fill="#FFB6C1" opacity="0.6" />
+          </g>
+
+          {/* Simple accessories */}
+          {evolutionStage === 'child' && (
+            <path d="M30 30 Q60 20 90 30 L85 38 L35 38 Z" fill="#FF6B6B" stroke="#C92A2A" strokeWidth="2" />
+          )}
+          {evolutionStage === 'teen' && (
+            <g>
+              <circle cx="45" cy="60" r="14" fill="none" stroke="#4A5568" strokeWidth="2.5" opacity="0.8" />
+              <circle cx="75" cy="60" r="14" fill="none" stroke="#4A5568" strokeWidth="2.5" opacity="0.8" />
+              <path d="M59 60 L61 60" stroke="#4A5568" strokeWidth="2.5" />
+            </g>
+          )}
+          {evolutionStage === 'adult' && (
+            <path d="M60 100 L56 108 L60 118 L64 108 Z" fill="#4C6EF5" stroke="#364FC7" strokeWidth="1.5" />
+          )}
+          {evolutionStage === 'wise' && (
+            <g>
+              <rect x="42" y="12" width="36" height="20" rx="1" fill="#1A202C" stroke="#000" strokeWidth="1.5" />
+              <ellipse cx="60" cy="32" rx="22" ry="2" fill="#1A202C" />
+              <rect x="42" y="28" width="36" height="3" fill="#D4AF37" />
+            </g>
+          )}
+        </svg>
+      </motion.div>
+    </motion.div>
+  );
+};
 
 // =============================================================================
 // SIDEBAR EGG MASCOT
@@ -180,7 +343,7 @@ const SidebarEggMascot = ({ isCollapsed }) => {
   };
 
   const formatPercent = (value) => {
-    if (value === null || value === undefined || isNaN(value)) return '0%';
+    if (value === null || value === undefined || isNaN(value)) return '0.00%';
     const sign = value > 0 ? '+' : '';
     return `${sign}${value.toFixed(2)}%`;
   };
@@ -211,6 +374,8 @@ const SidebarEggMascot = ({ isCollapsed }) => {
     if (currentIndex >= EVOLUTION_STAGES.length - 1) return 'Max Level';
     return EVOLUTION_MILESTONES[EVOLUTION_STAGES[currentIndex + 1]].label;
   }, [evolutionStage]);
+
+  const currentStageIndex = EVOLUTION_STAGES.indexOf(evolutionStage);
 
   // ---------------------------------------------------------------------------
   // Click handler
@@ -356,6 +521,7 @@ const SidebarEggMascot = ({ isCollapsed }) => {
                 <QuickStatsContent
                   summary={summary}
                   evolutionStage={evolutionStage}
+                  currentStageIndex={currentStageIndex}
                   evolutionProgress={evolutionProgress}
                   nextStageName={nextStageName}
                   mood={mood}
@@ -373,7 +539,7 @@ const SidebarEggMascot = ({ isCollapsed }) => {
   }
 
   // ---------------------------------------------------------------------------
-  // RENDER: Expanded State (Full Mascot)
+  // RENDER: Expanded State (Full Mascot with Animated Egg)
   // ---------------------------------------------------------------------------
   return (
     <div className="relative p-3 border-t border-gray-800/50">
@@ -406,22 +572,15 @@ const SidebarEggMascot = ({ isCollapsed }) => {
           ease: "easeInOut"
         }}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-2">
-            <span className="text-lg">{EVOLUTION_MILESTONES[evolutionStage].emoji}</span>
-            <div>
-              <p className="text-xs font-semibold text-white">{EVOLUTION_MILESTONES[evolutionStage].label} Egg</p>
-              <p className="text-[10px] text-gray-400">Mood: {getMoodEmoji} {mood}</p>
-            </div>
-          </div>
-          <motion.div
-            className="text-xs text-gray-400"
-            animate={{ opacity: [0.5, 1, 0.5] }}
-            transition={{ duration: 2, repeat: Infinity }}
-          >
-            Click me
-          </motion.div>
+        {/* Animated Egg */}
+        <div className="flex justify-center mb-2">
+          <MiniAnimatedEgg evolutionStage={evolutionStage} mood={mood} size={60} />
+        </div>
+
+        {/* Stage and Mood */}
+        <div className="text-center mb-2">
+          <p className="text-xs font-semibold text-white">{EVOLUTION_MILESTONES[evolutionStage].label} Egg</p>
+          <p className="text-[10px] text-gray-400">Mood: {getMoodEmoji} {mood}</p>
         </div>
 
         {/* Mini Stats */}
@@ -439,23 +598,60 @@ const SidebarEggMascot = ({ isCollapsed }) => {
           </div>
         </div>
 
-        {/* Progress to Next Evolution */}
-        {evolutionStage !== 'wise' && (
-          <div className="mt-2 pt-2 border-t border-gray-700/50">
-            <div className="flex justify-between text-[10px] text-gray-400 mb-1">
-              <span>Progress to {nextStageName}</span>
-              <span>{evolutionProgress.toFixed(0)}%</span>
-            </div>
-            <div className="w-full bg-gray-700 rounded-full h-1.5">
-              <motion.div
-                className="bg-gradient-to-r from-blue-500 to-purple-500 h-1.5 rounded-full"
-                initial={{ width: 0 }}
-                animate={{ width: `${evolutionProgress}%` }}
-                transition={{ duration: 0.5 }}
-              />
-            </div>
+        {/* Evolution Journey - Show all stages */}
+        <div className="mt-3 pt-2 border-t border-gray-700/50">
+          <div className="flex justify-between items-center mb-2">
+            {EVOLUTION_STAGES.map((stage, index) => (
+              <div key={stage} className="flex flex-col items-center gap-1">
+                <motion.div
+                  className={`w-6 h-6 rounded-full flex items-center justify-center text-xs border-2 transition-all ${
+                    index <= currentStageIndex
+                      ? 'bg-gradient-to-r from-blue-500 to-purple-500 border-blue-400'
+                      : 'bg-gray-700 border-gray-600'
+                  }`}
+                  animate={index === currentStageIndex ? {
+                    scale: [1, 1.1, 1],
+                  } : {}}
+                  transition={{
+                    duration: 2,
+                    repeat: Infinity,
+                  }}
+                >
+                  {EVOLUTION_MILESTONES[stage].emoji}
+                </motion.div>
+                {index < EVOLUTION_STAGES.length - 1 && (
+                  <div className={`w-8 h-0.5 ${index < currentStageIndex ? 'bg-gradient-to-r from-blue-500 to-purple-500' : 'bg-gray-700'}`} />
+                )}
+              </div>
+            ))}
           </div>
-        )}
+
+          {/* Progress to next stage */}
+          {evolutionStage !== 'wise' && (
+            <>
+              <div className="flex justify-between text-[10px] text-gray-400 mb-1">
+                <span>Progress to {nextStageName}</span>
+                <span>{evolutionProgress.toFixed(0)}%</span>
+              </div>
+              <div className="w-full bg-gray-700 rounded-full h-1.5">
+                <motion.div
+                  className="bg-gradient-to-r from-blue-500 to-purple-500 h-1.5 rounded-full"
+                  initial={{ width: 0 }}
+                  animate={{ width: `${evolutionProgress}%` }}
+                  transition={{ duration: 0.5 }}
+                />
+              </div>
+            </>
+          )}
+        </div>
+
+        <motion.div
+          className="text-[10px] text-center text-gray-400 mt-2"
+          animate={{ opacity: [0.5, 1, 0.5] }}
+          transition={{ duration: 2, repeat: Infinity }}
+        >
+          Click for details
+        </motion.div>
 
         {/* Breathing animation overlay */}
         <motion.div
@@ -498,6 +694,7 @@ const SidebarEggMascot = ({ isCollapsed }) => {
               <QuickStatsContent
                 summary={summary}
                 evolutionStage={evolutionStage}
+                currentStageIndex={currentStageIndex}
                 evolutionProgress={evolutionProgress}
                 nextStageName={nextStageName}
                 mood={mood}
@@ -521,6 +718,7 @@ const SidebarEggMascot = ({ isCollapsed }) => {
 const QuickStatsContent = ({
   summary,
   evolutionStage,
+  currentStageIndex,
   evolutionProgress,
   nextStageName,
   mood,
@@ -588,30 +786,63 @@ const QuickStatsContent = ({
         </div>
       </div>
 
-      {/* Evolution Progress */}
-      {evolutionStage !== 'wise' && (
-        <div className="bg-gray-700/30 rounded-lg p-4 mb-4">
-          <div className="flex justify-between text-xs text-gray-400 mb-2">
-            <span>Evolution Progress</span>
-            <span>{evolutionProgress.toFixed(1)}% to {nextStageName}</span>
-          </div>
-          <div className="w-full bg-gray-700 rounded-full h-2.5 mb-2">
-            <motion.div
-              className="bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 h-2.5 rounded-full"
-              initial={{ width: 0 }}
-              animate={{ width: `${evolutionProgress}%` }}
-              transition={{ duration: 0.8 }}
-            />
-          </div>
-          <p className="text-[10px] text-gray-500 italic">
-            {evolutionProgress < 50
-              ? "Keep growing your wealth!"
-              : evolutionProgress < 90
-              ? "Almost there! Keep it up!"
-              : "So close to evolution!"}
-          </p>
+      {/* Evolution Journey */}
+      <div className="bg-gray-700/30 rounded-lg p-4 mb-4">
+        <p className="text-xs text-gray-400 mb-3">Evolution Journey</p>
+        <div className="flex justify-between items-center mb-3">
+          {EVOLUTION_STAGES.map((stage, index) => (
+            <div key={stage} className="flex items-center">
+              <div className="flex flex-col items-center">
+                <motion.div
+                  className={`w-8 h-8 rounded-full flex items-center justify-center text-sm border-2 transition-all ${
+                    index <= currentStageIndex
+                      ? 'bg-gradient-to-r from-blue-500 to-purple-500 border-blue-400'
+                      : 'bg-gray-700 border-gray-600'
+                  }`}
+                  animate={index === currentStageIndex ? {
+                    scale: [1, 1.15, 1],
+                  } : {}}
+                  transition={{
+                    duration: 2,
+                    repeat: Infinity,
+                  }}
+                >
+                  {EVOLUTION_MILESTONES[stage].emoji}
+                </motion.div>
+                <p className="text-[9px] text-gray-500 mt-1">{EVOLUTION_MILESTONES[stage].label}</p>
+              </div>
+              {index < EVOLUTION_STAGES.length - 1 && (
+                <div className={`w-10 h-0.5 mx-1 ${index < currentStageIndex ? 'bg-gradient-to-r from-blue-500 to-purple-500' : 'bg-gray-700'}`} />
+              )}
+            </div>
+          ))}
         </div>
-      )}
+
+        {/* Progress to next stage */}
+        {evolutionStage !== 'wise' && (
+          <>
+            <div className="flex justify-between text-xs text-gray-400 mb-2">
+              <span>Progress to {nextStageName}</span>
+              <span>{evolutionProgress.toFixed(1)}%</span>
+            </div>
+            <div className="w-full bg-gray-700 rounded-full h-2.5 mb-2">
+              <motion.div
+                className="bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 h-2.5 rounded-full"
+                initial={{ width: 0 }}
+                animate={{ width: `${evolutionProgress}%` }}
+                transition={{ duration: 0.8 }}
+              />
+            </div>
+            <p className="text-[10px] text-gray-500 italic">
+              {evolutionProgress < 50
+                ? "Keep growing your wealth!"
+                : evolutionProgress < 90
+                ? "Almost there! Keep it up!"
+                : "So close to evolution!"}
+            </p>
+          </>
+        )}
+      </div>
 
       {evolutionStage === 'wise' && (
         <div className="bg-gradient-to-r from-yellow-500/20 to-purple-500/20 rounded-lg p-4 mb-4 border border-yellow-500/30">
