@@ -450,7 +450,8 @@ const AddStatementImportModal = ({ isOpen, onClose }) => {
   const filteredAccounts = useMemo(() => {
     const accounts = Array.isArray(existingAccounts) ? existingAccounts : [];
     return accounts.filter(acc => {
-      const accountType = (acc?.account_type || '').toLowerCase();
+      // Use 'type' field (not 'account_type') as returned by useAccounts hook
+      const accountType = (acc?.type || '').toLowerCase();
       return (
         accountType === 'brokerage' ||
         accountType === 'retirement' ||
@@ -637,9 +638,10 @@ const AddStatementImportModal = ({ isOpen, onClose }) => {
             ) : (
               <div className="space-y-2 max-h-96 overflow-y-auto">
                 {filteredAccounts.map(account => {
-                  const accountName = account.account_name || account.name;
+                  // Use correct field names from useAccounts hook
+                  const accountName = account.name;
                   const accountInstitution = account.institution;
-                  const accountType = account.account_type;
+                  const accountType = account.type;
 
                   return (
                     <button
@@ -675,7 +677,8 @@ const AddStatementImportModal = ({ isOpen, onClose }) => {
       case 3:
         const totalPositions = parsedData.reduce((sum, file) => sum + file.data.length, 0);
         const selectedAccountData = filteredAccounts.find(a => a.id === selectedAccount);
-        const selectedAccountName = selectedAccountData?.account_name || selectedAccountData?.name;
+        // Use 'name' field from useAccounts hook
+        const selectedAccountName = selectedAccountData?.name;
 
         return (
           <div className="space-y-4">
