@@ -2829,133 +2829,101 @@ const TableBuilderTabOriginal = ({ groupedPositions, detailedPositions, accounts
 // ============================================================================
 
 const ComparisonTab = ({ chartData, groupedPositions, detailedPositions, summary, accounts }) => {
-  const [expandedGroups, setExpandedGroups] = useState(new Set());
-  const [groupBy, setGroupBy] = useState('asset'); // 'asset', 'account', or 'position'
+  // Extract available dates from chartData
+  const availableDates = useMemo(() => {
+    if (!chartData || chartData.length === 0) return [];
+    return chartData.map(d => d.date).sort();
+  }, [chartData]);
 
-  // Generate comparison data (Cost Basis vs Current Value)
-  const comparisonData = useMemo(() => {
-    // For account grouping, use accounts data directly from datastore
-    if (groupBy === 'account') {
-      if (!accounts || accounts.length === 0) return [];
+  // State for selected dates - default to first and last
+  const [selectedDate1, setSelectedDate1] = useState('');
+  const [selectedDate2, setSelectedDate2] = useState('');
+  const [groupBy, setGroupBy] = useState('summary'); // 'summary', 'asset', 'account'
 
-      return accounts
-        .filter(account => account.totalValue > 0)
-        .map(account => ({
-          key: account.id,
-          name: account.name,
-          assetType: 'account',
-          positions: [], // Don't need to show individual positions for account view
-          value1: account.totalCostBasis || 0,
-          value2: account.totalValue || 0,
-          valueDelta: account.totalGainLoss || 0,
-          valueChangePercent: account.totalGainLossPercent || 0,
-          institution: account.institution,
-          accountType: account.type
-        }))
-        .sort((a, b) => b.value2 - a.value2);
+  // Initialize dates when available
+  useEffect(() => {
+    if (availableDates.length > 0 && !selectedDate1 && !selectedDate2) {
+      setSelectedDate1(availableDates[0]); // Oldest date
+      setSelectedDate2(availableDates[availableDates.length - 1]); // Most recent date
     }
+  }, [availableDates, selectedDate1, selectedDate2]);
 
-    // For asset and position grouping, use positions data
-    const sourceData = groupedPositions || [];
-    if (!sourceData || sourceData.length === 0) return [];
+  // Get snapshot data for selected dates
+  const snapshot1 = useMemo(() => {
+    if (!chartData || !selectedDate1) return null;
+    return chartData.find(d => d.date === selectedDate1);
+  }, [chartData, selectedDate1]);
 
-    // Group positions
-    const grouped = {};
+  const snapshot2 = useMemo(() => {
+    if (!chartData || !selectedDate2) return null;
+    return chartData.find(d => d.date === selectedDate2);
+  }, [chartData, selectedDate2]);
 
-    sourceData.forEach(position => {
-      let groupKey, groupName;
+  // Calculate comparison metrics
+  const comparisonMetrics = useMemo(() => {
+    if (!snapshot1 || !snapshot2) return null;
 
-      if (groupBy === 'asset') {
-        groupKey = position.asset_type;
-        groupName = position.asset_type.charAt(0).toUpperCase() + position.asset_type.slice(1);
-      } else {
-        // By position - each position is its own group
-        groupKey = position.identifier || position.symbol;
-        groupName = position.name || position.identifier || position.symbol;
-      }
-
-      if (!grouped[groupKey]) {
-        grouped[groupKey] = {
-          key: groupKey,
-          name: groupName,
-          assetType: position.asset_type,
-          positions: [],
-          value1: 0, // Cost basis total
-          value2: 0, // Current value total
-          valueDelta: 0,
-          valueChangePercent: 0
-        };
-      }
-
-      // Use values directly from datastore
-      const costBasis = position.total_cost_basis || 0;
-      const currentValue = position.total_current_value || 0;
-      const gainLoss = position.total_gain_loss || 0;
-      const gainLossPct = position.total_gain_loss_pct || 0;
-
-      grouped[groupKey].positions.push({
-        identifier: position.identifier,
-        name: position.name,
-        account_name: position.account_name,
-        asset_type: position.asset_type,
-        value1: costBasis,
-        value2: currentValue,
-        valueDelta: gainLoss,
-        valueChangePercent: gainLossPct,
-        quantity1: 0, // No historical quantity for cost basis comparison
-        quantity2: position.total_quantity || 0,
-        price1: position.avg_purchase_price || 0,
-        price2: position.current_price || position.latest_price_per_unit || 0
-      });
-
-      grouped[groupKey].value1 += costBasis;
-      grouped[groupKey].value2 += currentValue;
-      grouped[groupKey].valueDelta += gainLoss;
-    });
-
-    // Calculate group percentages and sort
-    return Object.values(grouped)
-      .map(group => ({
-        ...group,
-        valueChangePercent: group.value1 > 0 ? (group.valueDelta / group.value1) * 100 : 0,
-        positions: group.positions.sort((a, b) => Math.abs(b.valueDelta) - Math.abs(a.valueDelta))
-      }))
-      .sort((a, b) => b.value2 - a.value2);
-  }, [groupedPositions, groupBy, accounts]);
-
-  // Calculate totals for summary cards
-  const totals = useMemo(() => {
-    if (!groupedPositions || groupedPositions.length === 0) return null;
-
-    const totalCostBasis = groupedPositions.reduce((sum, p) => sum + (p.total_cost_basis || 0), 0);
-    const totalCurrentValue = groupedPositions.reduce((sum, p) => sum + (p.total_current_value || 0), 0);
-    const totalGainLoss = totalCurrentValue - totalCostBasis;
-    const totalGainLossPct = totalCostBasis > 0 ? (totalGainLoss / totalCostBasis) * 100 : 0;
+    const netWorth1 = snapshot1.netWorth || 0;
+    const netWorth2 = snapshot2.netWorth || 0;
+    const totalAssets1 = snapshot1.totalAssets || 0;
+    const totalAssets2 = snapshot2.totalAssets || 0;
+    const totalLiabilities1 = snapshot1.totalLiabilities || 0;
+    const totalLiabilities2 = snapshot2.totalLiabilities || 0;
+    const liquidAssets1 = snapshot1.liquidAssets || 0;
+    const liquidAssets2 = snapshot2.liquidAssets || 0;
 
     return {
-      value1: totalCostBasis,
-      value2: totalCurrentValue,
-      valueDelta: totalGainLoss,
-      percentChange: totalGainLossPct
+      netWorth: {
+        value1: netWorth1,
+        value2: netWorth2,
+        delta: netWorth2 - netWorth1,
+        percentChange: netWorth1 !== 0 ? ((netWorth2 - netWorth1) / netWorth1) * 100 : 0
+      },
+      totalAssets: {
+        value1: totalAssets1,
+        value2: totalAssets2,
+        delta: totalAssets2 - totalAssets1,
+        percentChange: totalAssets1 !== 0 ? ((totalAssets2 - totalAssets1) / totalAssets1) * 100 : 0
+      },
+      totalLiabilities: {
+        value1: totalLiabilities1,
+        value2: totalLiabilities2,
+        delta: totalLiabilities2 - totalLiabilities1,
+        percentChange: totalLiabilities1 !== 0 ? ((totalLiabilities2 - totalLiabilities1) / totalLiabilities1) * 100 : 0
+      },
+      liquidAssets: {
+        value1: liquidAssets1,
+        value2: liquidAssets2,
+        delta: liquidAssets2 - liquidAssets1,
+        percentChange: liquidAssets1 !== 0 ? ((liquidAssets2 - liquidAssets1) / liquidAssets1) * 100 : 0
+      }
     };
-  }, [groupedPositions]);
+  }, [snapshot1, snapshot2]);
 
-  const toggleGroup = (key) => {
-    const newExpanded = new Set(expandedGroups);
-    if (newExpanded.has(key)) {
-      newExpanded.delete(key);
-    } else {
-      newExpanded.add(key);
-    }
-    setExpandedGroups(newExpanded);
+  const formatDate = (dateString) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   };
 
-  if (!groupedPositions || groupedPositions.length === 0) {
+  if (!chartData || chartData.length === 0) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center">
           <Loader2 className="w-12 h-12 text-blue-400 animate-spin mx-auto mb-4" />
-          <p className="text-gray-400">Loading comparison data...</p>
+          <p className="text-gray-400">Loading historical data...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (availableDates.length < 2) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <Calendar className="w-12 h-12 text-gray-600 mx-auto mb-4" />
+          <p className="text-gray-400">Not enough historical data for comparison</p>
+          <p className="text-sm text-gray-500 mt-2">You need at least 2 snapshots to compare</p>
         </div>
       </div>
     );
@@ -2963,205 +2931,216 @@ const ComparisonTab = ({ chartData, groupedPositions, detailedPositions, summary
 
   return (
     <div className="space-y-6">
-      {/* Header with description */}
+      {/* Header with Date Pickers */}
       <div className="bg-gradient-to-br from-gray-800/60 to-gray-900/60 backdrop-blur-xl rounded-3xl border border-gray-700/50 p-6">
-        <div className="flex items-center gap-3 mb-4">
+        <div className="flex items-center gap-3 mb-6">
           <div className="p-2 rounded-xl bg-blue-500/20">
             <Repeat className="w-5 h-5 text-blue-400" />
           </div>
+          <div className="flex-1">
+            <h3 className="text-lg font-bold text-white">Portfolio Comparison</h3>
+            <p className="text-sm text-gray-400">Compare your portfolio between any two dates</p>
+          </div>
+        </div>
+
+        {/* Date Selectors */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <h3 className="text-lg font-bold text-white">Portfolio Comparison Analysis</h3>
-            <p className="text-sm text-gray-400">Compare inception (cost basis) to current value - track your total returns</p>
+            <label className="block text-sm font-medium text-gray-400 mb-2">
+              <Calendar className="w-4 h-4 inline mr-2" />
+              Start Date
+            </label>
+            <select
+              value={selectedDate1}
+              onChange={(e) => setSelectedDate1(e.target.value)}
+              className="w-full px-4 py-3 bg-gray-900/60 border border-gray-700 rounded-xl text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              {availableDates.map(date => (
+                <option key={date} value={date}>{formatDate(date)}</option>
+              ))}
+            </select>
           </div>
-        </div>
-
-        {/* Group By selector */}
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-gray-400 mr-2">Group by:</span>
-          <button
-            onClick={() => setGroupBy('asset')}
-            className={`px-4 py-2 rounded-xl font-medium transition-all ${
-              groupBy === 'asset'
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-700/50 text-gray-400 hover:bg-gray-700'
-            }`}
-          >
-            <Layers className="w-4 h-4 inline mr-2" />
-            Asset Class
-          </button>
-          <button
-            onClick={() => setGroupBy('account')}
-            className={`px-4 py-2 rounded-xl font-medium transition-all ${
-              groupBy === 'account'
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-700/50 text-gray-400 hover:bg-gray-700'
-            }`}
-          >
-            <Wallet className="w-4 h-4 inline mr-2" />
-            By Account
-          </button>
-          <button
-            onClick={() => setGroupBy('position')}
-            className={`px-4 py-2 rounded-xl font-medium transition-all ${
-              groupBy === 'position'
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-700/50 text-gray-400 hover:bg-gray-700'
-            }`}
-          >
-            <List className="w-4 h-4 inline mr-2" />
-            By Position
-          </button>
+          <div>
+            <label className="block text-sm font-medium text-gray-400 mb-2">
+              <Calendar className="w-4 h-4 inline mr-2" />
+              End Date
+            </label>
+            <select
+              value={selectedDate2}
+              onChange={(e) => setSelectedDate2(e.target.value)}
+              className="w-full px-4 py-3 bg-gray-900/60 border border-gray-700 rounded-xl text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              {availableDates.map(date => (
+                <option key={date} value={date}>{formatDate(date)}</option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 
-      {/* Summary Cards - show cost basis vs current value */}
-      {totals && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <div className="bg-gradient-to-br from-blue-900/20 to-indigo-900/20 backdrop-blur-xl rounded-3xl border border-blue-500/20 p-6">
-            <p className="text-gray-400 text-sm font-medium uppercase tracking-wider">Total Cost Basis</p>
-            <p className="text-2xl font-bold text-white mt-2">{formatCurrency(totals.value1)}</p>
-            <p className="text-xs text-gray-500 mt-1">What you invested</p>
-          </div>
-
-          <div className="bg-gradient-to-br from-purple-900/20 to-pink-900/20 backdrop-blur-xl rounded-3xl border border-purple-500/20 p-6">
-            <p className="text-gray-400 text-sm font-medium uppercase tracking-wider">Current Value</p>
-            <p className="text-2xl font-bold text-white mt-2">{formatCurrency(totals.value2)}</p>
-            <p className="text-xs text-gray-500 mt-1">What you have now</p>
-          </div>
-
-          <div className={`bg-gradient-to-br backdrop-blur-xl rounded-3xl border p-6 ${
-            totals.valueDelta >= 0
-              ? 'from-green-900/20 to-emerald-900/20 border-green-500/20'
-              : 'from-red-900/20 to-rose-900/20 border-red-500/20'
-          }`}>
-            <p className="text-gray-400 text-sm font-medium uppercase tracking-wider">Total Gain/Loss</p>
-            <p className={`text-2xl font-bold mt-2 ${totals.valueDelta >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-              {totals.valueDelta >= 0 ? '+' : ''}{formatCurrency(totals.valueDelta)}
-            </p>
-            <p className="text-xs text-gray-500 mt-1">Unrealized P&L</p>
-          </div>
-
-          <div className={`bg-gradient-to-br backdrop-blur-xl rounded-3xl border p-6 ${
-            totals.percentChange >= 0
-              ? 'from-orange-900/20 to-amber-900/20 border-orange-500/20'
-              : 'from-red-900/20 to-rose-900/20 border-red-500/20'
-          }`}>
-            <p className="text-gray-400 text-sm font-medium uppercase tracking-wider">Return %</p>
-            <p className={`text-2xl font-bold mt-2 ${totals.percentChange >= 0 ? 'text-orange-400' : 'text-red-400'}`}>
-              {totals.percentChange >= 0 ? '+' : ''}{formatPercent(totals.percentChange, false)}
-            </p>
-            <p className="text-xs text-gray-500 mt-1">Total return</p>
-          </div>
-        </div>
-      )}
-
-      {/* Position Comparison Table */}
-      <div className="bg-gradient-to-br from-gray-800/60 to-gray-900/60 backdrop-blur-xl rounded-3xl border border-gray-700/50 p-6">
-        <div className="space-y-2">
-          {comparisonData.length === 0 ? (
-            <div className="text-center py-12">
-              <Package className="w-12 h-12 text-gray-600 mx-auto mb-4" />
-              <p className="text-gray-400">No position data available for comparison</p>
-            </div>
-          ) : (
-            comparisonData.map((group) => (
-              <div key={group.key} className="bg-gray-900/40 rounded-xl overflow-hidden">
-                {/* Group Header */}
-                <button
-                  onClick={() => toggleGroup(group.key)}
-                  className="w-full px-6 py-4 flex items-center justify-between hover:bg-gray-800/40 transition-colors"
-                >
-                  <div className="flex items-center gap-4 flex-1">
-                    <div
-                      className="w-1 h-12 rounded-full"
-                      style={{ backgroundColor: THEME_COLORS.asset[group.assetType] || '#64748b' }}
-                    />
-                    <div className="text-left">
-                      <h4 className="text-white font-semibold">{group.name}</h4>
-                      <p className="text-sm text-gray-400">{group.positions.length} position{group.positions.length !== 1 ? 's' : ''}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-6">
-                    <div className="text-right">
-                      <p className="text-sm text-gray-400">Cost Basis</p>
-                      <p className="text-white font-semibold">{formatCurrency(group.value1, true)}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm text-gray-400">Current Value</p>
-                      <p className="text-white font-semibold">{formatCurrency(group.value2, true)}</p>
-                    </div>
-                    <div className="text-right min-w-[120px]">
-                      <p className="text-sm text-gray-400">Gain/Loss</p>
-                      <p className={`font-bold ${group.valueDelta >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                        {group.valueDelta >= 0 ? '+' : ''}{formatCurrency(group.valueDelta, true)}
-                      </p>
-                      <p className={`text-xs ${group.valueChangePercent >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                        {group.valueChangePercent >= 0 ? '+' : ''}{formatPercent(group.valueChangePercent, false)}
-                      </p>
-                    </div>
-                    {expandedGroups.has(group.key) ? (
-                      <ChevronUp className="w-5 h-5 text-gray-400" />
-                    ) : (
-                      <ChevronDown className="w-5 h-5 text-gray-400" />
-                    )}
-                  </div>
-                </button>
-
-                {/* Expanded Position Details */}
-                {expandedGroups.has(group.key) && (
-                  <div className="border-t border-gray-700/50">
-                    {group.positions.map((position, idx) => (
-                      <div
-                        key={`${position.identifier}-${idx}`}
-                        className={`px-6 py-4 ${idx !== 0 ? 'border-t border-gray-800/50' : ''} hover:bg-gray-800/20`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-3">
-                              <p className="text-white font-medium">{position.identifier}</p>
-                            </div>
-                            <p className="text-sm text-gray-400 mt-1">{position.name}</p>
-                            {position.account_name && (
-                              <p className="text-xs text-gray-500 mt-1">{position.account_name}</p>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-6">
-                            <div className="text-right">
-                              <p className="text-white font-medium">{formatCurrency(position.value1)}</p>
-                              {position.price1 > 0 && (
-                                <p className="text-xs text-gray-500">
-                                  @ {formatCurrency(position.price1)}
-                                </p>
-                              )}
-                            </div>
-                            <ArrowUpRight className="w-5 h-5 text-gray-600" />
-                            <div className="text-right">
-                              <p className="text-white font-medium">{formatCurrency(position.value2)}</p>
-                              {position.quantity2 > 0 && (
-                                <p className="text-xs text-gray-500">
-                                  {position.quantity2.toFixed(4)} @ {formatCurrency(position.price2)}
-                                </p>
-                              )}
-                            </div>
-                            <div className="text-right min-w-[120px]">
-                              <p className={`font-bold ${position.valueDelta >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                {position.valueDelta >= 0 ? '+' : ''}{formatCurrency(position.valueDelta)}
-                              </p>
-                              <p className={`text-xs ${position.valueChangePercent >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                {position.valueChangePercent >= 0 ? '+' : ''}{formatPercent(position.valueChangePercent, false)}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+      {/* Comparison Summary Cards */}
+      {comparisonMetrics && (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {/* Net Worth */}
+            <div className="bg-gradient-to-br from-blue-900/20 to-indigo-900/20 backdrop-blur-xl rounded-3xl border border-blue-500/20 p-6">
+              <p className="text-gray-400 text-sm font-medium uppercase tracking-wider mb-2">Net Worth</p>
+              <div className="space-y-1 mb-3">
+                <p className="text-sm text-gray-500">{formatDate(selectedDate1)}</p>
+                <p className="text-lg font-bold text-white">{formatCurrency(comparisonMetrics.netWorth.value1)}</p>
               </div>
-            ))
-          )}
-        </div>
-      </div>
+              <div className="space-y-1 mb-3 pb-3 border-b border-gray-700/50">
+                <p className="text-sm text-gray-500">{formatDate(selectedDate2)}</p>
+                <p className="text-lg font-bold text-white">{formatCurrency(comparisonMetrics.netWorth.value2)}</p>
+              </div>
+              <div>
+                <p className={`text-xl font-bold ${comparisonMetrics.netWorth.delta >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  {comparisonMetrics.netWorth.delta >= 0 ? '+' : ''}{formatCurrency(comparisonMetrics.netWorth.delta)}
+                </p>
+                <p className={`text-sm ${comparisonMetrics.netWorth.percentChange >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  {comparisonMetrics.netWorth.percentChange >= 0 ? '+' : ''}{comparisonMetrics.netWorth.percentChange.toFixed(2)}%
+                </p>
+              </div>
+            </div>
+
+            {/* Total Assets */}
+            <div className="bg-gradient-to-br from-purple-900/20 to-pink-900/20 backdrop-blur-xl rounded-3xl border border-purple-500/20 p-6">
+              <p className="text-gray-400 text-sm font-medium uppercase tracking-wider mb-2">Total Assets</p>
+              <div className="space-y-1 mb-3">
+                <p className="text-sm text-gray-500">{formatDate(selectedDate1)}</p>
+                <p className="text-lg font-bold text-white">{formatCurrency(comparisonMetrics.totalAssets.value1)}</p>
+              </div>
+              <div className="space-y-1 mb-3 pb-3 border-b border-gray-700/50">
+                <p className="text-sm text-gray-500">{formatDate(selectedDate2)}</p>
+                <p className="text-lg font-bold text-white">{formatCurrency(comparisonMetrics.totalAssets.value2)}</p>
+              </div>
+              <div>
+                <p className={`text-xl font-bold ${comparisonMetrics.totalAssets.delta >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  {comparisonMetrics.totalAssets.delta >= 0 ? '+' : ''}{formatCurrency(comparisonMetrics.totalAssets.delta)}
+                </p>
+                <p className={`text-sm ${comparisonMetrics.totalAssets.percentChange >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  {comparisonMetrics.totalAssets.percentChange >= 0 ? '+' : ''}{comparisonMetrics.totalAssets.percentChange.toFixed(2)}%
+                </p>
+              </div>
+            </div>
+
+            {/* Total Liabilities */}
+            <div className="bg-gradient-to-br from-red-900/20 to-rose-900/20 backdrop-blur-xl rounded-3xl border border-red-500/20 p-6">
+              <p className="text-gray-400 text-sm font-medium uppercase tracking-wider mb-2">Total Liabilities</p>
+              <div className="space-y-1 mb-3">
+                <p className="text-sm text-gray-500">{formatDate(selectedDate1)}</p>
+                <p className="text-lg font-bold text-white">{formatCurrency(comparisonMetrics.totalLiabilities.value1)}</p>
+              </div>
+              <div className="space-y-1 mb-3 pb-3 border-b border-gray-700/50">
+                <p className="text-sm text-gray-500">{formatDate(selectedDate2)}</p>
+                <p className="text-lg font-bold text-white">{formatCurrency(comparisonMetrics.totalLiabilities.value2)}</p>
+              </div>
+              <div>
+                <p className={`text-xl font-bold ${comparisonMetrics.totalLiabilities.delta <= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  {comparisonMetrics.totalLiabilities.delta >= 0 ? '+' : ''}{formatCurrency(comparisonMetrics.totalLiabilities.delta)}
+                </p>
+                <p className={`text-sm ${comparisonMetrics.totalLiabilities.delta <= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  {comparisonMetrics.totalLiabilities.percentChange >= 0 ? '+' : ''}{comparisonMetrics.totalLiabilities.percentChange.toFixed(2)}%
+                </p>
+              </div>
+            </div>
+
+            {/* Liquid Assets */}
+            <div className="bg-gradient-to-br from-emerald-900/20 to-green-900/20 backdrop-blur-xl rounded-3xl border border-emerald-500/20 p-6">
+              <p className="text-gray-400 text-sm font-medium uppercase tracking-wider mb-2">Liquid Assets</p>
+              <div className="space-y-1 mb-3">
+                <p className="text-sm text-gray-500">{formatDate(selectedDate1)}</p>
+                <p className="text-lg font-bold text-white">{formatCurrency(comparisonMetrics.liquidAssets.value1)}</p>
+              </div>
+              <div className="space-y-1 mb-3 pb-3 border-b border-gray-700/50">
+                <p className="text-sm text-gray-500">{formatDate(selectedDate2)}</p>
+                <p className="text-lg font-bold text-white">{formatCurrency(comparisonMetrics.liquidAssets.value2)}</p>
+              </div>
+              <div>
+                <p className={`text-xl font-bold ${comparisonMetrics.liquidAssets.delta >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  {comparisonMetrics.liquidAssets.delta >= 0 ? '+' : ''}{formatCurrency(comparisonMetrics.liquidAssets.delta)}
+                </p>
+                <p className={`text-sm ${comparisonMetrics.liquidAssets.percentChange >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  {comparisonMetrics.liquidAssets.percentChange >= 0 ? '+' : ''}{comparisonMetrics.liquidAssets.percentChange.toFixed(2)}%
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Chart Visualization */}
+          <div className="bg-gradient-to-br from-gray-800/60 to-gray-900/60 backdrop-blur-xl rounded-3xl border border-gray-700/50 p-6">
+            <div className="flex items-center gap-3 mb-6">
+              <TrendingUp className="w-6 h-6 text-indigo-400" />
+              <h3 className="text-lg font-bold text-white">Portfolio Trajectory</h3>
+            </div>
+            <div className="h-80">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={chartData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                  <XAxis
+                    dataKey="date"
+                    stroke="#9ca3af"
+                    tick={{ fill: '#9ca3af', fontSize: 12 }}
+                    tickFormatter={(date) => new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                  />
+                  <YAxis
+                    stroke="#9ca3af"
+                    tick={{ fill: '#9ca3af', fontSize: 12 }}
+                    tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: '#111827',
+                      border: '1px solid #374151',
+                      borderRadius: '12px',
+                      padding: '12px'
+                    }}
+                    formatter={(value) => formatCurrency(value)}
+                    labelFormatter={(date) => formatDate(date)}
+                  />
+                  <Legend />
+                  <ReferenceLine
+                    x={selectedDate1}
+                    stroke="#3b82f6"
+                    strokeDasharray="3 3"
+                    label={{ value: 'Start', fill: '#3b82f6', position: 'top' }}
+                  />
+                  <ReferenceLine
+                    x={selectedDate2}
+                    stroke="#8b5cf6"
+                    strokeDasharray="3 3"
+                    label={{ value: 'End', fill: '#8b5cf6', position: 'top' }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="netWorth"
+                    stroke="#10b981"
+                    strokeWidth={3}
+                    dot={false}
+                    name="Net Worth"
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="totalAssets"
+                    stroke="#6366f1"
+                    strokeWidth={2}
+                    dot={false}
+                    name="Total Assets"
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="liquidAssets"
+                    stroke="#8b5cf6"
+                    strokeWidth={2}
+                    dot={false}
+                    name="Liquid Assets"
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 };
