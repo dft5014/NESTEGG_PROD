@@ -258,7 +258,7 @@ const SearchableDropdown = ({ options, value, onChange, placeholder, showLogos =
                         if (onOpenChange) onOpenChange(true);
                     }}
                     placeholder={placeholder}
-                    className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg hover:border-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all duration-200 pr-10"
+                    className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg hover:border-gray-600 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all duration-200 pr-10 text-white placeholder-gray-400"
                     style={{ paddingLeft: selectedOption?.logo ? '2.5rem' : undefined }}
                 />
                 {selectedOption?.logo && (
@@ -278,7 +278,7 @@ const SearchableDropdown = ({ options, value, onChange, placeholder, showLogos =
                         setIsOpen(newState);
                         if (onOpenChange) onOpenChange(newState);
                     }}
-                    className="absolute right-0 top-0 bottom-0 px-3 flex items-center justify-center hover:bg-gray-50 rounded-r-lg transition-colors"
+                    className="absolute right-0 top-0 bottom-0 px-3 flex items-center justify-center hover:bg-gray-700 rounded-r-lg transition-colors"
                 >
                     <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
                 </button>
@@ -303,13 +303,13 @@ const SearchableDropdown = ({ options, value, onChange, placeholder, showLogos =
                     zIndex: 9999999,
                     pointerEvents: 'auto'
                 }}
-                className="bg-white border border-gray-200 rounded-lg shadow-xl animate-fadeIn"
+                className="bg-gray-900 border border-gray-700 rounded-lg shadow-xl animate-fadeIn"
                 onClick={(e) => e.stopPropagation()}
             >
             <div className="max-h-64 overflow-y-auto">
                 {filteredOptions.length === 0 ? (
                 <div className="p-4 text-center">
-                    <p className="text-sm text-gray-500 mb-2">No matching institutions found</p>
+                    <p className="text-sm text-gray-400 mb-2">No matching institutions found</p>
                     {inputValue && (
                     <button
                         type="button"
@@ -318,7 +318,7 @@ const SearchableDropdown = ({ options, value, onChange, placeholder, showLogos =
                         setIsOpen(false);
                         if (onOpenChange) onOpenChange(false);
                         }}
-                        className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                        className="text-sm text-emerald-400 hover:text-emerald-300 font-medium"
                     >
                         Use "{inputValue}" as custom institution
                     </button>
@@ -334,10 +334,10 @@ const SearchableDropdown = ({ options, value, onChange, placeholder, showLogos =
                         setIsOpen(false);
                         if (onOpenChange) onOpenChange(false);
                         }}
-                        className="w-full px-3 py-2 flex items-center bg-blue-50 hover:bg-blue-100 transition-colors border-b border-gray-100"
+                        className="w-full px-3 py-2 flex items-center bg-emerald-900/20 hover:bg-emerald-900/30 transition-colors border-b border-gray-700"
                     >
-                        <Plus className="w-4 h-4 mr-3 text-blue-600" />
-                        <span className="text-sm text-blue-700 font-medium">Use "{inputValue}" (custom)</span>
+                        <Plus className="w-4 h-4 mr-3 text-emerald-400" />
+                        <span className="text-sm text-emerald-300 font-medium">Use "{inputValue}" (custom)</span>
                     </button>
                     )}
                     {filteredOptions.map((option, idx) => (
@@ -352,9 +352,9 @@ const SearchableDropdown = ({ options, value, onChange, placeholder, showLogos =
                         setSearch('');
                         }}
                         onMouseEnter={() => setHighlightedIndex(idx)}
-                        className={`w-full px-3 py-2 flex items-center hover:bg-gray-50 transition-colors ${
-                        value === option.name ? 'bg-blue-50' : ''
-                        } ${highlightedIndex === idx ? 'bg-gray-100' : ''}`}
+                        className={`w-full px-3 py-2 flex items-center hover:bg-gray-800 transition-colors ${
+                        value === option.name ? 'bg-gray-700' : ''
+                        } ${highlightedIndex === idx ? 'bg-gray-800' : ''}`}
                     >
                         {showLogos && option.logo && (
                         <img 
@@ -366,17 +366,17 @@ const SearchableDropdown = ({ options, value, onChange, placeholder, showLogos =
                             }}
                         />
                         )}
-                        <span className="text-sm text-gray-900">{option.name}</span>
+                        <span className="text-sm text-white">{option.name}</span>
                         {value === option.name && (
-                        <Check className="w-4 h-4 text-blue-600 ml-auto" />
+                        <Check className="w-4 h-4 text-emerald-400 ml-auto" />
                         )}
                     </button>
                     ))}
                 </>
                 )}
             </div>
-            <div className="p-2 border-t border-gray-100 bg-gray-50">
-                <p className="text-xs text-gray-500 text-center">
+            <div className="p-2 border-t border-gray-700 bg-gray-800">
+                <p className="text-xs text-gray-400 text-center">
                 Type any custom institution name or select from the list
                 </p>
             </div>
@@ -394,19 +394,19 @@ function ModalShell({ isOpen, onClose, title, children }) {
   return (
     <div className="fixed inset-0 z-[9999]" aria-modal="true" role="dialog">
       {/* Backdrop (click to close) */}
-      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
 
       <div className="relative z-[10000] mx-auto my-6 w-full max-w-7xl">
-        <div className="rounded-2xl bg-white shadow-2xl overflow-hidden border border-zinc-200">
-          {/* Header: centered title, light theme only */}
-          <div className="sticky top-0 px-4 sm:px-6 py-3 border-b border-zinc-200 bg-white/95">
-            <h1 className="text-lg sm:text-xl font-bold text-zinc-900 text-center">
+        <div className="rounded-2xl bg-gray-950 shadow-2xl overflow-hidden border border-gray-800">
+          {/* Header: centered title, dark theme */}
+          <div className="sticky top-0 px-4 sm:px-6 py-4 border-b border-gray-800 bg-gray-950">
+            <h1 className="text-lg sm:text-xl font-bold text-white text-center">
               {title}
             </h1>
           </div>
 
           {/* Body */}
-          <div className="p-4 sm:p-6 max-h-[85vh] overflow-auto">
+          <div className="p-4 sm:p-6 max-h-[85vh] overflow-auto bg-gray-950">
             {children}
           </div>
         </div>
@@ -1229,47 +1229,47 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                         <Sparkles className="w-8 h-8 text-white animate-pulse" />
                     </div>
                 </div>
-                <h3 className="text-2xl font-bold text-gray-900 mb-2 mt-4">Quick Add to Your NestEgg Portfolio</h3>
-                <p className="text-gray-600 max-w-md mx-auto">
+                <h3 className="text-2xl font-bold text-white mb-2 mt-4">Quick Add to Your NestEgg Portfolio</h3>
+                <p className="text-gray-300 max-w-md mx-auto">
                     Build your complete financial picture in minutes
                 </p>
             </div>
 
             {/* Enhanced Account/Position/Liability Selection */}
-            <div className="bg-gradient-to-br from-gray-50 to-white rounded-2xl shadow-sm border border-gray-100 p-6">
+            <div className="bg-gradient-to-br from-gray-900/70 to-gray-800 rounded-2xl shadow-sm border border-gray-800 p-6">
                 <div className="grid md:grid-cols-2 gap-6">
                     {/* Left side - Action buttons */}
                     <div className="space-y-4">
-                        <h4 className="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-4">
+                        <h4 className="text-sm font-semibold text-gray-300 uppercase tracking-wider mb-4">
                             What would you like to add?
                         </h4>
                         
-                        <div 
-                            className="group relative bg-gradient-to-br from-blue-50 to-blue-100 p-4 rounded-xl cursor-pointer hover:shadow-lg transition-all duration-300 transform hover:-translate-y-0.5 border border-blue-100"
+                        <div
+                            className="group relative bg-gradient-to-br from-gray-800 to-gray-700 p-4 rounded-xl cursor-pointer hover:shadow-lg transition-all duration-300 transform hover:-translate-y-0.5 border border-gray-700"
                             onClick={() => setActiveTab('accounts')}
                         >
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center">
                                     <div className="relative">
-                                        <div className="absolute inset-0 bg-blue-600 rounded-lg opacity-0 group-hover:opacity-10 transition-opacity duration-300"></div>
-                                        <Building className="w-10 h-10 text-blue-600 relative z-10" />
+                                        <div className="absolute inset-0 bg-emerald-600 rounded-lg opacity-0 group-hover:opacity-10 transition-opacity duration-300"></div>
+                                        <Building className="w-10 h-10 text-emerald-400 relative z-10" />
                                     </div>
                                     <div className="ml-4">
-                                        <h5 className="font-semibold text-gray-900 group-hover:text-blue-700 transition-colors">
+                                        <h5 className="font-semibold text-white group-hover:text-emerald-400 transition-colors">
                                             Add Accounts
                                         </h5>
-                                        <p className="text-sm text-gray-600">Investment, retirement, cash accounts</p>
+                                        <p className="text-sm text-gray-300">Investment, retirement, cash accounts</p>
                                     </div>
                                 </div>
-                                <ChevronRight className="w-5 h-5 text-blue-600 transform group-hover:translate-x-1 transition-transform" />
+                                <ChevronRight className="w-5 h-5 text-emerald-400 transform group-hover:translate-x-1 transition-transform" />
                             </div>
                         </div>
 
-                        <div 
+                        <div
                             className={`group relative p-4 rounded-xl cursor-pointer transition-all duration-300 transform border ${
-                                existingAccounts.length === 0 
-                                    ? 'bg-gray-50 border-gray-200 opacity-60 cursor-not-allowed' 
-                                    : 'bg-gradient-to-br from-purple-50 to-purple-100 border-purple-100 hover:shadow-lg hover:-translate-y-0.5'
+                                existingAccounts.length === 0
+                                    ? 'bg-gray-800/50 border-gray-700 opacity-60 cursor-not-allowed'
+                                    : 'bg-gradient-to-br from-purple-900/30 to-purple-800/30 border-purple-800/50 hover:shadow-lg hover:-translate-y-0.5'
                             }`}
                             onClick={() => existingAccounts.length > 0 && setActiveTab('positions')}
                         >
@@ -1280,18 +1280,18 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                                             existingAccounts.length > 0 ? 'bg-purple-600 opacity-0 group-hover:opacity-10' : ''
                                         }`}></div>
                                         <FileSpreadsheet className={`w-10 h-10 relative z-10 ${
-                                            existingAccounts.length === 0 ? 'text-gray-400' : 'text-purple-600'
+                                            existingAccounts.length === 0 ? 'text-gray-400' : 'text-purple-400'
                                         }`} />
                                     </div>
                                     <div className="ml-4">
                                         <h5 className={`font-semibold transition-colors ${
-                                            existingAccounts.length === 0 
-                                                ? 'text-gray-500' 
-                                                : 'text-gray-900 group-hover:text-purple-700'
+                                            existingAccounts.length === 0
+                                                ? 'text-gray-400'
+                                                : 'text-white group-hover:text-purple-400'
                                         }`}>
                                             Add Asset Positions
                                         </h5>
-                                        <p className="text-sm text-gray-600">
+                                        <p className="text-sm text-gray-300">
                                             {existingAccounts.length === 0 
                                                 ? 'Add accounts first to enable positions' 
                                                 : 'Stocks, bonds, crypto, and more'}
@@ -1299,49 +1299,49 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                                     </div>
                                 </div>
                                 <ChevronRight className={`w-5 h-5 transform transition-transform ${
-                                    existingAccounts.length === 0 
-                                        ? 'text-gray-400' 
-                                        : 'text-purple-600 group-hover:translate-x-1'
+                                    existingAccounts.length === 0
+                                        ? 'text-gray-400'
+                                        : 'text-purple-400 group-hover:translate-x-1'
                                 }`} />
                             </div>
                         </div>
 
                     {/* New Liabilities Option */}
-                    <div 
-                        className="group relative bg-gradient-to-br from-red-50 to-red-100 p-4 rounded-xl cursor-pointer hover:shadow-lg transition-all duration-300 transform hover:-translate-y-0.5 border border-red-100"
+                    <div
+                        className="group relative bg-gradient-to-br from-rose-900/30 to-rose-800/30 p-4 rounded-xl cursor-pointer hover:shadow-lg transition-all duration-300 transform hover:-translate-y-0.5 border border-rose-800/50"
                         onClick={() => setActiveTab('liabilities')}
                     >
                         <div className="flex items-center justify-between">
                             <div className="flex items-center">
                                 <div className="relative">
-                                    <div className="absolute inset-0 bg-red-600 rounded-lg opacity-0 group-hover:opacity-10 transition-opacity duration-300"></div>
-                                    <CreditCard className="w-10 h-10 text-red-600 relative z-10" />
+                                    <div className="absolute inset-0 bg-rose-600 rounded-lg opacity-0 group-hover:opacity-10 transition-opacity duration-300"></div>
+                                    <CreditCard className="w-10 h-10 text-rose-400 relative z-10" />
                                 </div>
                                 <div className="ml-4">
-                                    <h5 className="font-semibold text-gray-900 group-hover:text-red-700 transition-colors">
+                                    <h5 className="font-semibold text-white group-hover:text-rose-400 transition-colors">
                                         Add Liabilities
                                     </h5>
-                                    <p className="text-sm text-gray-600">Mortgages, loans, credit cards</p>
-                                    <p className="text-xs text-gray-500 mt-0.5">No accounts required</p>
+                                    <p className="text-sm text-gray-300">Mortgages, loans, credit cards</p>
+                                    <p className="text-xs text-gray-400 mt-0.5">No accounts required</p>
                                 </div>
                             </div>
-                            <ChevronRight className="w-5 h-5 text-red-600 transform group-hover:translate-x-1 transition-transform" />
+                            <ChevronRight className="w-5 h-5 text-rose-400 transform group-hover:translate-x-1 transition-transform" />
                         </div>
                     </div>
                 </div>
 
                     {/* Right side - Account summary */}
-                    <div className="bg-gradient-to-br from-blue-50/50 to-purple-50/50 rounded-xl p-4 border border-gray-100">
+                    <div className="bg-gradient-to-br from-gray-800/50 to-gray-900/50 rounded-xl p-4 border border-gray-700">
                         <div className="flex items-center justify-between mb-4">
-                            <h4 className="text-sm font-semibold text-gray-700 uppercase tracking-wider">
+                            <h4 className="text-sm font-semibold text-gray-300 uppercase tracking-wider">
                                 Current NestEgg Portfolio
                             </h4>
                             <button
                                 onClick={() => fetchExistingAccounts()}
-                                className="p-1.5 hover:bg-white rounded-lg transition-colors group"
+                                className="p-1.5 hover:bg-gray-700 rounded-lg transition-colors group"
                                 disabled={isLoadingAccounts}
                             >
-                                <RefreshCw className={`w-4 h-4 text-gray-500 group-hover:text-gray-700 ${
+                                <RefreshCw className={`w-4 h-4 text-gray-400 group-hover:text-white ${
                                     isLoadingAccounts ? 'animate-spin' : ''
                                 }`} />
                             </button>
@@ -1349,28 +1349,28 @@ const QuickStartModal = ({ isOpen, onClose }) => {
 
                         {isLoadingAccounts ? (
                             <div className="flex items-center justify-center py-8">
-                                <Loader2 className="w-6 h-6 text-blue-600 animate-spin" />
+                                <Loader2 className="w-6 h-6 text-emerald-400 animate-spin" />
                             </div>
                         ) : existingAccounts.length === 0 ? (
                             <div className="text-center py-8">
-                                <div className="inline-flex items-center justify-center w-12 h-12 bg-gray-100 rounded-full mb-3">
+                                <div className="inline-flex items-center justify-center w-12 h-12 bg-gray-800 rounded-full mb-3">
                                     <Building className="w-6 h-6 text-gray-400" />
                                 </div>
-                                <p className="text-gray-500 text-sm">No accounts yet</p>
+                                <p className="text-gray-400 text-sm">No accounts yet</p>
                                 <p className="text-gray-400 text-xs mt-1">Start by adding your first account</p>
                             </div>
                         ) : (
                             <div>
                                 <div className="flex items-center justify-between mb-4">
                                     <div className="text-center">
-                                        <p className="text-3xl font-bold text-gray-900">
+                                        <p className="text-3xl font-bold text-white">
                                             <AnimatedNumber value={existingAccounts.length} />
                                         </p>
-                                        <p className="text-xs text-gray-600 font-medium">Total Accounts</p>
+                                        <p className="text-xs text-gray-300 font-medium">Total Accounts</p>
                                     </div>
                                     <button
                                         onClick={() => setShowAccountsDropdown(!showAccountsDropdown)}
-                                        className="flex items-center px-3 py-1.5 bg-white rounded-lg hover:bg-gray-50 transition-colors text-sm text-gray-700 border border-gray-200"
+                                        className="flex items-center px-3 py-1.5 bg-gray-800 rounded-lg hover:bg-gray-700 transition-colors text-sm text-gray-300 hover:text-white border border-gray-700"
                                     >
                                         <span>View Details</span>
                                         <ChevronDown className={`w-4 h-4 ml-1.5 transition-transform ${
@@ -1386,19 +1386,19 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                                             if (categoryAccounts.length === 0) return null;
                                             
                                             return (
-                                                <div key={category.id} className="bg-white rounded-lg p-3 border border-gray-100">
+                                                <div key={category.id} className="bg-gray-800 rounded-lg p-3 border border-gray-700">
                                                     <div className="flex items-center mb-2">
-                                                        <category.icon className="w-4 h-4 text-gray-600 mr-2" />
-                                                        <span className="text-sm font-medium text-gray-700">
+                                                        <category.icon className="w-4 h-4 text-gray-300 mr-2" />
+                                                        <span className="text-sm font-medium text-white">
                                                             {category.name}
                                                         </span>
-                                                        <span className="ml-auto text-xs text-gray-500">
+                                                        <span className="ml-auto text-xs text-gray-400">
                                                             {categoryAccounts.length}
                                                         </span>
                                                     </div>
                                                     <div className="space-y-1">
                                                         {categoryAccounts.map(account => (
-                                                            <div key={account.id} className="flex items-center justify-between text-xs text-gray-600 pl-6">
+                                                            <div key={account.id} className="flex items-center justify-between text-xs text-gray-300 pl-6">
                                                             <span className="truncate">
                                                                 {account.name || account.account_name || 'Unnamed Account'}
                                                             </span>
@@ -1422,30 +1422,30 @@ const QuickStartModal = ({ isOpen, onClose }) => {
             <div className="grid grid-cols-3 gap-4 pt-4">
                 <div className="text-center group">
                     <div className="relative inline-block">
-                        <div className="absolute inset-0 bg-green-500 rounded-full blur-lg opacity-0 group-hover:opacity-20 transition-opacity duration-300"></div>
-                        <div className="relative inline-flex items-center justify-center w-12 h-12 bg-green-100 rounded-full group-hover:scale-110 transition-transform">
-                            <Shield className="w-6 h-6 text-green-600" />
+                        <div className="absolute inset-0 bg-emerald-500 rounded-full blur-lg opacity-0 group-hover:opacity-20 transition-opacity duration-300"></div>
+                        <div className="relative inline-flex items-center justify-center w-12 h-12 bg-emerald-900/30 rounded-full group-hover:scale-110 transition-transform">
+                            <Shield className="w-6 h-6 text-emerald-400" />
                         </div>
                     </div>
-                    <p className="text-sm text-gray-600 mt-2">Secure & Private</p>
+                    <p className="text-sm text-gray-300 mt-2">Secure & Private</p>
                 </div>
                 <div className="text-center group">
                     <div className="relative inline-block">
                         <div className="absolute inset-0 bg-blue-500 rounded-full blur-lg opacity-0 group-hover:opacity-20 transition-opacity duration-300"></div>
-                        <div className="relative inline-flex items-center justify-center w-12 h-12 bg-blue-100 rounded-full group-hover:scale-110 transition-transform">
-                            <Clock className="w-6 h-6 text-blue-600" />
+                        <div className="relative inline-flex items-center justify-center w-12 h-12 bg-blue-900/30 rounded-full group-hover:scale-110 transition-transform">
+                            <Clock className="w-6 h-6 text-blue-400" />
                         </div>
                     </div>
-                    <p className="text-sm text-gray-600 mt-2">Quick Setup</p>
+                    <p className="text-sm text-gray-300 mt-2">Quick Setup</p>
                 </div>
                 <div className="text-center group">
                     <div className="relative inline-block">
                         <div className="absolute inset-0 bg-purple-500 rounded-full blur-lg opacity-0 group-hover:opacity-20 transition-opacity duration-300"></div>
-                        <div className="relative inline-flex items-center justify-center w-12 h-12 bg-purple-100 rounded-full group-hover:scale-110 transition-transform">
-                            <Users className="w-6 h-6 text-purple-600" />
+                        <div className="relative inline-flex items-center justify-center w-12 h-12 bg-purple-900/30 rounded-full group-hover:scale-110 transition-transform">
+                            <Users className="w-6 h-6 text-purple-400" />
                         </div>
                     </div>
-                    <p className="text-sm text-gray-600 mt-2">Your Data Only</p>
+                    <p className="text-sm text-gray-300 mt-2">Your Data Only</p>
                 </div>
             </div>
         </div>
@@ -1457,42 +1457,42 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                 <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full mb-4">
                     <Building className="w-8 h-8 text-white" />
                 </div>
-                <h3 className="text-2xl font-bold text-gray-900 mb-2">Add Accounts</h3>
-                <p className="text-gray-600 max-w-md mx-auto">
+                <h3 className="text-2xl font-bold text-white mb-2">Add Accounts</h3>
+                <p className="text-gray-300 max-w-md mx-auto">
                     Choose how you'd like to add your accounts to your NestEgg portfolio
                 </p>
             </div>
 
             <div className="grid md:grid-cols-12 gap-4">
-                <div 
-                    className="md:col-span-7 group relative bg-gradient-to-br from-indigo-50 to-indigo-100 p-6 rounded-xl cursor-pointer hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1"
+                <div
+                    className="md:col-span-7 group relative bg-gradient-to-br from-emerald-900/30 to-emerald-800/30 p-6 rounded-xl cursor-pointer hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 border border-emerald-800/50"
                     onClick={() => setImportMethod('ui')}
                 >
-                    <div className="absolute inset-0 bg-gradient-to-br from-indigo-600 to-indigo-700 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                    <div className="absolute inset-0 bg-gradient-to-br from-emerald-600 to-emerald-700 rounded-xl opacity-0 group-hover:opacity-10 transition-opacity duration-300"></div>
                     <div className="relative z-10">
-                        <div className="flex items-center justify-center w-12 h-12 bg-indigo-200 rounded-full mb-4 group-hover:bg-white/20 transition-colors">
-                            <ListPlus className="w-6 h-6 text-indigo-700 group-hover:text-white" />
+                        <div className="flex items-center justify-center w-12 h-12 bg-emerald-900/50 rounded-full mb-4 group-hover:bg-emerald-800 transition-colors">
+                            <ListPlus className="w-6 h-6 text-emerald-400 group-hover:text-emerald-300" />
                         </div>
-                        <div className="inline-flex items-center px-2 py-1 bg-green-100 text-green-700 text-xs font-semibold rounded-full mb-3 group-hover:bg-white/20 group-hover:text-white transition-colors">
+                        <div className="inline-flex items-center px-2 py-1 bg-emerald-900/40 text-emerald-300 text-xs font-semibold rounded-full mb-3 border border-emerald-700">
                             <Star className="w-3 h-3 mr-1" />
                             Recommended
                         </div>
-                        <h4 className="text-xl font-semibold text-gray-900 group-hover:text-white mb-2 transition-colors">
+                        <h4 className="text-xl font-semibold text-white group-hover:text-emerald-300 mb-2 transition-colors">
                             Quick Add UI
                         </h4>
-                        <p className="text-gray-700 group-hover:text-indigo-100 text-sm transition-colors mb-4">
+                        <p className="text-gray-300 group-hover:text-emerald-100 text-sm transition-colors mb-4">
                             Add accounts directly in the browser with our intuitive form
                         </p>
                         <div className="space-y-2">
-                            <div className="flex items-center text-indigo-600 group-hover:text-indigo-100 text-sm transition-colors">
+                            <div className="flex items-center text-emerald-400 group-hover:text-emerald-200 text-sm transition-colors">
                                 <Zap className="w-4 h-4 mr-2" />
                                 <span>Fastest method</span>
                             </div>
-                            <div className="flex items-center text-indigo-600 group-hover:text-indigo-100 text-sm transition-colors">
+                            <div className="flex items-center text-emerald-400 group-hover:text-emerald-200 text-sm transition-colors">
                                 <MousePointer className="w-4 h-4 mr-2" />
                                 <span>No file downloads needed</span>
                             </div>
-                            <div className="flex items-center text-indigo-600 group-hover:text-indigo-100 text-sm transition-colors">
+                            <div className="flex items-center text-emerald-400 group-hover:text-emerald-200 text-sm transition-colors">
                                 <Keyboard className="w-4 h-4 mr-2" />
                                 <span>Keyboard shortcuts supported</span>
                             </div>
@@ -1500,8 +1500,8 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                     </div>
                 </div>
 
-                <div 
-                    className="md:col-span-5 group relative bg-gradient-to-br from-green-50 to-green-100 p-6 rounded-xl cursor-pointer hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1"
+                <div
+                    className="md:col-span-5 group relative bg-gradient-to-br from-blue-900/30 to-blue-800/30 p-6 rounded-xl cursor-pointer hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 border border-blue-800/50"
                     onClick={() => setImportMethod('excel')}
                 >
 
@@ -1518,33 +1518,33 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                     setUploadProgress(0);
                     setUploadedFile(null);
                     }}
-                    className="text-sm font-medium text-green-700 hover:text-green-800 underline"
+                    className="text-sm font-medium text-emerald-400 hover:text-emerald-300 underline"
                 >
                     I already have a filled template — Upload now
                 </button>
                 </div>
 
-                    <div className="absolute inset-0 bg-gradient-to-br from-green-600 to-green-700 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                    <div className="absolute inset-0 bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl opacity-0 group-hover:opacity-10 transition-opacity duration-300"></div>
                     <div className="relative z-10">
-                        <div className="flex items-center justify-center w-12 h-12 bg-green-200 rounded-full mb-4 group-hover:bg-white/20 transition-colors">
-                            <Table className="w-6 h-6 text-green-700 group-hover:text-white" />
+                        <div className="flex items-center justify-center w-12 h-12 bg-blue-900/50 rounded-full mb-4 group-hover:bg-blue-800 transition-colors">
+                            <Table className="w-6 h-6 text-blue-400 group-hover:text-blue-300" />
                         </div>
-                        <h4 className="text-xl font-semibold text-gray-900 group-hover:text-white mb-2 transition-colors">
+                        <h4 className="text-xl font-semibold text-white group-hover:text-blue-300 mb-2 transition-colors">
                             Excel Import
                         </h4>
-                        <p className="text-gray-700 group-hover:text-green-100 text-sm transition-colors mb-4">
+                        <p className="text-gray-300 group-hover:text-blue-100 text-sm transition-colors mb-4">
                             Download a template and upload your completed spreadsheet
                         </p>
                         <div className="space-y-2">
-                            <div className="flex items-center text-green-600 group-hover:text-green-100 text-sm transition-colors">
+                            <div className="flex items-center text-blue-400 group-hover:text-blue-200 text-sm transition-colors">
                                 <FileSpreadsheet className="w-4 h-4 mr-2" />
                                 <span>Work offline</span>
                             </div>
-                            <div className="flex items-center text-green-600 group-hover:text-green-100 text-sm transition-colors">
+                            <div className="flex items-center text-blue-400 group-hover:text-blue-200 text-sm transition-colors">
                                 <Import className="w-4 h-4 mr-2" />
                                 <span>Bulk import many accounts</span>
                             </div>
-                            <div className="flex items-center text-green-600 group-hover:text-green-100 text-sm transition-colors">
+                            <div className="flex items-center text-blue-400 group-hover:text-blue-200 text-sm transition-colors">
                                 <Copy className="w-4 h-4 mr-2" />
                                 <span>Copy/paste from existing data</span>
                             </div>
@@ -1553,10 +1553,10 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                 </div>
             </div>
 
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div className="bg-blue-900/20 border border-blue-800/50 rounded-lg p-4">
                 <div className="flex items-center">
-                    <Star className="w-5 h-5 text-blue-600 mr-3 flex-shrink-0" />
-                    <p className="text-sm text-blue-900">
+                    <Star className="w-5 h-5 text-blue-400 mr-3 flex-shrink-0" />
+                    <p className="text-sm text-blue-200">
                         <span className="font-medium">Pro tip:</span> Use the Quick Add UI for a few accounts, or Excel Import for 10+ accounts
                     </p>
                 </div>
@@ -1570,42 +1570,42 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                 <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-purple-500 to-purple-600 rounded-full mb-4">
                     <FileSpreadsheet className="w-8 h-8 text-white" />
                 </div>
-                <h3 className="text-2xl font-bold text-gray-900 mb-2">Add Positions</h3>
-                <p className="text-gray-600 max-w-md mx-auto">
+                <h3 className="text-2xl font-bold text-white mb-2">Add Positions</h3>
+                <p className="text-gray-300 max-w-md mx-auto">
                     Choose how you'd like to add your positions
                 </p>
             </div>
 
             <div className="grid md:grid-cols-12 gap-4">
-                <div 
-                    className="md:col-span-7 group relative bg-gradient-to-br from-purple-50 to-purple-100 p-6 rounded-xl cursor-pointer hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1"
+                <div
+                    className="md:col-span-7 group relative bg-gradient-to-br from-purple-900/30 to-purple-800/30 p-6 rounded-xl cursor-pointer hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 border border-purple-800/50"
                     onClick={() => setImportMethod('ui')}
                 >
-                    <div className="absolute inset-0 bg-gradient-to-br from-purple-600 to-purple-700 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                    <div className="absolute inset-0 bg-gradient-to-br from-purple-600 to-purple-700 rounded-xl opacity-0 group-hover:opacity-10 transition-opacity duration-300"></div>
                     <div className="relative z-10">
-                        <div className="flex items-center justify-center w-12 h-12 bg-purple-200 rounded-full mb-4 group-hover:bg-white/20 transition-colors">
-                            <ListPlus className="w-6 h-6 text-purple-700 group-hover:text-white" />
+                        <div className="flex items-center justify-center w-12 h-12 bg-purple-900/50 rounded-full mb-4 group-hover:bg-purple-800 transition-colors">
+                            <ListPlus className="w-6 h-6 text-purple-400 group-hover:text-purple-300" />
                         </div>
-                        <div className="inline-flex items-center px-2 py-1 bg-green-100 text-green-700 text-xs font-semibold rounded-full mb-3 group-hover:bg-white/20 group-hover:text-white transition-colors">
+                        <div className="inline-flex items-center px-2 py-1 bg-emerald-900/40 text-emerald-300 text-xs font-semibold rounded-full mb-3 border border-emerald-700">
                             <Star className="w-3 h-3 mr-1" />
                             Recommended
                         </div>
-                        <h4 className="text-xl font-semibold text-gray-900 group-hover:text-white mb-2 transition-colors">
+                        <h4 className="text-xl font-semibold text-white group-hover:text-purple-300 mb-2 transition-colors">
                             Quick Add Positions
                         </h4>
-                        <p className="text-gray-700 group-hover:text-purple-100 text-sm transition-colors mb-4">
+                        <p className="text-gray-300 group-hover:text-purple-100 text-sm transition-colors mb-4">
                             Add multiple positions across different asset types quickly
                         </p>
                         <div className="space-y-2">
-                            <div className="flex items-center text-purple-600 group-hover:text-purple-100 text-sm transition-colors">
+                            <div className="flex items-center text-purple-400 group-hover:text-purple-200 text-sm transition-colors">
                                 <Zap className="w-4 h-4 mr-2" />
                                 <span>Add 50+ positions rapidly</span>
                             </div>
-                            <div className="flex items-center text-purple-600 group-hover:text-purple-100 text-sm transition-colors">
+                            <div className="flex items-center text-purple-400 group-hover:text-purple-200 text-sm transition-colors">
                                 <Hash className="w-4 h-4 mr-2" />
                                 <span>Mix asset types (stocks, crypto, etc.)</span>
                             </div>
-                            <div className="flex items-center text-purple-600 group-hover:text-purple-100 text-sm transition-colors">
+                            <div className="flex items-center text-purple-400 group-hover:text-purple-200 text-sm transition-colors">
                                 <BarChart3 className="w-4 h-4 mr-2" />
                                 <span>See queue statistics in real-time</span>
                             </div>
@@ -1613,31 +1613,31 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                     </div>
                 </div>
 
-                    <div 
-                        className="md:col-span-5 group relative bg-gradient-to-br from-green-50 to-green-100 p-6 rounded-xl cursor-pointer hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1"
+                    <div
+                        className="md:col-span-5 group relative bg-gradient-to-br from-emerald-900/30 to-emerald-800/30 p-6 rounded-xl cursor-pointer hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 border border-emerald-800/50"
                         onClick={() => setImportMethod('excel')}
                     >
-                    <div className="absolute inset-0 bg-gradient-to-br from-green-600 to-green-700 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                    <div className="absolute inset-0 bg-gradient-to-br from-emerald-600 to-emerald-700 rounded-xl opacity-0 group-hover:opacity-10 transition-opacity duration-300"></div>
                     <div className="relative z-10">
-                        <div className="flex items-center justify-center w-12 h-12 bg-green-200 rounded-full mb-4 group-hover:bg-white/20 transition-colors">
-                            <Table className="w-6 h-6 text-green-700 group-hover:text-white" />
+                        <div className="flex items-center justify-center w-12 h-12 bg-emerald-900/50 rounded-full mb-4 group-hover:bg-emerald-800 transition-colors">
+                            <Table className="w-6 h-6 text-emerald-400 group-hover:text-emerald-300" />
                         </div>
-                        <h4 className="text-xl font-semibold text-gray-900 group-hover:text-white mb-2 transition-colors">
+                        <h4 className="text-xl font-semibold text-white group-hover:text-emerald-300 mb-2 transition-colors">
                             Excel Import
                         </h4>
-                        <p className="text-gray-700 group-hover:text-green-100 text-sm transition-colors mb-4">
+                        <p className="text-gray-300 group-hover:text-emerald-100 text-sm transition-colors mb-4">
                             Download a template and upload your completed spreadsheet
                         </p>
                         <div className="space-y-2">
-                            <div className="flex items-center text-green-600 group-hover:text-green-100 text-sm transition-colors">
+                            <div className="flex items-center text-emerald-400 group-hover:text-emerald-200 text-sm transition-colors">
                                 <FileSpreadsheet className="w-4 h-4 mr-2" />
                                 <span>Work offline in Excel</span>
                             </div>
-                            <div className="flex items-center text-green-600 group-hover:text-green-100 text-sm transition-colors">
+                            <div className="flex items-center text-emerald-400 group-hover:text-emerald-200 text-sm transition-colors">
                                 <Import className="w-4 h-4 mr-2" />
                                 <span>Import from existing spreadsheets</span>
                             </div>
-                            <div className="flex items-center text-green-600 group-hover:text-green-100 text-sm transition-colors">
+                            <div className="flex items-center text-emerald-400 group-hover:text-emerald-200 text-sm transition-colors">
                                 <Copy className="w-4 h-4 mr-2" />
                                 <span>Copy/paste from brokers</span>
                             </div>
@@ -1646,10 +1646,10 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                 </div>
             </div>
 
-            <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+            <div className="bg-purple-900/20 border border-purple-800/50 rounded-lg p-4">
                 <div className="flex items-center">
-                    <Star className="w-5 h-5 text-purple-600 mr-3 flex-shrink-0" />
-                    <p className="text-sm text-purple-900">
+                    <Star className="w-5 h-5 text-purple-400 mr-3 flex-shrink-0" />
+                    <p className="text-sm text-purple-200">
                         <span className="font-medium">Pro tip:</span> Use Quick Add for diverse portfolios, Excel for single-broker imports
                     </p>
                 </div>
@@ -1707,50 +1707,50 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                 <div className="inline-flex items-center justify-center w-14 h-14 bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 rounded-2xl mb-3 shadow-2xl shadow-purple-600/30">
                     <ListPlus className="w-7 h-7 text-white" />
                 </div>
-                <h3 className="text-2xl font-bold text-gray-900 mb-1">Quick Add Accounts</h3>
-                <p className="text-gray-600">Build your investment portfolio</p>
+                <h3 className="text-2xl font-bold text-white mb-1">Quick Add Accounts</h3>
+                <p className="text-gray-300">Build your investment portfolio</p>
             </div>
 
             {/* Compact Stats Bar */}
             <div className="relative bg-gradient-to-r from-indigo-50/50 via-purple-50/50 to-pink-50/50 rounded-xl p-3 shadow-sm border border-white/80 backdrop-blur-sm">
                 <div className="grid grid-cols-4 gap-3">
                     <div className="text-center">
-                        <div className="inline-flex items-center justify-center w-10 h-10 bg-white rounded-lg shadow-sm mb-1">
+                        <div className="inline-flex items-center justify-center w-10 h-10 bg-gray-800 rounded-lg shadow-sm mb-1">
                             <p className="text-xl font-black bg-gradient-to-r from-indigo-600 to-indigo-700 bg-clip-text text-transparent">
                                 <AnimatedNumber value={accounts.length} />
                             </p>
                         </div>
-                        <p className="text-xs font-medium text-gray-600">Total</p>
+                        <p className="text-xs font-medium text-gray-300">Total</p>
                     </div>
                     <div className="text-center">
-                        <div className="inline-flex items-center justify-center w-10 h-10 bg-white rounded-lg shadow-sm mb-1">
+                        <div className="inline-flex items-center justify-center w-10 h-10 bg-gray-800 rounded-lg shadow-sm mb-1">
                             <p className="text-xl font-black bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
                                 <AnimatedNumber value={validAccounts.length} />
                             </p>
                         </div>
-                        <p className="text-xs font-medium text-gray-600">Ready</p>
+                        <p className="text-xs font-medium text-gray-300">Ready</p>
                     </div>
                     <div className="text-center">
-                        <div className="inline-flex items-center justify-center w-10 h-10 bg-white rounded-lg shadow-sm mb-1">
+                        <div className="inline-flex items-center justify-center w-10 h-10 bg-gray-800 rounded-lg shadow-sm mb-1">
                             <p className="text-xl font-black bg-gradient-to-r from-purple-600 to-purple-700 bg-clip-text text-transparent">
                                 <AnimatedNumber value={new Set(accounts.map(a => a.institution).filter(Boolean)).size} />
                             </p>
                         </div>
-                        <p className="text-xs font-medium text-gray-600">Institutions</p>
+                        <p className="text-xs font-medium text-gray-300">Institutions</p>
                     </div>
                     <div className="text-center">
-                        <div className="inline-flex items-center justify-center w-10 h-10 bg-white rounded-lg shadow-sm mb-1">
+                        <div className="inline-flex items-center justify-center w-10 h-10 bg-gray-800 rounded-lg shadow-sm mb-1">
                             <p className="text-xl font-black bg-gradient-to-r from-amber-600 to-orange-600 bg-clip-text text-transparent">
                                 <AnimatedNumber value={new Set(accounts.map(a => a.accountCategory).filter(Boolean)).size} />
                             </p>
                         </div>
-                        <p className="text-xs font-medium text-gray-600">Categories</p>
+                        <p className="text-xs font-medium text-gray-300">Categories</p>
                     </div>
                 </div>
             </div>
 
             {/* Action Buttons Row - Moved to top */}
-            <div className="flex items-center justify-between gap-3 bg-gradient-to-r from-gray-50 to-white p-3 rounded-xl border border-gray-100">
+            <div className="flex items-center justify-between gap-3 bg-gradient-to-r from-gray-50 to-white p-3 rounded-xl border border-gray-700">
                 <button
                     onClick={addNewAccount}
                     className="group relative flex-1 flex items-center justify-center px-4 py-2.5 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-lg hover:from-indigo-600 hover:to-purple-700 transition-all duration-300 transform hover:scale-[1.02] hover:shadow-lg"
@@ -1789,35 +1789,35 @@ const QuickStartModal = ({ isOpen, onClose }) => {
             </div>
 
             {/* Compact Table Section */}
-            <div className="bg-white rounded-xl shadow-lg border border-gray-100">
+            <div className="bg-gray-800 rounded-xl shadow-lg border border-gray-700">
                 {/* Compact Table Header */}
-                <div className="bg-gradient-to-r from-gray-50 to-gray-100/50 px-6 py-3 border-b border-gray-200">
-                    <div className="grid grid-cols-12 gap-4 text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                <div className="bg-gradient-to-r from-gray-50 to-gray-100/50 px-6 py-3 border-b border-gray-700">
+                    <div className="grid grid-cols-12 gap-4 text-xs font-semibold text-gray-300 uppercase tracking-wider">
                         <div className="col-span-3 flex items-center">
                             <button 
                                 onClick={() => handleSort('accountName')}
-                                className="flex items-center hover:text-indigo-600 transition-colors group"
+                                className="flex items-center hover:text-emerald-400 transition-colors group"
                             >
                                 <span>Account Name</span>
-                                <ArrowUpDown className="w-3 h-3 ml-1.5 text-gray-400 group-hover:text-indigo-600" />
+                                <ArrowUpDown className="w-3 h-3 ml-1.5 text-gray-400 group-hover:text-emerald-400" />
                             </button>
                         </div>
                         <div className="col-span-3 flex items-center">
                             <button 
                                 onClick={() => handleSort('institution')}
-                                className="flex items-center hover:text-indigo-600 transition-colors group"
+                                className="flex items-center hover:text-emerald-400 transition-colors group"
                             >
                                 <span>Institution</span>
-                                <ArrowUpDown className="w-3 h-3 ml-1.5 text-gray-400 group-hover:text-indigo-600" />
+                                <ArrowUpDown className="w-3 h-3 ml-1.5 text-gray-400 group-hover:text-emerald-400" />
                             </button>
                         </div>
                         <div className="col-span-3 flex items-center">
                             <button 
                                 onClick={() => handleSort('accountCategory')}
-                                className="flex items-center hover:text-indigo-600 transition-colors group"
+                                className="flex items-center hover:text-emerald-400 transition-colors group"
                             >
                                 <span>Category</span>
-                                <ArrowUpDown className="w-3 h-3 ml-1.5 text-gray-400 group-hover:text-indigo-600" />
+                                <ArrowUpDown className="w-3 h-3 ml-1.5 text-gray-400 group-hover:text-emerald-400" />
                             </button>
                         </div>
                         <div className="col-span-2">Type</div>
@@ -1829,10 +1829,10 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                 <div className="p-3 space-y-2 bg-gradient-to-b from-gray-50/30 to-white relative overflow-visible" style={{ minHeight: '200px' }}>
                     {sortedAccounts.length === 0 ? (
                         <div className="text-center py-12">
-                            <div className="inline-flex items-center justify-center w-16 h-16 bg-gray-100 rounded-full mb-3">
+                            <div className="inline-flex items-center justify-center w-16 h-16 bg-gray-800 rounded-full mb-3">
                                 <Building className="w-8 h-8 text-gray-400" />
                             </div>
-                            <p className="text-gray-500 text-sm">Click "Add Another Account" to get started</p>
+                            <p className="text-gray-400 text-sm">Click "Add Another Account" to get started</p>
                         </div>
                     ) : (
                         sortedAccounts.map((account, index) => {
@@ -1844,9 +1844,9 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                             return (
                                 <div 
                                     key={account.tempId}
-                                    className={`group relative bg-white rounded-lg border-2 transition-all duration-300 transform hover:scale-[1.01] hover:shadow-lg ${
+                                    className={`group relative bg-gray-800 rounded-lg border-2 transition-all duration-300 transform hover:scale-[1.01] hover:shadow-lg ${
                                         account.isNew ? 'border-indigo-400 shadow-md shadow-indigo-200/50 slide-in-animation ring-2 ring-indigo-400/20' : 
-                                        isValid ? 'border-green-300 hover:border-green-400' : 'border-gray-200 hover:border-gray-300'
+                                        isValid ? 'border-green-300 hover:border-green-400' : 'border-gray-700 hover:border-gray-700'
                                     }`}
                                     style={{ 
                                         zIndex: sortedAccounts.length - index,
@@ -1868,7 +1868,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                                                     }
                                                 }}
                                                 placeholder="My Retirement Account..."
-                                                className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-md text-sm focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all placeholder-gray-400"
+                                                className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md text-sm focus:bg-gray-800 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all placeholder-gray-400"
                                             />
                                         </div>
                                             <div className="col-span-3 relative">
@@ -1885,7 +1885,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                                                }}
                                            />
                                            {account.institution && !popularBrokerages.find(b => b.name === account.institution) && (
-                                               <div className="absolute -bottom-5 left-0 text-[10px] text-indigo-600 flex items-center bg-indigo-50 px-1.5 py-0.5 rounded-full">
+                                               <div className="absolute -bottom-5 left-0 text-[10px] text-emerald-400 flex items-center bg-emerald-900/20 px-1.5 py-0.5 rounded-full">
                                                    <Sparkles className="w-2.5 h-2.5 mr-0.5" />
                                                    Custom
                                                </div>
@@ -1901,7 +1901,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                                                        addNewAccount();
                                                    }
                                                }}
-                                               className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-md text-sm focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all cursor-pointer"
+                                               className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md text-sm focus:bg-gray-800 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all cursor-pointer"
                                            >
                                                <option value="">Select category...</option>
                                                {ACCOUNT_CATEGORIES.map(cat => (
@@ -1921,7 +1921,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                                                        addNewAccount();
                                                    }
                                                }}
-                                               className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-md text-sm focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                                               className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md text-sm focus:bg-gray-800 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                                                disabled={!account.accountCategory}
                                            >
                                                <option value="">
@@ -1937,14 +1937,14 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                                        <div className="col-span-1 flex items-center justify-center space-x-1">
                                            <button
                                                onClick={() => duplicateAccount(account)}
-                                               className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-all transform hover:scale-110"
+                                               className="p-1.5 text-gray-400 hover:text-emerald-400 hover:bg-emerald-900/20 rounded-md transition-all transform hover:scale-110"
                                                title="Duplicate"
                                            >
                                                <Copy className="w-4 h-4" />
                                            </button>
                                            <button
                                                onClick={() => deleteAccount(account.tempId)}
-                                               className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-all transform hover:scale-110"
+                                               className="p-1.5 text-gray-400 hover:text-rose-400 hover:bg-red-50 rounded-md transition-all transform hover:scale-110"
                                                title="Delete"
                                            >
                                                <Trash2 className="w-4 h-4" />
@@ -1962,7 +1962,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                                    {selectedCategory && (
                                        <div className="absolute -right-2 -top-2 opacity-0 group-hover:opacity-100 transition-all duration-300 transform group-hover:scale-110">
                                            <div className="w-8 h-8 rounded-lg border border-white shadow-lg bg-gradient-to-br from-white to-gray-50 flex items-center justify-center">
-                                               <selectedCategory.icon className="w-4 h-4 text-gray-700" />
+                                               <selectedCategory.icon className="w-4 h-4 text-gray-300" />
                                            </div>
                                        </div>
                                    )}
@@ -1985,10 +1985,10 @@ const QuickStartModal = ({ isOpen, onClose }) => {
            {/* Compact Keyboard shortcuts */}
            <div className="bg-gradient-to-r from-indigo-50/50 to-purple-50/50 rounded-lg p-3 border border-indigo-100/50 flex items-center justify-between">
                <div className="flex items-center">
-                   <Keyboard className="w-4 h-4 text-indigo-600 mr-2" />
-                   <p className="text-xs text-gray-700">
-                       Press <kbd className="px-2 py-0.5 bg-white border border-gray-300 rounded text-xs mx-1 shadow-sm font-mono">Enter</kbd> to add another • 
-                       <kbd className="px-2 py-0.5 bg-white border border-gray-300 rounded text-xs mx-1 shadow-sm font-mono">Tab</kbd> to navigate
+                   <Keyboard className="w-4 h-4 text-emerald-400 mr-2" />
+                   <p className="text-xs text-gray-300">
+                       Press <kbd className="px-2 py-0.5 bg-gray-800 border border-gray-700 rounded text-xs mx-1 shadow-sm font-mono">Enter</kbd> to add another • 
+                       <kbd className="px-2 py-0.5 bg-gray-800 border border-gray-700 rounded text-xs mx-1 shadow-sm font-mono">Tab</kbd> to navigate
                    </p>
                </div>
            </div>
@@ -2031,13 +2031,13 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                         <CheckCircle className="w-10 h-10 text-white" />
                     </div>
                     <div className="absolute inset-0 flex items-center justify-center">
-                        <div className="w-32 h-32 bg-green-500 rounded-full animate-ping opacity-20" />
+                        <div className="w-32 h-32 bg-emerald-900/200 rounded-full animate-ping opacity-20" />
                     </div>
                 </div>
                 
                 <div>
-                    <h3 className="text-2xl font-bold text-gray-900 mb-2">Success!</h3>
-                    <p className="text-gray-600">
+                    <h3 className="text-2xl font-bold text-white mb-2">Success!</h3>
+                    <p className="text-gray-300">
                         {isLiabilities ? 
                             `Successfully added ${importedLiabilities} ${importedLiabilities === 1 ? 'liability' : 'liabilities'}!` :
                             isPositions ? 
@@ -2049,37 +2049,37 @@ const QuickStartModal = ({ isOpen, onClose }) => {
 
                 {/* Success Summary Dashboard - Added Liabilities section */}
                 {isLiabilities && importedLiabilitiesData && importedLiabilitiesData.length > 0 ? (
-                    <div className="bg-gradient-to-br from-red-50 to-orange-50 rounded-xl p-6 max-w-2xl mx-auto border border-red-200">
-                        <h4 className="font-semibold text-gray-900 mb-4 flex items-center justify-center">
-                            <CreditCard className="w-5 h-5 mr-2 text-red-600" />
+                    <div className="bg-gradient-to-br from-rose-900/20 to-orange-900/20 rounded-xl p-6 max-w-2xl mx-auto border border-rose-800/50">
+                        <h4 className="font-semibold text-white mb-4 flex items-center justify-center">
+                            <CreditCard className="w-5 h-5 mr-2 text-rose-400" />
                             Liabilities Import Summary
                         </h4>
                         
                         {/* Stats Grid for Liabilities */}
                         <div className="grid grid-cols-4 gap-4 mb-6">
-                            <div className="bg-white rounded-lg p-3 text-center">
-                                <p className="text-2xl font-bold text-red-600">
+                            <div className="bg-gray-800 rounded-lg p-3 text-center">
+                                <p className="text-2xl font-bold text-rose-400">
                                     <AnimatedNumber value={importedLiabilities} />
                                 </p>
-                                <p className="text-xs text-gray-600">Total Added</p>
+                                <p className="text-xs text-gray-300">Total Added</p>
                             </div>
-                                <div className="bg-white rounded-lg p-3 text-center">
-                                    <p className="text-2xl font-bold text-orange-600">
+                                <div className="bg-gray-800 rounded-lg p-3 text-center">
+                                    <p className="text-2xl font-bold text-orange-400">
                                         ${(() => {
                                             const total = importedLiabilitiesData.reduce((sum, l) => sum + (parseFloat(l.current_balance) || 0), 0);
                                             return total >= 1000 ? `${(total / 1000).toFixed(1)}k` : total.toFixed(0);
                                         })()}
                                     </p>
-                                    <p className="text-xs text-gray-600">Total Debt</p>
+                                    <p className="text-xs text-gray-300">Total Debt</p>
                                 </div>
-                            <div className="bg-white rounded-lg p-3 text-center">
-                                <p className="text-2xl font-bold text-purple-600">
+                            <div className="bg-gray-800 rounded-lg p-3 text-center">
+                                <p className="text-2xl font-bold text-purple-400">
                                     {importedLiabilitiesData.filter(l => l.liability_type === 'credit_card').length}
                                 </p>
-                                <p className="text-xs text-gray-600">Credit Cards</p>
+                                <p className="text-xs text-gray-300">Credit Cards</p>
                             </div>
-                            <div className="bg-white rounded-lg p-3 text-center">
-                                <p className="text-2xl font-bold text-green-600">
+                            <div className="bg-gray-800 rounded-lg p-3 text-center">
+                                <p className="text-2xl font-bold text-emerald-400">
                                     {(() => {
                                         const validRates = importedLiabilitiesData.filter(l => l.interest_rate).map(l => parseFloat(l.interest_rate));
                                         if (validRates.length === 0) return '0.0';
@@ -2087,7 +2087,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                                         return avgRate.toFixed(1);
                                     })()}%
                                 </p>
-                                <p className="text-xs text-gray-600">Avg Rate</p>
+                                <p className="text-xs text-gray-300">Avg Rate</p>
                             </div>
                         </div>
 
@@ -2109,16 +2109,16 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                                 return (
                                     <div 
                                         key={index} 
-                                        className="flex items-center justify-between bg-white rounded-lg p-3 border border-gray-100 hover:shadow-sm transition-shadow"
+                                        className="flex items-center justify-between bg-gray-800 rounded-lg p-3 border border-gray-700 hover:shadow-sm transition-shadow"
                                         style={{ animationDelay: `${index * 50}ms` }}
                                     >
                                         <div className="flex items-center flex-1">
                                             <LiabilityIcon className={`w-4 h-4 text-${config.color}-600 mr-3 flex-shrink-0`} />
                                             <div className="flex-1 min-w-0">
-                                                <p className="font-medium text-gray-900 text-sm truncate">
+                                                <p className="font-medium text-white text-sm truncate">
                                                     {liability.name || 'Unnamed Liability'}
                                                 </p>
-                                                <p className="text-xs text-gray-500">
+                                                <p className="text-xs text-gray-400">
                                                     {liability.institution_name || 'Unknown Institution'} • 
                                                     ${(liability.current_balance || 0).toLocaleString()} 
                                                     {liability.interest_rate ? ` @ ${liability.interest_rate}%` : ''}
@@ -2130,7 +2130,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                                 );
                             })}
                             {importedLiabilitiesData.length > 10 && (
-                                <p className="text-xs text-gray-500 text-center py-2">
+                                <p className="text-xs text-gray-400 text-center py-2">
                                     ... and {importedLiabilitiesData.length - 10} more liabilities
                                 </p>
                             )}
@@ -2141,40 +2141,40 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                 {/* Keep existing positions section */}
                 {isPositions && importedPositionsData && importedPositionsData.length > 0 ? (
                     <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-6 max-w-2xl mx-auto border border-purple-200">
-                        <h4 className="font-semibold text-gray-900 mb-4 flex items-center justify-center">
-                            <Activity className="w-5 h-5 mr-2 text-purple-600" />
+                        <h4 className="font-semibold text-white mb-4 flex items-center justify-center">
+                            <Activity className="w-5 h-5 mr-2 text-purple-400" />
                             Positions Import Summary
                         </h4>
                         
                         {/* Stats Grid for Positions */}
                         <div className="grid grid-cols-4 gap-4 mb-6">
-                            <div className="bg-white rounded-lg p-3 text-center">
-                                <p className="text-2xl font-bold text-purple-600">
+                            <div className="bg-gray-800 rounded-lg p-3 text-center">
+                                <p className="text-2xl font-bold text-purple-400">
                                     <AnimatedNumber value={importedPositions} />
                                 </p>
-                                <p className="text-xs text-gray-600">Total Positions</p>
+                                <p className="text-xs text-gray-300">Total Positions</p>
                             </div>
-                            <div className="bg-white rounded-lg p-3 text-center">
-                                <p className="text-2xl font-bold text-blue-600">
+                            <div className="bg-gray-800 rounded-lg p-3 text-center">
+                                <p className="text-2xl font-bold text-blue-400">
                                     <AnimatedNumber value={importedPositionsData.filter(p => p.type === 'security').length} />
                                 </p>
-                                <p className="text-xs text-gray-600">Securities</p>
+                                <p className="text-xs text-gray-300">Securities</p>
                             </div>
-                            <div className="bg-white rounded-lg p-3 text-center">
-                                <p className="text-2xl font-bold text-orange-600">
+                            <div className="bg-gray-800 rounded-lg p-3 text-center">
+                                <p className="text-2xl font-bold text-orange-400">
                                     <AnimatedNumber value={importedPositionsData.filter(p => p.type === 'crypto').length} />
                                 </p>
-                                <p className="text-xs text-gray-600">Crypto</p>
+                                <p className="text-xs text-gray-300">Crypto</p>
                             </div>
-                            <div className="bg-white rounded-lg p-3 text-center">
-                                <p className="text-2xl font-bold text-green-600">
+                            <div className="bg-gray-800 rounded-lg p-3 text-center">
+                                <p className="text-2xl font-bold text-emerald-400">
                                     <AnimatedNumber value={
                                         importedPositionsData.filter(p => 
                                             ['cash', 'metal', 'otherAssets'].includes(p.type)
                                         ).length
                                     } />
                                 </p>
-                                <p className="text-xs text-gray-600">Other</p>
+                                <p className="text-xs text-gray-300">Other</p>
                             </div>
                         </div>
 
@@ -2197,17 +2197,17 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                                 return (
                                     <div 
                                         key={index} 
-                                        className="flex items-center justify-between bg-white rounded-lg p-3 border border-gray-100 hover:shadow-sm transition-shadow"
+                                        className="flex items-center justify-between bg-gray-800 rounded-lg p-3 border border-gray-700 hover:shadow-sm transition-shadow"
                                         style={{ animationDelay: `${index * 50}ms` }}
                                     >
                                         <div className="flex items-center">
-                                            <PositionIcon className="w-4 h-4 text-gray-600 mr-3" />
+                                            <PositionIcon className="w-4 h-4 text-gray-300 mr-3" />
                                             <div>
-                                                <p className="font-medium text-gray-900 text-sm">
+                                                <p className="font-medium text-white text-sm">
                                                     {position.ticker || position.symbol || position.asset_name || 
                                                     position.metal_type || position.currency || 'Position'}
                                                 </p>
-                                                <p className="text-xs text-gray-500">
+                                                <p className="text-xs text-gray-400">
                                                     {position.account_name} • {position.shares || position.quantity || position.amount} units
                                                 </p>
                                             </div>
@@ -2217,7 +2217,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                                 );
                             })}
                             {importedPositionsData.length > 10 && (
-                                <p className="text-xs text-gray-500 text-center py-2">
+                                <p className="text-xs text-gray-400 text-center py-2">
                                     ... and {importedPositionsData.length - 10} more positions
                                 </p>
                             )}
@@ -2228,30 +2228,30 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                 {/* Keep existing accounts section */}
                 {!isPositions && !isLiabilities && importedAccounts.length > 0 ? (
                     <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-6 max-w-2xl mx-auto border border-green-200">
-                        <h4 className="font-semibold text-gray-900 mb-4 flex items-center justify-center">
-                            <Activity className="w-5 h-5 mr-2 text-green-600" />
+                        <h4 className="font-semibold text-white mb-4 flex items-center justify-center">
+                            <Activity className="w-5 h-5 mr-2 text-emerald-400" />
                             Import Summary
                         </h4>
                         
                         {/* Stats Grid */}
                         <div className="grid grid-cols-3 gap-4 mb-6">
-                            <div className="bg-white rounded-lg p-3 text-center">
-                                <p className="text-2xl font-bold text-green-600">
+                            <div className="bg-gray-800 rounded-lg p-3 text-center">
+                                <p className="text-2xl font-bold text-emerald-400">
                                     <AnimatedNumber value={importedAccounts.length} />
                                 </p>
-                                <p className="text-xs text-gray-600">Accounts Added</p>
+                                <p className="text-xs text-gray-300">Accounts Added</p>
                             </div>
-                            <div className="bg-white rounded-lg p-3 text-center">
-                                <p className="text-2xl font-bold text-blue-600">
+                            <div className="bg-gray-800 rounded-lg p-3 text-center">
+                                <p className="text-2xl font-bold text-blue-400">
                                     <AnimatedNumber value={new Set(importedAccounts.map(a => a.institution)).size} />
                                 </p>
-                                <p className="text-xs text-gray-600">Institutions</p>
+                                <p className="text-xs text-gray-300">Institutions</p>
                             </div>
-                            <div className="bg-white rounded-lg p-3 text-center">
-                                <p className="text-2xl font-bold text-purple-600">
+                            <div className="bg-gray-800 rounded-lg p-3 text-center">
+                                <p className="text-2xl font-bold text-purple-400">
                                     <AnimatedNumber value={new Set(importedAccounts.map(a => a.account_category)).size} />
                                 </p>
-                                <p className="text-xs text-gray-600">Categories</p>
+                                <p className="text-xs text-gray-300">Categories</p>
                             </div>
                         </div>
 
@@ -2266,14 +2266,14 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                                 return (
                                     <div 
                                         key={index} 
-                                        className="flex items-center justify-between bg-white rounded-lg p-3 border border-gray-100 hover:shadow-sm transition-shadow"
+                                        className="flex items-center justify-between bg-gray-800 rounded-lg p-3 border border-gray-700 hover:shadow-sm transition-shadow"
                                         style={{ animationDelay: `${index * 50}ms` }}
                                     >
                                         <div className="flex items-center">
-                                            <CategoryIcon className="w-4 h-4 text-gray-600 mr-3" />
+                                            <CategoryIcon className="w-4 h-4 text-gray-300 mr-3" />
                                             <div>
-                                                <p className="font-medium text-gray-900 text-sm">{account.account_name}</p>
-                                                <p className="text-xs text-gray-500">{account.institution} • {account.type}</p>
+                                                <p className="font-medium text-white text-sm">{account.account_name}</p>
+                                                <p className="text-xs text-gray-400">{account.institution} • {account.type}</p>
                                             </div>
                                         </div>
                                         <CheckCircle className="w-4 h-4 text-green-500" />
@@ -2285,75 +2285,75 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                 ) : null}
                 
                 {/* What's Next section - Updated for liabilities */}
-                <div className="bg-green-50 rounded-xl p-6 max-w-md mx-auto">
-                    <h4 className="font-semibold text-gray-900 mb-3">What's Next?</h4>
+                <div className="bg-emerald-900/20 rounded-xl p-6 max-w-md mx-auto">
+                    <h4 className="font-semibold text-white mb-3">What's Next?</h4>
                     <div className="space-y-3 text-left">
                         {isLiabilities ? (
                             <>
                                 <div className="flex items-start">
-                                    <div className="flex-shrink-0 w-6 h-6 bg-green-100 rounded-full flex items-center justify-center mr-3 mt-0.5">
-                                        <span className="text-xs font-semibold text-green-600">1</span>
+                                    <div className="flex-shrink-0 w-6 h-6 bg-emerald-900/30 rounded-full flex items-center justify-center mr-3 mt-0.5">
+                                        <span className="text-xs font-semibold text-emerald-400">1</span>
                                     </div>
                                     <div>
-                                        <p className="font-medium text-gray-900">View Net Worth</p>
-                                        <p className="text-sm text-gray-600">See your assets minus liabilities</p>
+                                        <p className="font-medium text-white">View Net Worth</p>
+                                        <p className="text-sm text-gray-300">See your assets minus liabilities</p>
                                     </div>
                                 </div>
                                 <div className="flex items-start">
-                                    <div className="flex-shrink-0 w-6 h-6 bg-green-100 rounded-full flex items-center justify-center mr-3 mt-0.5">
-                                        <span className="text-xs font-semibold text-green-600">2</span>
+                                    <div className="flex-shrink-0 w-6 h-6 bg-emerald-900/30 rounded-full flex items-center justify-center mr-3 mt-0.5">
+                                        <span className="text-xs font-semibold text-emerald-400">2</span>
                                     </div>
                                     <div>
-                                        <p className="font-medium text-gray-900">Track Debt Progress</p>
-                                        <p className="text-sm text-gray-600">Monitor paydown and interest savings</p>
+                                        <p className="font-medium text-white">Track Debt Progress</p>
+                                        <p className="text-sm text-gray-300">Monitor paydown and interest savings</p>
                                     </div>
                                 </div>
                             </>
                         ) : isPositions ? (
                             <>
                                 <div className="flex items-start">
-                                    <div className="flex-shrink-0 w-6 h-6 bg-green-100 rounded-full flex items-center justify-center mr-3 mt-0.5">
-                                        <span className="text-xs font-semibold text-green-600">1</span>
+                                    <div className="flex-shrink-0 w-6 h-6 bg-emerald-900/30 rounded-full flex items-center justify-center mr-3 mt-0.5">
+                                        <span className="text-xs font-semibold text-emerald-400">1</span>
                                     </div>
                                     <div>
-                                        <p className="font-medium text-gray-900">View Portfolio</p>
-                                        <p className="text-sm text-gray-600">See your complete portfolio overview</p>
+                                        <p className="font-medium text-white">View Portfolio</p>
+                                        <p className="text-sm text-gray-300">See your complete portfolio overview</p>
                                     </div>
                                 </div>
                                 <div className="flex items-start">
-                                    <div className="flex-shrink-0 w-6 h-6 bg-green-100 rounded-full flex items-center justify-center mr-3 mt-0.5">
-                                        <span className="text-xs font-semibold text-green-600">2</span>
+                                    <div className="flex-shrink-0 w-6 h-6 bg-emerald-900/30 rounded-full flex items-center justify-center mr-3 mt-0.5">
+                                        <span className="text-xs font-semibold text-emerald-400">2</span>
                                     </div>
                                     <div>
-                                        <p className="font-medium text-gray-900">Track Performance</p>
-                                        <p className="text-sm text-gray-600">Monitor gains, losses, and trends</p>
+                                        <p className="font-medium text-white">Track Performance</p>
+                                        <p className="text-sm text-gray-300">Monitor gains, losses, and trends</p>
                                     </div>
                                 </div>
                             </>
                         ) : (
                             <>
                                 <div className="flex items-start">
-                                    <div className="flex-shrink-0 w-6 h-6 bg-green-100 rounded-full flex items-center justify-center mr-3 mt-0.5">
-                                        <span className="text-xs font-semibold text-green-600">1</span>
+                                    <div className="flex-shrink-0 w-6 h-6 bg-emerald-900/30 rounded-full flex items-center justify-center mr-3 mt-0.5">
+                                        <span className="text-xs font-semibold text-emerald-400">1</span>
                                     </div>
                                     <div>
-                                        <p className="font-medium text-gray-900">Add Positions</p>
-                                        <p className="text-sm text-gray-600">Import your investments to these accounts</p>
+                                        <p className="font-medium text-white">Add Positions</p>
+                                        <p className="text-sm text-gray-300">Import your investments to these accounts</p>
                                     </div>
                                 </div>
                                 <div className="flex items-start">
-                                    <div className="flex-shrink-0 w-6 h-6 bg-green-100 rounded-full flex items-center justify-center mr-3 mt-0.5">
-                                        <span className="text-xs font-semibold text-green-600">2</span>
+                                    <div className="flex-shrink-0 w-6 h-6 bg-emerald-900/30 rounded-full flex items-center justify-center mr-3 mt-0.5">
+                                        <span className="text-xs font-semibold text-emerald-400">2</span>
                                     </div>
                                     <div>
-                                        <p className="font-medium text-gray-900">View Dashboard</p>
-                                        <p className="text-sm text-gray-600">See your portfolio overview and analytics</p>
+                                        <p className="font-medium text-white">View Dashboard</p>
+                                        <p className="text-sm text-gray-300">See your portfolio overview and analytics</p>
                                     </div>
                                 </div>
                             </>
                         )}
                         <div className="pt-2 border-t border-green-200 mt-3">
-                            <p className="text-xs text-gray-600 flex items-center">
+                            <p className="text-xs text-gray-300 flex items-center">
                                 <Info className="w-3 h-3 mr-1.5" />
                                 You can continue adding accounts, positions, and liabilities anytime
                             </p>
@@ -2440,7 +2440,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                                     setAccounts([]);
                                     setImportedAccounts([]);
                                 }}
-                                className="px-5 py-2 bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-all duration-200 flex items-center"
+                                className="px-5 py-2 bg-gray-800 border border-gray-700 text-gray-300 font-medium rounded-lg hover:bg-gray-900 transition-all duration-200 flex items-center"
                             >
                                 <Plus className="w-4 h-4 mr-1.5" />
                                 Add More Accounts
@@ -2492,10 +2492,10 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                    <div className={`inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-${color}-500 to-${color}-600 rounded-full mb-4`}>
                        <Icon className="w-8 h-8 text-white" />
                    </div>
-                   <h3 className="text-2xl font-bold text-gray-900 mb-2">
+                   <h3 className="text-2xl font-bold text-white mb-2">
                        Excel Import - {isAccounts ? 'Accounts' : 'Positions'}
                    </h3>
-                   <p className="text-gray-600 max-w-md mx-auto">
+                   <p className="text-gray-300 max-w-md mx-auto">
                        {isAccounts 
                            ? 'Download the template and fill in your account information'
                            : 'Add your investment positions to your existing accounts'}
@@ -2505,7 +2505,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                {!isAccounts && (
                    <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
                        <div className="flex items-center">
-                           <AlertCircle className="w-5 h-5 text-purple-600 mr-3 flex-shrink-0" />
+                           <AlertCircle className="w-5 h-5 text-purple-400 mr-3 flex-shrink-0" />
                            <p className="text-sm text-purple-900">
                                Make sure you've imported your accounts first. The positions template will include your account names.
                            </p>
@@ -2513,16 +2513,16 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                    </div>
                )}
 
-               <div className="bg-gray-50 rounded-xl p-6">
-                   <h4 className="font-semibold text-gray-900 mb-4">How it works:</h4>
+               <div className="bg-gray-900 rounded-xl p-6">
+                   <h4 className="font-semibold text-white mb-4">How it works:</h4>
                    <div className="space-y-3">
                        <div className="flex items-start">
                            <div className={`flex-shrink-0 w-8 h-8 bg-${color}-100 rounded-full flex items-center justify-center mr-3`}>
                                <span className={`text-sm font-semibold text-${color}-600`}>1</span>
                            </div>
                            <div>
-                               <p className="font-medium text-gray-900">Download the Excel template</p>
-                               <p className="text-sm text-gray-600 mt-1">
+                               <p className="font-medium text-white">Download the Excel template</p>
+                               <p className="text-sm text-gray-300 mt-1">
                                    {isAccounts 
                                        ? 'Pre-formatted with dropdowns for institutions and account types'
                                        : 'Customized with your account names for easy selection'}
@@ -2534,8 +2534,8 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                                <span className={`text-sm font-semibold text-${color}-600`}>2</span>
                            </div>
                            <div>
-                               <p className="font-medium text-gray-900">Fill in your information</p>
-                               <p className="text-sm text-gray-600 mt-1">
+                               <p className="font-medium text-white">Fill in your information</p>
+                               <p className="text-sm text-gray-300 mt-1">
                                    {isAccounts 
                                        ? 'Add your account names, institutions, and types'
                                        : 'Enter your securities, quantities, and purchase details'}
@@ -2547,8 +2547,8 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                                <span className={`text-sm font-semibold text-${color}-600`}>3</span>
                            </div>
                            <div>
-                               <p className="font-medium text-gray-900">Upload the completed template</p>
-                               <p className="text-sm text-gray-600 mt-1">We'll validate your data and import everything automatically</p>
+                               <p className="font-medium text-white">Upload the completed template</p>
+                               <p className="text-sm text-gray-300 mt-1">We'll validate your data and import everything automatically</p>
                            </div>
                        </div>
                    </div>
@@ -2584,9 +2584,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                     setUploadProgress(0);
                     setUploadedFile(null);
                     }}
-                    className={`text-sm font-medium ${
-                    isAccounts ? 'text-blue-700 hover:text-blue-800' : 'text-purple-700 hover:text-purple-800'
-                    } underline`}
+                    className="text-sm font-medium text-emerald-400 hover:text-emerald-300 underline"
                 >
                     I already have a filled template — Upload now
                 </button>
@@ -2603,8 +2601,8 @@ const QuickStartModal = ({ isOpen, onClose }) => {
             <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-purple-500 to-purple-600 rounded-full mb-4">
                 <Upload className="w-8 h-8 text-white" />
             </div>
-            <h3 className="text-2xl font-bold text-gray-900 mb-2">Upload Completed Template</h3>
-            <p className="text-gray-600 max-w-md mx-auto">
+            <h3 className="text-2xl font-bold text-white mb-2">Upload Completed Template</h3>
+            <p className="text-gray-300 max-w-md mx-auto">
                 Upload your filled positions template for validation
             </p>
             </div>
@@ -2616,14 +2614,14 @@ const QuickStartModal = ({ isOpen, onClose }) => {
             onDragOver={handleDragOver}
             onDrop={handleDrop}
             className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors ${
-                isDragging ? 'border-purple-400 bg-purple-50' : 'border-gray-300'
+                isDragging ? 'border-purple-400 bg-purple-50' : 'border-gray-700'
             }`}
             >
             <div className="mb-4">
                 <Upload className="w-8 h-8 text-gray-400 inline-block" />
             </div>
-            <p className="text-gray-700 mb-2">Drag and drop your Excel file</p>
-            <p className="text-xs text-gray-500 mb-4">.xlsx, .xls, or .csv</p>
+            <p className="text-gray-300 mb-2">Drag and drop your Excel file</p>
+            <p className="text-xs text-gray-400 mb-4">.xlsx, .xls, or .csv</p>
 
                 <input
                 ref={fileInputRef}
@@ -2649,7 +2647,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
             {/* Show selected file + Replace */}
             {uploadedFile && (
                 <div className="mt-4 flex items-center justify-center space-x-3">
-                <span className="text-sm text-gray-700">
+                <span className="text-sm text-gray-300">
                     Selected: <span className="font-medium">{uploadedFile.name}</span>
                 </span>
                     <div className="flex items-center gap-3">
@@ -2663,7 +2661,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                             if (fileInputRef.current) fileInputRef.current.value = '';
                             fileInputRef.current?.click();
                         }}
-                        className="text-sm text-blue-600 hover:text-blue-700 underline"
+                        className="text-sm text-blue-400 hover:text-blue-700 underline"
                         >
                         Replace file
                         </button>
@@ -2676,7 +2674,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                         setUploadProgress(0);
                         if (fileInputRef.current) fileInputRef.current.value = '';
                         }}
-                        className="text-sm text-gray-600 hover:text-gray-800 underline"
+                        className="text-sm text-gray-300 hover:text-gray-800 underline"
                     >
                         Remove file
                     </button>
@@ -2691,7 +2689,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                             setValidationStatus(null);
                             setUploadProgress(0);
                         }}
-                        className="text-sm text-gray-500 hover:text-gray-700 underline"
+                        className="text-sm text-gray-400 hover:text-gray-300 underline"
                         >
                         Back
                         </button>
@@ -2700,7 +2698,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
 
             {/* Progress / Status */}
             {validationStatus === 'validating' && (
-                <div className="mt-4 text-sm text-gray-600">
+                <div className="mt-4 text-sm text-gray-300">
                 Validating… {uploadProgress}%
                 </div>
             )}
@@ -2713,17 +2711,18 @@ const QuickStartModal = ({ isOpen, onClose }) => {
 
     return (
         <ModalShell isOpen={isOpen} onClose={onClose} title="Quick Start">
-                    <div className="absolute top-4 right-4">
+                    <div className="absolute top-4 right-4 z-10">
                         <button
                             onClick={onClose}
-                            className="p-2 rounded-lg hover:bg-gray-100 transition-colors group"
+                            className="p-2 rounded-lg hover:bg-gray-800 transition-colors group"
+                            aria-label="Close modal"
                         >
-                          <X className="w-5 h-5 text-gray-500 group-hover:text-gray-700" />
+                          <X className="w-5 h-5 text-gray-400 group-hover:text-white" />
                       </button>
                   </div>
 
                     {activeTab !== 'overview' && activeTab !== 'success' && (
-                        <div className="absolute top-4 left-4">
+                        <div className="absolute top-4 left-4 z-10">
                             <button
                            onClick={() => {
                                if (activeTab === 'positions' && importMethod === 'ui') {
@@ -2740,7 +2739,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                                    setActiveTab('overview');
                                }
                            }}
-                              className="text-sm text-gray-600 hover:text-gray-900 transition-colors inline-flex items-center p-2 rounded-lg hover:bg-gray-100 group"
+                              className="text-sm text-gray-300 hover:text-white transition-colors inline-flex items-center p-2 rounded-lg hover:bg-gray-800 group"
                           >
                               <ArrowLeft className="w-4 h-4 mr-1 group-hover:-translate-x-0.5 transition-transform" />
                               Back

@@ -43,10 +43,10 @@ const getDiffStatus = (diff) => {
 
 const getDiffColor = (status) => {
   switch (status) {
-    case 'match': return { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-300' };
-    case 'minor': return { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-300' };
-    case 'major': return { bg: 'bg-rose-50', text: 'text-rose-700', border: 'border-rose-300' };
-    default: return { bg: 'bg-gray-50', text: 'text-gray-700', border: 'border-gray-300' };
+    case 'match': return { bg: 'bg-emerald-500/10', text: 'text-emerald-400', border: 'border-emerald-500/20' };
+    case 'minor': return { bg: 'bg-amber-500/10', text: 'text-amber-400', border: 'border-amber-500/20' };
+    case 'major': return { bg: 'bg-rose-500/10', text: 'text-rose-400', border: 'border-rose-500/20' };
+    default: return { bg: 'bg-gray-800', text: 'text-gray-300', border: 'border-gray-700' };
   }
 };
 
@@ -122,8 +122,8 @@ const CurrencyInput = React.memo(function CurrencyInput({
       placeholder={placeholder}
       className={`
         w-36 px-3 py-2 text-sm text-right rounded-lg border
-        bg-white focus:bg-blue-50
-        border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200
+        bg-gray-800 focus:bg-gray-700 text-white placeholder-gray-500
+        border-gray-700 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20
         transition-all duration-200
         font-semibold tabular-nums
         ${className}
@@ -214,9 +214,9 @@ const InvestigationModal = ({ account, nesteggBalance, statementBalance, positio
 
   return (
     <div className="fixed inset-0 z-[10001] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden animate-in zoom-in-95 duration-200">
+      <div className="bg-gray-950 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden animate-in zoom-in-95 duration-200 border border-gray-800">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-white">
+        <div className="px-6 py-4 border-b border-gray-800 bg-gray-900">
           <div className="flex items-start justify-between">
             <div className="flex-1">
               <div className="flex items-center gap-3 mb-2">
@@ -224,8 +224,8 @@ const InvestigationModal = ({ account, nesteggBalance, statementBalance, positio
                   <Target className={`w-5 h-5 ${colors.text}`} />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-gray-900">{account.name}</h3>
-                  <p className="text-sm text-gray-600">{account.institution}</p>
+                  <h3 className="text-lg font-bold text-white">{account.name}</h3>
+                  <p className="text-sm text-gray-400">{account.institution}</p>
                 </div>
               </div>
               <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full ${colors.bg} ${colors.border} border`}>
@@ -236,52 +236,52 @@ const InvestigationModal = ({ account, nesteggBalance, statementBalance, positio
             </div>
             <button
               onClick={onClose}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
             >
-              <X className="w-5 h-5 text-gray-500" />
+              <X className="w-5 h-5 text-gray-400" />
             </button>
           </div>
         </div>
 
         {/* Content */}
-        <div className="px-6 py-4 overflow-y-auto max-h-[calc(90vh-200px)]">
+        <div className="px-6 py-4 overflow-y-auto max-h-[calc(90vh-200px)] bg-gray-950">
           {/* Balance Comparison */}
           <div className="grid grid-cols-2 gap-4 mb-6">
-            <div className="p-4 bg-blue-50 rounded-xl border border-blue-200">
-              <div className="text-xs font-medium text-blue-600 uppercase tracking-wide mb-1">NestEgg Balance</div>
-              <div className="text-2xl font-bold text-blue-900">{fmtCurrency(nesteggBalance)}</div>
-              <div className="text-xs text-blue-700 mt-1">As calculated from positions</div>
+            <div className="p-4 bg-indigo-500/10 rounded-xl border border-indigo-500/20">
+              <div className="text-xs font-medium text-indigo-400 uppercase tracking-wide mb-1">NestEgg Balance</div>
+              <div className="text-2xl font-bold text-white">{fmtCurrency(nesteggBalance)}</div>
+              <div className="text-xs text-indigo-300 mt-1">As calculated from positions</div>
             </div>
-            <div className="p-4 bg-purple-50 rounded-xl border border-purple-200">
-              <div className="text-xs font-medium text-purple-600 uppercase tracking-wide mb-1">Statement Balance</div>
-              <div className="text-2xl font-bold text-purple-900">{fmtCurrency(statementBalance)}</div>
-              <div className="text-xs text-purple-700 mt-1">From your statement</div>
+            <div className="p-4 bg-purple-500/10 rounded-xl border border-purple-500/20">
+              <div className="text-xs font-medium text-purple-400 uppercase tracking-wide mb-1">Statement Balance</div>
+              <div className="text-2xl font-bold text-white">{fmtCurrency(statementBalance)}</div>
+              <div className="text-xs text-purple-300 mt-1">From your statement</div>
             </div>
           </div>
 
           {/* Breakdown */}
           <div className="mb-6">
-            <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
-              <FileText className="w-4 h-4" />
+            <h4 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+              <FileText className="w-4 h-4 text-indigo-400" />
               NestEgg Breakdown
             </h4>
             <div className="space-y-2">
               {securityTotal > 0 && (
-                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
-                  <span className="text-sm text-gray-700">Securities ({positionsByType.securities.length})</span>
-                  <span className="text-sm font-semibold text-gray-900">{fmtCurrency(securityTotal)}</span>
+                <div className="flex items-center justify-between p-3 bg-gray-900/70 rounded-lg border border-gray-800">
+                  <span className="text-sm text-gray-300">Securities ({positionsByType.securities.length})</span>
+                  <span className="text-sm font-semibold text-white">{fmtCurrency(securityTotal)}</span>
                 </div>
               )}
               {cashTotal > 0 && (
-                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
-                  <span className="text-sm text-gray-700">Cash ({positionsByType.cash.length})</span>
-                  <span className="text-sm font-semibold text-gray-900">{fmtCurrency(cashTotal)}</span>
+                <div className="flex items-center justify-between p-3 bg-gray-900/70 rounded-lg border border-gray-800">
+                  <span className="text-sm text-gray-300">Cash ({positionsByType.cash.length})</span>
+                  <span className="text-sm font-semibold text-white">{fmtCurrency(cashTotal)}</span>
                 </div>
               )}
               {positionsByType.crypto.length > 0 && (
-                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
-                  <span className="text-sm text-gray-700">Crypto ({positionsByType.crypto.length})</span>
-                  <span className="text-sm font-semibold text-gray-900">
+                <div className="flex items-center justify-between p-3 bg-gray-900/70 rounded-lg border border-gray-800">
+                  <span className="text-sm text-gray-300">Crypto ({positionsByType.crypto.length})</span>
+                  <span className="text-sm font-semibold text-white">
                     {fmtCurrency(positionsByType.crypto.reduce((sum, p) => sum + (p.currentValue || 0), 0))}
                   </span>
                 </div>
@@ -292,30 +292,30 @@ const InvestigationModal = ({ account, nesteggBalance, statementBalance, positio
           {/* Possible Causes */}
           {absDiff >= 1 && (
             <div className="mb-6">
-              <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                <HelpCircle className="w-4 h-4" />
+              <h4 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+                <HelpCircle className="w-4 h-4 text-indigo-400" />
                 Common Causes of Discrepancies
               </h4>
               <div className="space-y-2">
-                <div className="flex items-start gap-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                  <Clock className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                <div className="flex items-start gap-3 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+                  <Clock className="w-4 h-4 text-amber-400 mt-0.5 flex-shrink-0" />
                   <div className="flex-1">
-                    <div className="text-sm font-medium text-amber-900">Stale Security Prices</div>
-                    <div className="text-xs text-amber-700 mt-0.5">Market prices may not be current</div>
+                    <div className="text-sm font-medium text-amber-300">Stale Security Prices</div>
+                    <div className="text-xs text-amber-400/70 mt-0.5">Market prices may not be current</div>
                   </div>
                 </div>
-                <div className="flex items-start gap-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                  <Zap className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                <div className="flex items-start gap-3 p-3 bg-indigo-500/10 border border-indigo-500/20 rounded-lg">
+                  <Zap className="w-4 h-4 text-indigo-400 mt-0.5 flex-shrink-0" />
                   <div className="flex-1">
-                    <div className="text-sm font-medium text-blue-900">Pending Transactions</div>
-                    <div className="text-xs text-blue-700 mt-0.5">Statement may include pending trades</div>
+                    <div className="text-sm font-medium text-indigo-300">Pending Transactions</div>
+                    <div className="text-xs text-indigo-400/70 mt-0.5">Statement may include pending trades</div>
                   </div>
                 </div>
-                <div className="flex items-start gap-3 p-3 bg-green-50 border border-green-200 rounded-lg">
-                  <TrendingUp className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />
+                <div className="flex items-start gap-3 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
+                  <TrendingUp className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
                   <div className="flex-1">
-                    <div className="text-sm font-medium text-green-900">Dividends or Interest</div>
-                    <div className="text-xs text-green-700 mt-0.5">Recent income not yet recorded</div>
+                    <div className="text-sm font-medium text-emerald-300">Dividends or Interest</div>
+                    <div className="text-xs text-emerald-400/70 mt-0.5">Recent income not yet recorded</div>
                   </div>
                 </div>
               </div>
@@ -324,16 +324,16 @@ const InvestigationModal = ({ account, nesteggBalance, statementBalance, positio
 
           {/* Quick Actions */}
           <div>
-            <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
-              <Sparkles className="w-4 h-4" />
+            <h4 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-indigo-400" />
               Quick Actions
             </h4>
             <div className="grid grid-cols-2 gap-3">
-              <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium flex items-center justify-center gap-2">
+              <button className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium flex items-center justify-center gap-2">
                 <RefreshCw className="w-4 h-4" />
                 Update Prices
               </button>
-              <button className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium flex items-center justify-center gap-2">
+              <button className="px-4 py-2 bg-gray-800 border border-gray-700 text-gray-300 rounded-lg hover:bg-gray-700 transition-colors text-sm font-medium flex items-center justify-center gap-2">
                 <ExternalLink className="w-4 h-4" />
                 View Positions
               </button>
@@ -421,9 +421,9 @@ const InstitutionCard = ({
         return {
           icon: CheckCircle,
           text: 'All Match',
-          color: 'text-emerald-600',
-          bg: 'bg-emerald-50',
-          border: 'border-emerald-200'
+          color: 'text-emerald-400',
+          bg: 'bg-emerald-500/10',
+          border: 'border-emerald-500/20'
         };
       case 'discrepancy':
         const count = accounts.filter(acc => {
@@ -433,18 +433,18 @@ const InstitutionCard = ({
         return {
           icon: AlertTriangle,
           text: `${count} ${count === 1 ? 'Discrepancy' : 'Discrepancies'}`,
-          color: 'text-amber-600',
-          bg: 'bg-amber-50',
-          border: 'border-amber-200'
+          color: 'text-amber-400',
+          bg: 'bg-amber-500/10',
+          border: 'border-amber-500/20'
         };
       default:
         const remaining = accounts.length - totals.accountsWithInput;
         return {
           icon: Clock,
           text: `${remaining} ${remaining === 1 ? 'Account' : 'Accounts'} Pending`,
-          color: 'text-gray-600',
-          bg: 'bg-gray-50',
-          border: 'border-gray-200'
+          color: 'text-gray-400',
+          bg: 'bg-gray-800',
+          border: 'border-gray-700'
         };
     }
   }, [totals.status, accounts, statementBalances]);
@@ -452,39 +452,39 @@ const InstitutionCard = ({
   const StatusIcon = statusConfig.icon;
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-300 overflow-hidden">
+    <div className="bg-gray-900/70 rounded-xl shadow-sm border border-gray-800 overflow-hidden">
       {/* Header */}
       <button
         onClick={() => onToggleExpanded(institution)}
-        className="w-full px-8 py-5 flex items-center justify-between bg-slate-800 hover:bg-slate-700 transition-colors"
+        className="w-full px-8 py-5 flex items-center justify-between bg-gray-900 hover:bg-gray-800 transition-colors border-b border-gray-800"
       >
         <div className="flex items-center gap-6 flex-1 min-w-0">
           {logo ? (
-            <img src={logo} alt={institution} className="w-14 h-14 rounded-lg object-contain border border-slate-600 bg-white p-1.5 flex-shrink-0" />
+            <img src={logo} alt={institution} className="w-14 h-14 rounded-lg object-contain border border-gray-700 bg-white p-1.5 flex-shrink-0" />
           ) : (
-            <div className="w-14 h-14 rounded-lg bg-slate-700 flex items-center justify-center border border-slate-600 flex-shrink-0">
-              <Building2 className="w-7 h-7 text-slate-300" />
+            <div className="w-14 h-14 rounded-lg bg-gray-800 flex items-center justify-center border border-gray-700 flex-shrink-0">
+              <Building2 className="w-7 h-7 text-gray-400" />
             </div>
           )}
 
           <div className="flex-1 text-left min-w-0">
             <div className="flex items-center gap-3 mb-1.5 flex-wrap">
-              <h3 className="text-xl font-bold text-white truncate">{institution}</h3>
+              <h3 className="text-xl font-bold text-white truncate max-w-xs">{institution}</h3>
               <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold ${statusConfig.bg} ${statusConfig.border} border flex-shrink-0`}>
                 <StatusIcon className={`w-3.5 h-3.5 ${statusConfig.color}`} />
                 <span className={statusConfig.color}>{statusConfig.text}</span>
               </span>
             </div>
-            <div className="text-sm text-slate-300">
+            <div className="text-sm text-gray-300">
               {accounts.length} {accounts.length === 1 ? 'account' : 'accounts'}
               {totals.accountsWithInput > 0 && (
-                <span className="text-slate-400"> • {totals.accountsWithInput}/{accounts.length} entered</span>
+                <span className="text-gray-400"> • {totals.accountsWithInput}/{accounts.length} entered</span>
               )}
             </div>
           </div>
 
           <div className="text-right mr-6 flex-shrink-0">
-            <div className="text-xs text-slate-400 mb-1 font-semibold uppercase tracking-wider">NestEgg Total</div>
+            <div className="text-xs text-gray-400 mb-1 font-semibold uppercase tracking-wider">NestEgg Total</div>
             <div className="text-2xl font-bold text-white tabular-nums">{fmtCurrency(totals.nesteggTotal, hideValues)}</div>
             {totals.allInputted && Math.abs(totals.diff) >= 0.01 && (
               <div className={`text-sm font-bold mt-1 tabular-nums ${totals.diff > 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
@@ -493,17 +493,17 @@ const InstitutionCard = ({
             )}
           </div>
 
-          <ChevronDown className={`w-6 h-6 text-slate-300 transition-transform duration-200 flex-shrink-0 ${expanded ? 'rotate-180' : ''}`} />
+          <ChevronDown className={`w-6 h-6 text-gray-400 transition-transform duration-200 flex-shrink-0 ${expanded ? 'rotate-180' : ''}`} />
         </div>
       </button>
 
       {/* Expanded Content */}
       {expanded && (
-        <div className="px-6 pb-4 border-t border-gray-200 bg-gray-50">
+        <div className="px-6 pb-4 bg-gray-950/50">
           <div className="overflow-x-auto -mx-6 px-6">
             <table className="w-full min-w-[900px]">
               <thead>
-                <tr className="text-xs uppercase text-gray-600 border-b border-gray-300">
+                <tr className="text-xs uppercase text-gray-400 border-b border-gray-800">
                   <th className="text-left py-4 px-4 font-bold">Account</th>
                   <th className="text-right py-4 px-4 font-bold">NestEgg Balance</th>
                   <th className="text-center py-4 px-4 font-bold">Statement Balance</th>
@@ -526,18 +526,18 @@ const InstitutionCard = ({
                     <tr
                       key={account.id}
                       className={`
-                        group transition-colors border-b border-gray-200 last:border-b-0
-                        ${isReconciled ? 'bg-emerald-50/50' : 'hover:bg-white'}
+                        group transition-colors border-b border-gray-800 last:border-b-0
+                        ${isReconciled ? 'bg-emerald-500/10' : 'hover:bg-gray-900/50'}
                       `}
                     >
                       <td className="py-4 px-4">
                         <div>
-                          <div className="font-bold text-gray-900 text-sm">{account.name}</div>
-                          <div className="text-xs text-gray-600 mt-0.5">{account.type}</div>
+                          <div className="font-bold text-white text-sm">{account.name}</div>
+                          <div className="text-xs text-gray-400 mt-0.5">{account.type}</div>
                         </div>
                       </td>
                       <td className="py-4 px-4 text-right">
-                        <span className="text-sm font-bold text-gray-900 tabular-nums">
+                        <span className="text-sm font-bold text-white tabular-nums">
                           {fmtCurrency(nesteggVal, hideValues)}
                         </span>
                       </td>
@@ -562,17 +562,17 @@ const InstitutionCard = ({
                             {fmtCurrency(Math.abs(diff), hideValues)}
                           </span>
                         ) : (
-                          <span className="text-sm text-gray-400 font-medium">—</span>
+                          <span className="text-sm text-gray-500 font-medium">—</span>
                         )}
                       </td>
                       <td className="py-4 px-4 text-center">
                         {isReconciled ? (
-                          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-100 text-emerald-700 border border-emerald-300">
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                             <CheckCircle className="w-3.5 h-3.5" />
                             Reconciled
                           </span>
                         ) : hasInput && status === 'match' ? (
-                          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-100 text-emerald-700 border border-emerald-300">
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                             <Check className="w-3.5 h-3.5" />
                             Match
                           </span>
@@ -582,7 +582,7 @@ const InstitutionCard = ({
                             {status === 'minor' ? 'Minor' : 'Major'}
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-gray-100 text-gray-500 border border-gray-300">
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-gray-800 text-gray-400 border border-gray-700">
                             <Clock className="w-3 h-3" />
                             Pending
                           </span>
@@ -593,10 +593,10 @@ const InstitutionCard = ({
                           {hasInput && status !== 'match' && (
                             <button
                               onClick={() => onInvestigate(account)}
-                              className="p-2 hover:bg-blue-100 rounded-lg transition-all hover:scale-110"
+                              className="p-2 hover:bg-indigo-500/20 rounded-lg transition-all hover:scale-110"
                               title="Investigate Discrepancy"
                             >
-                              <Search className="w-4 h-4 text-blue-600" />
+                              <Search className="w-4 h-4 text-indigo-400" />
                             </button>
                           )}
                           {hasInput && (
@@ -605,13 +605,13 @@ const InstitutionCard = ({
                               className={`
                                 p-2 rounded-lg transition-all hover:scale-110
                                 ${isReconciled
-                                  ? 'bg-emerald-100 hover:bg-emerald-200'
-                                  : 'hover:bg-gray-200'
+                                  ? 'bg-emerald-500/20 hover:bg-emerald-500/30'
+                                  : 'hover:bg-gray-800'
                                 }
                               `}
                               title={isReconciled ? 'Unmark as Reconciled' : 'Mark as Reconciled'}
                             >
-                              <Shield className={`w-4 h-4 ${isReconciled ? 'text-emerald-600' : 'text-gray-400'}`} />
+                              <Shield className={`w-4 h-4 ${isReconciled ? 'text-emerald-400' : 'text-gray-400'}`} />
                             </button>
                           )}
                         </div>
@@ -923,67 +923,67 @@ const QuickStatementValidationModal = ({ isOpen, onClose }) => {
 
   return (
     <>
-      <div className="fixed inset-0 z-[9999] flex items-start justify-center p-4 sm:p-6 overflow-y-auto bg-black/50 backdrop-blur-sm">
+      <div className="fixed inset-0 z-[9999] flex items-start justify-center p-4 sm:p-6 overflow-y-auto bg-black/60 backdrop-blur-sm">
         <div className="relative w-full max-w-7xl my-8 animate-in slide-in-from-bottom-4 duration-300">
-          <div className="bg-white rounded-2xl shadow-2xl overflow-hidden border border-gray-300">
+          <div className="bg-gray-950 rounded-2xl shadow-2xl overflow-hidden border border-gray-800">
             {/* Header */}
-            <div className="sticky top-0 z-10 px-6 py-5 bg-gradient-to-r from-blue-600 to-purple-600 border-b border-blue-700">
+            <div className="sticky top-0 z-10 px-6 py-5 bg-gray-950 border-b border-gray-800">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-3">
-                  <div className="p-3 bg-white rounded-xl shadow-md">
-                    <Target className="w-6 h-6 text-blue-600" />
+                  <div className="p-3 bg-indigo-600 rounded-xl shadow-md">
+                    <Target className="w-6 h-6 text-white" />
                   </div>
                   <div>
                     <h2 className="text-2xl font-bold text-white">Statement Validation</h2>
-                    <p className="text-sm text-blue-100">Reconcile your accounts with confidence</p>
+                    <p className="text-sm text-gray-400">Reconcile your accounts with confidence</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
                   <button
                     onClick={() => setHideValues(!hideValues)}
-                    className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+                    className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
                     title={hideValues ? 'Show values' : 'Hide values'}
                   >
-                    {hideValues ? <EyeOff className="w-5 h-5 text-white" /> : <Eye className="w-5 h-5 text-white" />}
+                    {hideValues ? <EyeOff className="w-5 h-5 text-gray-400" /> : <Eye className="w-5 h-5 text-gray-400" />}
                   </button>
                   <button
                     onClick={onClose}
-                    className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+                    className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
                   >
-                    <X className="w-5 h-5 text-white" />
+                    <X className="w-5 h-5 text-gray-400" />
                   </button>
                 </div>
               </div>
 
               {/* Stats Bar */}
               <div className="grid grid-cols-5 gap-3">
-                <div className="bg-white/95 rounded-xl p-3 shadow-md border border-white/20">
-                  <div className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Accounts</div>
-                  <div className="text-2xl font-bold text-gray-900">
+                <div className="bg-gray-900/70 rounded-xl p-3 shadow-md border border-gray-800">
+                  <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Accounts</div>
+                  <div className="text-2xl font-bold text-white">
                     <AnimatedStat value={summaryStats.totalAccounts} />
                   </div>
                 </div>
-                <div className="bg-white/95 rounded-xl p-3 shadow-md border border-white/20">
-                  <div className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Reconciled</div>
-                  <div className="text-2xl font-bold text-emerald-600">
+                <div className="bg-gray-900/70 rounded-xl p-3 shadow-md border border-gray-800">
+                  <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Reconciled</div>
+                  <div className="text-2xl font-bold text-emerald-400">
                     <AnimatedStat value={summaryStats.reconciledCount} />
                   </div>
                 </div>
-                <div className="bg-white/95 rounded-xl p-3 shadow-md border border-white/20">
-                  <div className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Matches</div>
-                  <div className="text-2xl font-bold text-emerald-600">
+                <div className="bg-gray-900/70 rounded-xl p-3 shadow-md border border-gray-800">
+                  <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Matches</div>
+                  <div className="text-2xl font-bold text-emerald-400">
                     <AnimatedStat value={summaryStats.matchingAccounts} />
                   </div>
                 </div>
-                <div className="bg-white/95 rounded-xl p-3 shadow-md border border-white/20">
-                  <div className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Discrepancies</div>
-                  <div className="text-2xl font-bold text-amber-600">
+                <div className="bg-gray-900/70 rounded-xl p-3 shadow-md border border-gray-800">
+                  <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Discrepancies</div>
+                  <div className="text-2xl font-bold text-amber-400">
                     <AnimatedStat value={summaryStats.discrepancyCount} />
                   </div>
                 </div>
-                <div className="bg-white/95 rounded-xl p-3 shadow-md border border-white/20">
-                  <div className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Total Diff</div>
-                  <div className={`text-2xl font-bold tabular-nums ${summaryStats.totalDiff >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                <div className="bg-gray-900/70 rounded-xl p-3 shadow-md border border-gray-800">
+                  <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Total Diff</div>
+                  <div className={`text-2xl font-bold tabular-nums ${summaryStats.totalDiff >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                     {summaryStats.totalDiff > 0 ? '+' : ''}{fmtCurrency(summaryStats.totalDiff, hideValues).replace('$', '$')}
                   </div>
                 </div>
@@ -991,30 +991,30 @@ const QuickStatementValidationModal = ({ isOpen, onClose }) => {
             </div>
 
             {/* Toolbar */}
-            <div className="px-6 py-4 bg-white border-b border-gray-300">
+            <div className="px-6 py-4 bg-gray-900/70 border-b border-gray-800">
               <div className="flex items-center justify-between gap-4 mb-3">
                 <div className="flex items-center gap-3 flex-1">
                   <div className="relative flex-1 max-w-md">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
                     <input
                       id="institution-search"
                       type="text"
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       placeholder="Search institutions... (⌘K)"
-                      className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                      className="w-full pl-10 pr-4 py-2.5 border border-gray-700 bg-gray-800 text-white placeholder-gray-500 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-sm"
                     />
                   </div>
                   <button
                     onClick={handleExpandAll}
-                    className="px-3 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-100 rounded-lg transition-colors flex items-center gap-2 whitespace-nowrap border border-gray-300"
+                    className="px-3 py-2.5 text-sm font-semibold text-gray-300 hover:bg-gray-800 rounded-lg transition-colors flex items-center gap-2 whitespace-nowrap border border-gray-700"
                   >
                     <ChevronDown className="w-4 h-4" />
                     Expand All
                   </button>
                   <button
                     onClick={handleCollapseAll}
-                    className="px-3 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-100 rounded-lg transition-colors flex items-center gap-2 whitespace-nowrap border border-gray-300"
+                    className="px-3 py-2.5 text-sm font-semibold text-gray-300 hover:bg-gray-800 rounded-lg transition-colors flex items-center gap-2 whitespace-nowrap border border-gray-700"
                   >
                     <ChevronRight className="w-4 h-4" />
                     Collapse All
@@ -1033,7 +1033,7 @@ const QuickStatementValidationModal = ({ isOpen, onClose }) => {
                   <button
                     onClick={() => fileInputRef.current?.click()}
                     disabled={isImporting}
-                    className="px-4 py-2.5 text-sm font-semibold text-emerald-700 bg-emerald-50 border border-emerald-300 hover:bg-emerald-100 rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="px-4 py-2.5 text-sm font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 hover:bg-emerald-500/20 rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {isImporting ? (
                       <>
@@ -1049,14 +1049,14 @@ const QuickStatementValidationModal = ({ isOpen, onClose }) => {
                   </button>
                   <button
                     onClick={handleExportCSV}
-                    className="px-4 py-2.5 text-sm font-semibold text-blue-700 bg-blue-50 border border-blue-300 hover:bg-blue-100 rounded-lg transition-colors flex items-center gap-2"
+                    className="px-4 py-2.5 text-sm font-semibold text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 hover:bg-indigo-500/20 rounded-lg transition-colors flex items-center gap-2"
                   >
                     <Download className="w-4 h-4" />
                     Export (⌘E)
                   </button>
                   <button
                     onClick={refreshAccounts}
-                    className="px-4 py-2.5 text-sm font-semibold text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 rounded-lg transition-colors flex items-center gap-2"
+                    className="px-4 py-2.5 text-sm font-semibold text-gray-300 bg-gray-800 border border-gray-700 hover:bg-gray-700 rounded-lg transition-colors flex items-center gap-2"
                     disabled={loading}
                   >
                     <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
@@ -1066,11 +1066,11 @@ const QuickStatementValidationModal = ({ isOpen, onClose }) => {
               </div>
 
               {/* Workflow instructions */}
-              <div className="flex items-start gap-2 p-3 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border border-blue-200">
-                <Info className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+              <div className="flex items-start gap-2 p-3 bg-indigo-500/10 rounded-lg border border-indigo-500/20">
+                <Info className="w-4 h-4 text-indigo-400 mt-0.5 flex-shrink-0" />
                 <div className="flex-1">
-                  <p className="text-xs font-bold text-blue-900 mb-1">Quick Workflow</p>
-                  <p className="text-xs text-blue-700">
+                  <p className="text-xs font-bold text-indigo-300 mb-1">Quick Workflow</p>
+                  <p className="text-xs text-indigo-400/80">
                     Export → Fill in Excel → Import back to populate all statement balances instantly
                   </p>
                 </div>
@@ -1078,22 +1078,22 @@ const QuickStatementValidationModal = ({ isOpen, onClose }) => {
             </div>
 
             {/* Content */}
-            <div className="p-6 bg-gradient-to-br from-gray-50 to-gray-100 min-h-[500px] max-h-[calc(100vh-400px)] overflow-y-auto">
+            <div className="p-6 bg-gray-950 min-h-[500px] max-h-[calc(100vh-400px)] overflow-y-auto">
               {loading ? (
                 <div className="flex items-center justify-center py-12">
                   <div className="text-center">
-                    <Loader2 className="w-8 h-8 text-blue-600 animate-spin mx-auto mb-3" />
-                    <p className="text-sm text-gray-600">Loading your accounts...</p>
+                    <Loader2 className="w-8 h-8 text-indigo-400 animate-spin mx-auto mb-3" />
+                    <p className="text-sm text-gray-400">Loading your accounts...</p>
                   </div>
                 </div>
               ) : filteredInstitutions.length === 0 ? (
                 <div className="text-center py-12">
-                  <Building2 className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-                  <p className="text-gray-600">No institutions found</p>
+                  <Building2 className="w-12 h-12 text-gray-600 mx-auto mb-3" />
+                  <p className="text-gray-400">No institutions found</p>
                   {searchQuery && (
                     <button
                       onClick={() => setSearchQuery('')}
-                      className="mt-2 text-sm text-blue-600 hover:text-blue-700"
+                      className="mt-2 text-sm text-indigo-400 hover:text-indigo-300"
                     >
                       Clear search
                     </button>
@@ -1121,12 +1121,12 @@ const QuickStatementValidationModal = ({ isOpen, onClose }) => {
 
               {/* Help Text */}
               {!loading && filteredInstitutions.length > 0 && (
-                <div className="mt-6 p-4 bg-white rounded-xl border border-blue-200 shadow-sm">
+                <div className="mt-6 p-4 bg-gray-900/70 rounded-xl border border-gray-800 shadow-sm">
                   <div className="flex items-start gap-3">
-                    <Info className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                    <Info className="w-5 h-5 text-indigo-400 mt-0.5 flex-shrink-0" />
                     <div className="flex-1">
-                      <h4 className="text-sm font-bold text-blue-900 mb-1">Pro Tips</h4>
-                      <ul className="text-xs text-blue-800 space-y-1">
+                      <h4 className="text-sm font-bold text-white mb-1">Pro Tips</h4>
+                      <ul className="text-xs text-gray-300 space-y-1">
                         <li>• Click an institution card to expand and enter statement balances</li>
                         <li>• Green = Perfect match, Yellow = Small difference, Red = Large difference</li>
                         <li>• Click the search icon to investigate why balances don't match</li>
@@ -1139,22 +1139,22 @@ const QuickStatementValidationModal = ({ isOpen, onClose }) => {
             </div>
 
             {/* Footer */}
-            <div className="px-6 py-4 bg-white border-t border-gray-300">
+            <div className="px-6 py-4 bg-gray-900/70 border-t border-gray-800">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4 text-sm text-gray-600">
+                <div className="flex items-center gap-4 text-sm text-gray-400">
                   <span>
-                    Progress: <span className="font-bold text-gray-900">{summaryStats.completionRate.toFixed(0)}%</span>
+                    Progress: <span className="font-bold text-white">{summaryStats.completionRate.toFixed(0)}%</span>
                   </span>
-                  <div className="w-48 h-2.5 bg-gray-200 rounded-full overflow-hidden border border-gray-300">
+                  <div className="w-48 h-2.5 bg-gray-800 rounded-full overflow-hidden border border-gray-700">
                     <div
-                      className="h-full bg-gradient-to-r from-blue-500 to-emerald-500 transition-all duration-500"
+                      className="h-full bg-gradient-to-r from-indigo-500 to-emerald-500 transition-all duration-500"
                       style={{ width: `${summaryStats.completionRate}%` }}
                     />
                   </div>
                 </div>
                 <button
                   onClick={onClose}
-                  className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white font-bold rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all duration-200 shadow-md hover:shadow-lg flex items-center gap-2"
+                  className="px-6 py-2.5 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 transition-all duration-200 shadow-md hover:shadow-lg flex items-center gap-2"
                 >
                   <CheckCircle className="w-5 h-5" />
                   Done
