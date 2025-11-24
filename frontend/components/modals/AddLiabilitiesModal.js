@@ -118,7 +118,7 @@ const SearchableDropdown = ({ options, value, onChange, placeholder, showLogos =
                         if (onOpenChange) onOpenChange(true);
                     }}
                     placeholder={placeholder}
-                    className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg hover:border-gray-400 focus:border-red-500 focus:ring-2 focus:ring-red-500/20 transition-all duration-200 pr-10"
+                    className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 hover:border-gray-600 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all duration-200 pr-10"
                     style={{ paddingLeft: selectedOption?.logo ? '2.5rem' : undefined }}
                 />
                 {selectedOption?.logo && (
@@ -138,7 +138,7 @@ const SearchableDropdown = ({ options, value, onChange, placeholder, showLogos =
                         setIsOpen(newState);
                         if (onOpenChange) onOpenChange(newState);
                     }}
-                    className="absolute right-0 top-0 bottom-0 px-3 flex items-center justify-center hover:bg-gray-50 rounded-r-lg transition-colors"
+                    className="absolute right-0 top-0 bottom-0 px-3 flex items-center justify-center hover:bg-gray-700/60 rounded-r-lg transition-colors"
                 >
                     <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
                 </button>
@@ -163,13 +163,13 @@ const SearchableDropdown = ({ options, value, onChange, placeholder, showLogos =
                             zIndex: 9999999,
                             pointerEvents: 'auto'
                         }}
-                        className="bg-white border border-gray-200 rounded-lg shadow-xl animate-fadeIn"
+                        className="bg-gray-800 border border-gray-700 rounded-lg shadow-xl animate-fadeIn"
                         onClick={(e) => e.stopPropagation()}
                     >
                         <div className="max-h-64 overflow-y-auto">
                             {filteredOptions.length === 0 ? (
                                 <div className="p-4 text-center">
-                                    <p className="text-sm text-gray-500 mb-2">No matching institutions found</p>
+                                    <p className="text-sm text-gray-400 mb-2">No matching institutions found</p>
                                     {inputValue && (
                                         <button
                                             type="button"
@@ -178,7 +178,7 @@ const SearchableDropdown = ({ options, value, onChange, placeholder, showLogos =
                                                 setIsOpen(false);
                                                 if (onOpenChange) onOpenChange(false);
                                             }}
-                                            className="text-sm text-red-600 hover:text-red-700 font-medium"
+                                            className="text-sm text-emerald-400 hover:text-emerald-300 font-medium"
                                         >
                                             Use "{inputValue}" as custom institution
                                         </button>
@@ -194,10 +194,10 @@ const SearchableDropdown = ({ options, value, onChange, placeholder, showLogos =
                                                 setIsOpen(false);
                                                 if (onOpenChange) onOpenChange(false);
                                             }}
-                                            className="w-full px-3 py-2 flex items-center bg-red-50 hover:bg-red-100 transition-colors border-b border-gray-100"
+                                            className="w-full px-3 py-2 flex items-center bg-emerald-500/10 hover:bg-emerald-500/20 transition-colors border-b border-gray-700"
                                         >
-                                            <Plus className="w-4 h-4 mr-3 text-red-600" />
-                                            <span className="text-sm text-red-700 font-medium">Use "{inputValue}" (custom)</span>
+                                            <Plus className="w-4 h-4 mr-3 text-emerald-400" />
+                                            <span className="text-sm text-emerald-300 font-medium">Use "{inputValue}" (custom)</span>
                                         </button>
                                     )}
                                     {filteredOptions.map((option, idx) => (
@@ -212,9 +212,9 @@ const SearchableDropdown = ({ options, value, onChange, placeholder, showLogos =
                                                 setSearch('');
                                             }}
                                             onMouseEnter={() => setHighlightedIndex(idx)}
-                                            className={`w-full px-3 py-2 flex items-center hover:bg-gray-50 transition-colors ${
-                                                value === option.name ? 'bg-red-50' : ''
-                                            } ${highlightedIndex === idx ? 'bg-gray-100' : ''}`}
+                                            className={`w-full px-3 py-2 flex items-center hover:bg-gray-700/60 transition-colors ${
+                                                value === option.name ? 'bg-emerald-500/10' : ''
+                                            } ${highlightedIndex === idx ? 'bg-gray-700' : ''}`}
                                         >
                                             {showLogos && option.logo && (
                                                 <img 
@@ -226,17 +226,17 @@ const SearchableDropdown = ({ options, value, onChange, placeholder, showLogos =
                                                     }}
                                                 />
                                             )}
-                                            <span className="text-sm text-gray-900">{option.name}</span>
+                                            <span className="text-sm text-gray-200">{option.name}</span>
                                             {value === option.name && (
-                                                <Check className="w-4 h-4 text-red-600 ml-auto" />
+                                                <Check className="w-4 h-4 text-emerald-400 ml-auto" />
                                             )}
                                         </button>
                                     ))}
                                 </>
                             )}
                         </div>
-                        <div className="p-2 border-t border-gray-100 bg-gray-50">
-                            <p className="text-xs text-gray-500 text-center">
+                        <div className="p-2 border-t border-gray-700 bg-gray-900/70">
+                            <p className="text-xs text-gray-400 text-center">
                                 Type any custom institution name or select from the list
                             </p>
                         </div>
@@ -400,35 +400,35 @@ export const AddLiabilitiesModal = ({ isOpen, onClose, onLiabilitiesSaved }) => 
         <div className="relative">
             {/* Header */}
             <div className="text-center mb-6">
-                <div className="inline-flex items-center justify-center w-14 h-14 bg-gradient-to-br from-red-500 to-red-600 rounded-2xl mb-3 shadow-lg">
+                <div className="inline-flex items-center justify-center w-14 h-14 bg-gradient-to-br from-rose-500 to-rose-600 rounded-2xl mb-3 shadow-lg">
                     <CreditCard className="w-7 h-7 text-white" />
                 </div>
-                <h3 className="text-2xl font-bold text-gray-900 mb-1">Add Liabilities</h3>
-                <p className="text-gray-600">Track your debts and obligations</p>
+                <h3 className="text-2xl font-bold text-white mb-1">Add Liabilities</h3>
+                <p className="text-gray-400">Track your debts and obligations</p>
             </div>
 
             {/* Stats Bar */}
-            <div className="bg-gradient-to-r from-red-50 to-orange-50 rounded-xl p-3 mb-4 border border-red-100">
+            <div className="bg-gray-900/70 rounded-xl p-3 mb-4 border border-gray-800">
                 <div className="grid grid-cols-4 gap-3">
                     <div className="text-center">
-                        <p className="text-xl font-bold text-red-600">{liabilities.length}</p>
-                        <p className="text-xs text-gray-600">Total</p>
+                        <p className="text-xl font-bold text-rose-400">{liabilities.length}</p>
+                        <p className="text-xs text-gray-400">Total</p>
                     </div>
                     <div className="text-center">
-                        <p className="text-xl font-bold text-green-600">{validLiabilities.length}</p>
-                        <p className="text-xs text-gray-600">Ready</p>
+                        <p className="text-xl font-bold text-emerald-400">{validLiabilities.length}</p>
+                        <p className="text-xs text-gray-400">Ready</p>
                     </div>
                     <div className="text-center">
-                        <p className="text-xl font-bold text-orange-600">
+                        <p className="text-xl font-bold text-amber-400">
                             ${validLiabilities.reduce((sum, l) => sum + (parseFloat(l.current_balance) || 0), 0).toLocaleString()}
                         </p>
-                        <p className="text-xs text-gray-600">Total Debt</p>
+                        <p className="text-xs text-gray-400">Total Debt</p>
                     </div>
                     <div className="text-center">
-                        <p className="text-xl font-bold text-purple-600">
+                        <p className="text-xl font-bold text-purple-400">
                             {(validLiabilities.reduce((sum, l) => sum + (parseFloat(l.interest_rate) || 0), 0) / validLiabilities.length || 0).toFixed(1)}%
                         </p>
-                        <p className="text-xs text-gray-600">Avg Rate</p>
+                        <p className="text-xs text-gray-400">Avg Rate</p>
                     </div>
                 </div>
             </div>
@@ -437,17 +437,17 @@ export const AddLiabilitiesModal = ({ isOpen, onClose, onLiabilitiesSaved }) => 
             <div className="flex gap-3 mb-4">
                 <button
                     onClick={addNewLiability}
-                    className="flex-1 flex items-center justify-center px-4 py-2.5 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg hover:from-red-600 hover:to-red-700 transition-all"
+                    className="flex-1 flex items-center justify-center px-4 py-2.5 bg-gradient-to-r from-rose-500 to-rose-600 text-white rounded-lg hover:from-rose-600 hover:to-rose-700 transition-all"
                 >
                     <Plus className="w-5 h-5 mr-2" />
                     Add Another Liability
                 </button>
-                
+
                 {validLiabilities.length > 0 && (
                     <button
                         onClick={handleSubmit}
                         disabled={isSubmitting}
-                        className="flex-1 flex items-center justify-center px-4 py-2.5 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 transition-all disabled:opacity-50"
+                        className="flex-1 flex items-center justify-center px-4 py-2.5 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white rounded-lg hover:from-emerald-600 hover:to-emerald-700 transition-all disabled:opacity-50"
                     >
                         {isSubmitting ? (
                             <>
@@ -465,9 +465,9 @@ export const AddLiabilitiesModal = ({ isOpen, onClose, onLiabilitiesSaved }) => 
             </div>
 
             {/* Liabilities Table */}
-            <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
-                <div className="bg-gradient-to-r from-gray-50 to-gray-100 px-6 py-3 border-b">
-                    <div className="grid grid-cols-12 gap-3 text-xs font-semibold text-gray-700 uppercase">
+            <div className="bg-gray-900/70 rounded-xl shadow-lg border border-gray-800 overflow-hidden">
+                <div className="bg-gray-950 px-6 py-3 border-b border-gray-800">
+                    <div className="grid grid-cols-12 gap-3 text-xs font-semibold text-gray-400 uppercase">
                         <div className="col-span-3">Name</div>
                         <div className="col-span-2">Type</div>
                         <div className="col-span-2">Balance</div>
@@ -480,8 +480,8 @@ export const AddLiabilitiesModal = ({ isOpen, onClose, onLiabilitiesSaved }) => 
                 <div className="p-3 space-y-2 max-h-96 overflow-y-auto">
                     {liabilities.length === 0 ? (
                         <div className="text-center py-12">
-                            <CreditCard className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                            <p className="text-gray-500">Click "Add Another Liability" to get started</p>
+                            <CreditCard className="w-12 h-12 text-gray-600 mx-auto mb-3" />
+                            <p className="text-gray-400">Click "Add Another Liability" to get started</p>
                         </div>
                     ) : (
                         liabilities.map((liability, index) => {
@@ -491,11 +491,11 @@ export const AddLiabilitiesModal = ({ isOpen, onClose, onLiabilitiesSaved }) => 
                                            liability.current_balance && liability.institution_name;
                             
                             return (
-                                <div 
+                                <div
                                     key={liability.tempId}
-                                    className={`group relative bg-white rounded-lg border-2 p-3 transition-all ${
-                                        liability.isNew ? 'border-red-400 shadow-md' : 
-                                        isValid ? 'border-green-300' : 'border-gray-200'
+                                    className={`group relative bg-gray-800 rounded-lg border-2 p-3 transition-all ${
+                                        liability.isNew ? 'border-rose-500 shadow-md' :
+                                        isValid ? 'border-emerald-500/50' : 'border-gray-700'
                                     }`}
                                 >
                                     <div className="grid grid-cols-12 gap-3 items-center">
@@ -514,7 +514,7 @@ export const AddLiabilitiesModal = ({ isOpen, onClose, onLiabilitiesSaved }) => 
                                                     }
                                                 }}
                                                 placeholder="Visa Card, Home Mortgage..."
-                                                className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-md text-sm focus:bg-white focus:border-red-500 focus:ring-2 focus:ring-red-500/20"
+                                                className="w-full px-3 py-2 bg-gray-950 border border-gray-700 rounded-md text-sm text-white placeholder-gray-500 focus:bg-gray-900 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
                                             />
                                         </div>
 
@@ -523,7 +523,7 @@ export const AddLiabilitiesModal = ({ isOpen, onClose, onLiabilitiesSaved }) => 
                                             <select
                                                 value={liability.liability_type}
                                                 onChange={(e) => updateLiability(liability.tempId, 'liability_type', e.target.value)}
-                                                className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-md text-sm focus:bg-white focus:border-red-500 focus:ring-2 focus:ring-red-500/20"
+                                                className="w-full px-3 py-2 bg-gray-950 border border-gray-700 rounded-md text-sm text-white focus:bg-gray-900 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
                                             >
                                                 <option value="">Select...</option>
                                                 {LIABILITY_TYPES.map(type => (
@@ -537,13 +537,13 @@ export const AddLiabilitiesModal = ({ isOpen, onClose, onLiabilitiesSaved }) => 
                                         {/* Current Balance */}
                                         <div className="col-span-2">
                                             <div className="relative">
-                                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">$</span>
+                                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
                                                 <input
                                                     type="text"
                                                     value={liability.current_balance}
                                                     onChange={(e) => updateLiability(liability.tempId, 'current_balance', formatCurrency(e.target.value))}
                                                     placeholder="0.00"
-                                                    className="w-full pl-8 pr-3 py-2 bg-gray-50 border border-gray-300 rounded-md text-sm focus:bg-white focus:border-red-500 focus:ring-2 focus:ring-red-500/20"
+                                                    className="w-full pl-8 pr-3 py-2 bg-gray-950 border border-gray-700 rounded-md text-sm text-white placeholder-gray-500 focus:bg-gray-900 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
                                                 />
                                             </div>
                                         </div>
@@ -556,9 +556,9 @@ export const AddLiabilitiesModal = ({ isOpen, onClose, onLiabilitiesSaved }) => 
                                                     value={liability.interest_rate}
                                                     onChange={(e) => updateLiability(liability.tempId, 'interest_rate', formatPercent(e.target.value))}
                                                     placeholder="0.0"
-                                                    className="w-full pr-8 pl-3 py-2 bg-gray-50 border border-gray-300 rounded-md text-sm focus:bg-white focus:border-red-500 focus:ring-2 focus:ring-red-500/20"
+                                                    className="w-full pr-8 pl-3 py-2 bg-gray-950 border border-gray-700 rounded-md text-sm text-white placeholder-gray-500 focus:bg-gray-900 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
                                                 />
-                                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">%</span>
+                                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">%</span>
                                             </div>
                                         </div>
 
@@ -578,7 +578,7 @@ export const AddLiabilitiesModal = ({ isOpen, onClose, onLiabilitiesSaved }) => 
                                                 }}
                                             />
                                             {liability.institution_name && !popularBrokerages.find(b => b.name === liability.institution_name) && (
-                                                <div className="absolute -bottom-5 left-0 text-[10px] text-red-600 flex items-center bg-red-50 px-1.5 py-0.5 rounded-full">
+                                                <div className="absolute -bottom-5 left-0 text-[10px] text-emerald-400 flex items-center bg-emerald-500/10 px-1.5 py-0.5 rounded-full">
                                                     <Sparkles className="w-2.5 h-2.5 mr-0.5" />
                                                     Custom
                                                 </div>
@@ -589,14 +589,14 @@ export const AddLiabilitiesModal = ({ isOpen, onClose, onLiabilitiesSaved }) => 
                                         <div className="col-span-1 flex items-center justify-center space-x-1">
                                             <button
                                                 onClick={() => duplicateLiability(liability)}
-                                                className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-all"
+                                                className="p-1.5 text-gray-400 hover:text-indigo-400 hover:bg-indigo-500/10 rounded-md transition-all"
                                                 title="Duplicate"
                                             >
                                                 <Copy className="w-4 h-4" />
                                             </button>
                                             <button
                                                 onClick={() => deleteLiability(liability.tempId)}
-                                                className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-all"
+                                                className="p-1.5 text-gray-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-md transition-all"
                                                 title="Delete"
                                             >
                                                 <Trash2 className="w-4 h-4" />
@@ -606,24 +606,24 @@ export const AddLiabilitiesModal = ({ isOpen, onClose, onLiabilitiesSaved }) => 
 
                                     {/* Additional fields for specific types */}
                                     {(liability.liability_type === 'credit_card' || liability.showCreditLimit) && (
-                                        <div className="mt-2 pt-2 border-t border-gray-100">
+                                        <div className="mt-2 pt-2 border-t border-gray-700">
                                             <div className="grid grid-cols-12 gap-3">
                                                 <div className="col-span-3">
-                                                    <label className="text-xs text-gray-600">Credit Limit</label>
+                                                    <label className="text-xs text-gray-400">Credit Limit</label>
                                                     <div className="relative">
-                                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">$</span>
+                                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
                                                         <input
                                                             type="text"
                                                             value={liability.credit_limit}
                                                             onChange={(e) => updateLiability(liability.tempId, 'credit_limit', formatCurrency(e.target.value))}
                                                             placeholder="0.00"
-                                                            className="w-full pl-8 pr-3 py-2 bg-gray-50 border border-gray-300 rounded-md text-sm"
+                                                            className="w-full pl-8 pr-3 py-2 bg-gray-950 border border-gray-700 rounded-md text-sm text-white placeholder-gray-500"
                                                         />
                                                     </div>
                                                 </div>
                                                 <div className="col-span-3">
-                                                    <label className="text-xs text-gray-600">Utilization</label>
-                                                    <div className="mt-1 px-3 py-2 bg-gray-100 rounded-md text-sm">
+                                                    <label className="text-xs text-gray-400">Utilization</label>
+                                                    <div className="mt-1 px-3 py-2 bg-gray-950 rounded-md text-sm text-gray-300">
                                                         {liability.current_balance && liability.credit_limit
                                                             ? `${((parseFloat(liability.current_balance) / parseFloat(liability.credit_limit)) * 100).toFixed(1)}%`
                                                             : '—'}
@@ -634,24 +634,24 @@ export const AddLiabilitiesModal = ({ isOpen, onClose, onLiabilitiesSaved }) => 
                                     )}
 
                                     {['mortgage', 'auto_loan', 'personal_loan', 'student_loan', 'home_equity'].includes(liability.liability_type) && (
-                                        <div className="mt-2 pt-2 border-t border-gray-100">
+                                        <div className="mt-2 pt-2 border-t border-gray-700">
                                             <div className="grid grid-cols-12 gap-3">
                                                 <div className="col-span-3">
-                                                    <label className="text-xs text-gray-600">Original Amount</label>
+                                                    <label className="text-xs text-gray-400">Original Amount</label>
                                                     <div className="relative">
-                                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">$</span>
+                                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
                                                         <input
                                                             type="text"
                                                             value={liability.original_amount}
                                                             onChange={(e) => updateLiability(liability.tempId, 'original_amount', formatCurrency(e.target.value))}
                                                             placeholder="0.00"
-                                                            className="w-full pl-8 pr-3 py-2 bg-gray-50 border border-gray-300 rounded-md text-sm"
+                                                            className="w-full pl-8 pr-3 py-2 bg-gray-950 border border-gray-700 rounded-md text-sm text-white placeholder-gray-500"
                                                         />
                                                     </div>
                                                 </div>
                                                 <div className="col-span-3">
-                                                    <label className="text-xs text-gray-600">Paid Off</label>
-                                                    <div className="mt-1 px-3 py-2 bg-gray-100 rounded-md text-sm">
+                                                    <label className="text-xs text-gray-400">Paid Off</label>
+                                                    <div className="mt-1 px-3 py-2 bg-gray-950 rounded-md text-sm text-gray-300">
                                                         {liability.current_balance && liability.original_amount
                                                             ? `${(((parseFloat(liability.original_amount) - parseFloat(liability.current_balance)) / parseFloat(liability.original_amount)) * 100).toFixed(1)}%`
                                                             : '—'}
@@ -663,8 +663,8 @@ export const AddLiabilitiesModal = ({ isOpen, onClose, onLiabilitiesSaved }) => 
 
                                     {/* Status indicator */}
                                     <div className={`absolute left-0 top-0 bottom-0 w-1 rounded-l-lg transition-all duration-500 ${
-                                        liability.isNew ? 'bg-gradient-to-b from-red-400 via-orange-400 to-yellow-400 animate-pulse' :
-                                        isValid ? 'bg-gradient-to-b from-green-400 to-emerald-500' : 'bg-gradient-to-b from-gray-300 to-gray-400'
+                                        liability.isNew ? 'bg-gradient-to-b from-rose-500 via-amber-500 to-yellow-500 animate-pulse' :
+                                        isValid ? 'bg-gradient-to-b from-emerald-400 to-emerald-600' : 'bg-gradient-to-b from-gray-600 to-gray-700'
                                     }`} />
 
                                     {/* Type icon */}
@@ -681,12 +681,12 @@ export const AddLiabilitiesModal = ({ isOpen, onClose, onLiabilitiesSaved }) => 
             </div>
 
             {/* Tips */}
-            <div className="mt-4 bg-red-50 rounded-lg p-3 border border-red-100">
+            <div className="mt-4 bg-gray-900/70 rounded-lg p-3 border border-gray-800">
                 <div className="flex items-start">
-                    <Info className="w-4 h-4 text-red-600 mt-0.5 mr-2 flex-shrink-0" />
-                    <div className="text-xs text-red-900">
-                        <p className="font-medium mb-1">Quick tips:</p>
-                        <ul className="space-y-0.5 text-red-700">
+                    <Info className="w-4 h-4 text-emerald-400 mt-0.5 mr-2 flex-shrink-0" />
+                    <div className="text-xs text-gray-300">
+                        <p className="font-medium mb-1 text-white">Quick tips:</p>
+                        <ul className="space-y-0.5 text-gray-400">
                             <li>• Include all debts for accurate net worth</li>
                             <li>• Update balances monthly for best tracking</li>
                             <li>• Higher interest debts should be priority</li>
@@ -697,13 +697,13 @@ export const AddLiabilitiesModal = ({ isOpen, onClose, onLiabilitiesSaved }) => 
 
             {/* Success Animation Overlay */}
             {showSuccessAnimation && (
-                <div className="absolute inset-0 bg-white bg-opacity-95 flex items-center justify-center z-50 rounded-xl">
+                <div className="absolute inset-0 bg-gray-950 bg-opacity-95 flex items-center justify-center z-50 rounded-xl">
                     <div className="text-center">
-                        <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-green-500 to-green-600 rounded-full mb-4 animate-bounce">
+                        <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-full mb-4 animate-bounce">
                             <CheckCircle className="w-10 h-10 text-white" />
                         </div>
-                        <h3 className="text-xl font-bold text-gray-900">Liabilities Added!</h3>
-                        <p className="text-gray-600 mt-1">Tracking your complete financial picture</p>
+                        <h3 className="text-xl font-bold text-white">Liabilities Added!</h3>
+                        <p className="text-gray-400 mt-1">Tracking your complete financial picture</p>
                     </div>
                 </div>
             )}
