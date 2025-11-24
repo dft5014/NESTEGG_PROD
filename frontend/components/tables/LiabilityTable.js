@@ -176,12 +176,12 @@ const LiabilityTable = ({
           bVal = b.weighted_avg_interest_rate || 0;
           break;
         case 'paydown':
-          // Calculate paydown percentage on the fly
+          // Calculate paydown ratio on the fly (0-1)
           aVal = a.total_original_amount > 0
-            ? ((a.total_original_amount - a.total_current_balance) / a.total_original_amount) * 100
+            ? (a.total_original_amount - a.total_current_balance) / a.total_original_amount
             : 0;
           bVal = b.total_original_amount > 0
-            ? ((b.total_original_amount - b.total_current_balance) / b.total_original_amount) * 100
+            ? (b.total_original_amount - b.total_current_balance) / b.total_original_amount
             : 0;
           break;
         case 'allocation':
@@ -259,7 +259,7 @@ const LiabilityTable = ({
                 <p className="text-xs text-gray-400 mt-1">
                   {formatPercentage(
                     liability.total_original_amount > 0
-                      ? ((liability.total_original_amount - liability.total_current_balance) / liability.total_original_amount) * 100
+                      ? (liability.total_original_amount - liability.total_current_balance) / liability.total_original_amount
                       : 0
                   )}
                 </p>
@@ -488,7 +488,7 @@ const LiabilityTable = ({
             <p className="text-xs text-gray-500 mt-1">
               {formatPercentage(
                 summary.total_original_debt > 0
-                  ? ((summary.total_original_debt - summary.total_debt) / summary.total_original_debt) * 100
+                  ? (summary.total_original_debt - summary.total_debt) / summary.total_original_debt
                   : 0
               )} paid off
             </p>
@@ -669,7 +669,7 @@ const LiabilityTable = ({
                         <p className="text-xs text-gray-400">
                           {formatPercentage(
                             liability.total_original_amount > 0
-                              ? ((liability.total_original_amount - liability.total_current_balance) / liability.total_original_amount) * 100
+                              ? (liability.total_original_amount - liability.total_current_balance) / liability.total_original_amount
                               : 0
                           )}
                         </p>
