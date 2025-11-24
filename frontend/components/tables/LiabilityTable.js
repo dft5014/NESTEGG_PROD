@@ -82,21 +82,27 @@ const MultiSelectDropdown = ({ options, value, onChange, placeholder }) => {
   );
 };
 
-const LiabilityTable = ({ 
-  initialSort = "balance-high", 
+const LiabilityTable = ({
+  initialSort = "balance-high",
   title = "Debt Overview",
-  showHistoricalColumns = false 
+  showHistoricalColumns = false
 }) => {
+  // Helper function to safely calculate percentages (matches liabilities.js)
+  const safePercentage = (numerator, denominator) => {
+    if (!denominator || denominator === 0) return 0;
+    return (numerator / denominator) * 100;
+  };
+
   // Use DataStore hook
-  const { 
-    liabilities, 
-    summary, 
-    metrics, 
-    loading, 
-    error, 
-    lastFetched, 
-    isStale, 
-    refreshData 
+  const {
+    liabilities,
+    summary,
+    metrics,
+    loading,
+    error,
+    lastFetched,
+    isStale,
+    refreshData
   } = useGroupedLiabilities();
 
   // Local UI State
@@ -257,11 +263,10 @@ const LiabilityTable = ({
                   {formatCurrency(Math.max(0, liability.total_original_amount - liability.total_current_balance))}
                 </p>
                 <p className="text-xs text-gray-400 mt-1">
-                  {formatPercentage(
-                    liability.total_original_amount > 0
-                      ? (liability.total_original_amount - liability.total_current_balance) / liability.total_original_amount
-                      : 0
-                  )}
+                  {safePercentage(
+                    liability.total_original_amount - liability.total_current_balance,
+                    liability.total_original_amount
+                  ).toFixed(2)}%
                 </p>
               </div>
               <div className="bg-gray-800/50 p-4 rounded-lg">
@@ -486,11 +491,10 @@ const LiabilityTable = ({
             </div>
             <p className="text-xl font-bold text-red-400">{formatCurrency(summary.total_debt)}</p>
             <p className="text-xs text-gray-500 mt-1">
-              {formatPercentage(
-                summary.total_original_debt > 0
-                  ? (summary.total_original_debt - summary.total_debt) / summary.total_original_debt
-                  : 0
-              )} paid off
+              {safePercentage(
+                summary.total_original_debt - summary.total_debt,
+                summary.total_original_debt
+              ).toFixed(2)}% paid off
             </p>
           </div>
 
@@ -667,11 +671,10 @@ const LiabilityTable = ({
                           {formatCurrency(Math.max(0, liability.total_original_amount - liability.total_current_balance))}
                         </p>
                         <p className="text-xs text-gray-400">
-                          {formatPercentage(
-                            liability.total_original_amount > 0
-                              ? (liability.total_original_amount - liability.total_current_balance) / liability.total_original_amount
-                              : 0
-                          )}
+                          {safePercentage(
+                            liability.total_original_amount - liability.total_current_balance,
+                            liability.total_original_amount
+                          ).toFixed(2)}%
                         </p>
                       </td>
                       <td className="px-2 py-2 text-right">
