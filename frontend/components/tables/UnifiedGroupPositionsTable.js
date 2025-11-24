@@ -588,26 +588,28 @@ const UnifiedGroupPositionsTable = ({
         <div className="grid grid-cols-5 gap-4 p-4 bg-gray-900/50 border-b border-gray-700">
           <div>
             <div className="text-xs text-gray-400">Total Value</div>
-            <div className="text-lg font-semibold">{formatCurrency(filteredSummary.totalValue)}</div>
+            <div className="text-lg font-semibold">{formatCurrency(filteredSummary.totalValue || 0)}</div>
           </div>
           <div>
             <div className="text-xs text-gray-400">Total Gain/Loss</div>
             <div className={`text-lg font-semibold ${filteredSummary.totalGainLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-              {filteredSummary.totalGainLoss >= 0 ? '+' : ''}{formatCurrency(filteredSummary.totalGainLoss)}
+              {filteredSummary.totalGainLoss >= 0 ? '+' : ''}{formatCurrency(filteredSummary.totalGainLoss || 0)}
               <span className="text-xs ml-1">({formatPercentage(filteredSummary.totalGainLossPct / 100)})</span>
             </div>
           </div>
           <div>
             <div className="text-xs text-gray-400">Annual Income</div>
             <div className="text-lg font-semibold">
-              {formatCurrency(filteredSummary.totalIncome)}
-              <span className="text-xs text-gray-400 ml-1">({filteredSummary.avgYield.toFixed(2)}%)</span>
+              {formatCurrency(filteredSummary.totalIncome || 0)}
+              <span className="text-xs text-gray-400 ml-1">
+                ({(filteredSummary.avgYield || 0).toFixed(2)}%)
+              </span>
             </div>
           </div>
           <div>
             <div className="text-xs text-gray-400">Long Term %</div>
             <div className="text-lg font-semibold text-green-400">
-              {metrics.longTermPercentage.toFixed(1)}%
+              {(metrics?.longTermPercentage || 0).toFixed(1)}%
             </div>
           </div>
           <div>
@@ -723,8 +725,8 @@ const UnifiedGroupPositionsTable = ({
                   </td>
                   <td colSpan="4" className="px-2 py-2"></td>
                   <td className="px-2 py-2 text-right text-sm">
-                    {formatCurrency(filteredSummary.totalIncome)}
-                    <div className="text-xs text-gray-400">{filteredSummary.avgYield.toFixed(2)}%</div>
+                    {formatCurrency(filteredSummary.totalIncome || 0)}
+                    <div className="text-xs text-gray-400">{(filteredSummary.avgYield || 0).toFixed(2)}%</div>
                   </td>
                   <td className="px-2 py-2 text-right text-sm">100%</td>
                   <td className="px-2 py-2 text-center text-sm">{filteredSummary.count}</td>
@@ -756,11 +758,13 @@ const UnifiedGroupPositionsTable = ({
                   </td>
                   <td colSpan="4" className="px-2 py-2"></td>
                   <td className="px-2 py-2 text-right text-sm">
-                    {formatCurrency(liquidSummary.totalIncome)}
-                    <div className="text-xs text-gray-400">{liquidSummary.avgYield.toFixed(2)}%</div>
+                    {formatCurrency(liquidSummary.totalIncome || 0)}
+                    <div className="text-xs text-gray-400">{(liquidSummary.avgYield || 0).toFixed(2)}%</div>
                   </td>
                   <td className="px-2 py-2 text-right text-sm">
-                    {((liquidSummary.totalValue / filteredSummary.totalValue) * 100).toFixed(1)}%
+                    {filteredSummary.totalValue > 0
+                      ? ((liquidSummary.totalValue / filteredSummary.totalValue) * 100).toFixed(1)
+                      : '0.0'}%
                   </td>
                   <td className="px-2 py-2 text-center text-sm">{liquidSummary.count}</td>
                 </tr>
@@ -799,14 +803,16 @@ const UnifiedGroupPositionsTable = ({
                       {illiquidSummary.totalIncome > 0 ? (
                         <>
                           {formatCurrency(illiquidSummary.totalIncome)}
-                          <div className="text-xs text-gray-400">{illiquidSummary.avgYield.toFixed(2)}%</div>
+                          <div className="text-xs text-gray-400">{(illiquidSummary.avgYield || 0).toFixed(2)}%</div>
                         </>
                       ) : (
                         <span className="text-gray-500">-</span>
                       )}
                     </td>
                     <td className="px-2 py-2 text-right text-sm">
-                      {((illiquidSummary.totalValue / filteredSummary.totalValue) * 100).toFixed(1)}%
+                      {filteredSummary.totalValue > 0
+                        ? ((illiquidSummary.totalValue / filteredSummary.totalValue) * 100).toFixed(1)
+                        : '0.0'}%
                     </td>
                     <td className="px-2 py-2 text-center text-sm">{illiquidSummary.count}</td>
                   </tr>
@@ -892,13 +898,19 @@ const UnifiedGroupPositionsTable = ({
                         <div>
                           <div>{formatCurrency(position.total_annual_income)}</div>
                           <div className="text-xs text-gray-400">
-                            {position.dividend_rate > 0 ? `$${position.dividend_rate}/unit` : `${position.dividend_yield}%`}
+                            {position.dividend_rate > 0
+                              ? `$${position.dividend_rate.toFixed(2)}/unit`
+                              : position.dividend_yield
+                                ? formatPercentage(position.dividend_yield)
+                                : '-'}
                           </div>
                         </div>
                       ) : position.asset_type === 'cash' && position.dividend_yield > 0 ? (
                         <div>
                           <div>{formatCurrency(position.total_annual_income)}</div>
-                          <div className="text-xs text-gray-400">{position.dividend_yield}% APY</div>
+                          <div className="text-xs text-gray-400">
+                            {formatPercentage(position.dividend_yield)} APY
+                          </div>
                         </div>
                       ) : (
                         <span className="text-gray-500">-</span>
@@ -907,7 +919,7 @@ const UnifiedGroupPositionsTable = ({
                     <td className="px-2 py-2 whitespace-nowrap text-sm text-right">
                       <div className="font-medium">{formatPercentage(position.portfolio_allocation_pct / 100)}</div>
                       <div className="text-xs text-gray-400">
-                        {position.long_term_value_pct > 0 && `${position.long_term_value_pct.toFixed(0)}% LT`}
+                        {position.long_term_value_pct > 0 && `${(position.long_term_value_pct || 0).toFixed(0)}% LT`}
                       </div>
                     </td>
                     <td className="px-2 py-2 whitespace-nowrap text-sm text-center">
@@ -982,20 +994,23 @@ const UnifiedGroupPositionsTable = ({
                 <div className="grid grid-cols-3 gap-4 mb-6">
                   <div className="bg-gray-800/50 p-4 rounded">
                     <div className="text-xs text-gray-400">Total Value</div>
-                    <div className="text-xl font-semibold">{formatCurrency(selectedPosition.total_current_value)}</div>
+                    <div className="text-xl font-semibold">
+                      {formatCurrency(selectedPosition.total_current_value || 0)}
+                    </div>
                     <div className="text-xs text-gray-500 mt-1">
-                      {formatPercentage(selectedPosition.portfolio_allocation_pct / 100)} of portfolio
+                      {formatPercentage((selectedPosition.portfolio_allocation_pct || 0) / 100)} of portfolio
                     </div>
                   </div>
                   <div className="bg-gray-800/50 p-4 rounded">
                     <div className="text-xs text-gray-400">Total Gain/Loss</div>
                     <div className={`text-xl font-semibold ${
-                      selectedPosition.total_gain_loss_amt >= 0 ? 'text-green-400' : 'text-red-400'
+                      (selectedPosition.total_gain_loss_amt || 0) >= 0 ? 'text-green-400' : 'text-red-400'
                     }`}>
-                      {selectedPosition.total_gain_loss_amt >= 0 && '+'}{formatCurrency(selectedPosition.total_gain_loss_amt)}
+                      {(selectedPosition.total_gain_loss_amt || 0) >= 0 && '+'}
+                      {formatCurrency(selectedPosition.total_gain_loss_amt || 0)}
                     </div>
                     <div className="text-xs text-gray-500 mt-1">
-                      {selectedPosition.total_gain_loss_amt >= 0 && '+'}
+                      {(selectedPosition.total_gain_loss_amt || 0) >= 0 && '+'}
                       {Number.isFinite(selectedPosition.total_gain_loss_pct)
                         ? `${selectedPosition.total_gain_loss_pct.toFixed(2)}%`
                         : '0.00%'}
@@ -1003,9 +1018,13 @@ const UnifiedGroupPositionsTable = ({
                   </div>
                   <div className="bg-gray-800/50 p-4 rounded">
                     <div className="text-xs text-gray-400">Annual Income</div>
-                    <div className="text-xl font-semibold">{formatCurrency(selectedPosition.total_annual_income)}</div>
+                    <div className="text-xl font-semibold">
+                      {formatCurrency(selectedPosition.total_annual_income || 0)}
+                    </div>
                     <div className="text-xs text-gray-500 mt-1">
-                      {selectedPosition.dividend_yield}% yield
+                      {selectedPosition.dividend_yield
+                        ? `${formatPercentage(selectedPosition.dividend_yield)} yield`
+                        : 'No yield data'}
                     </div>
                   </div>
                 </div>
@@ -1040,27 +1059,6 @@ const UnifiedGroupPositionsTable = ({
                     ))}
                   </div>
                 </div>
-                                
-                {/* Debug log */}
-                {console.log('Selected Position:', selectedPosition)}
-                {console.log('Performance History:', selectedPosition?.performance_history)}
-                {console.log('Performance History Length:', selectedPosition?.performance_history?.length)}
-
-                {/* Comprehensive Debug Log */}
-                {console.log('=== COMPLETE SELECTED POSITION DATA ===')}
-                {console.log('Full object:', JSON.stringify(selectedPosition, null, 2))}
-                {console.log('=== TOP LEVEL FIELDS ===')}
-                {console.log('Field names:', Object.keys(selectedPosition))}
-                {console.log('=== CHECKING FOR HISTORICAL DATA ===')}
-                {console.log('performance_history:', selectedPosition.performance_history)}
-                {console.log('history:', selectedPosition.history)}
-                {console.log('price_history:', selectedPosition.price_history)}
-                {console.log('value_history:', selectedPosition.value_history)}
-                {console.log('account_details:', selectedPosition.account_details)}
-                {console.log('=== SAMPLE ACCOUNT DETAIL ===')}
-                {selectedPosition.account_details && selectedPosition.account_details[0] && 
-                console.log('First account detail:', JSON.stringify(selectedPosition.account_details[0], null, 2))
-                }
 
                 {/* Position Charts */}
                 {selectedPosition && (
