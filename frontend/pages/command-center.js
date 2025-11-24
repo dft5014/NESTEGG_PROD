@@ -124,9 +124,10 @@ const formatDate = (dateStr) => {
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 };
 
+// Percent normalizer: convert to number, treat value as fraction directly
+// (e.g., 0.3 = 30%, 7.65 = 765%)
 const toFrac = (x) => {
-  const n = Number(x ?? 0);
-  return Math.abs(n) > 1 ? n / 100 : n;
+  return Number(x ?? 0);
 };
 
 // ============================================================================
