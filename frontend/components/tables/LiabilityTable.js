@@ -176,8 +176,13 @@ const LiabilityTable = ({
           bVal = b.weighted_avg_interest_rate || 0;
           break;
         case 'paydown':
-          aVal = a.paydown_percentage || 0;
-          bVal = b.paydown_percentage || 0;
+          // Calculate paydown percentage on the fly
+          aVal = a.total_original_amount > 0
+            ? ((a.total_original_amount - a.total_current_balance) / a.total_original_amount) * 100
+            : 0;
+          bVal = b.total_original_amount > 0
+            ? ((b.total_original_amount - b.total_current_balance) / b.total_original_amount) * 100
+            : 0;
           break;
         case 'allocation':
           aVal = a.debt_allocation_pct || 0;
@@ -249,10 +254,14 @@ const LiabilityTable = ({
               <div className="bg-gray-800/50 p-4 rounded-lg">
                 <p className="text-gray-400 text-sm mb-1">Paid Down</p>
                 <p className="text-xl font-bold text-green-400">
-                  {formatCurrency(liability.total_paid_down)}
+                  {formatCurrency(Math.max(0, liability.total_original_amount - liability.total_current_balance))}
                 </p>
                 <p className="text-xs text-gray-400 mt-1">
-                  {formatPercentage(liability.paydown_percentage)}
+                  {formatPercentage(
+                    liability.total_original_amount > 0
+                      ? ((liability.total_original_amount - liability.total_current_balance) / liability.total_original_amount) * 100
+                      : 0
+                  )}
                 </p>
               </div>
               <div className="bg-gray-800/50 p-4 rounded-lg">
@@ -477,7 +486,11 @@ const LiabilityTable = ({
             </div>
             <p className="text-xl font-bold text-red-400">{formatCurrency(summary.total_debt)}</p>
             <p className="text-xs text-gray-500 mt-1">
-              {formatPercentage((summary.total_paid_down / summary.total_original_debt) * 100)} paid off
+              {formatPercentage(
+                summary.total_original_debt > 0
+                  ? ((summary.total_original_debt - summary.total_debt) / summary.total_original_debt) * 100
+                  : 0
+              )} paid off
             </p>
           </div>
 
@@ -497,7 +510,9 @@ const LiabilityTable = ({
               <p className="text-gray-400 text-sm">Amount Paid</p>
               <CheckCircle className="w-4 h-4 text-green-400" />
             </div>
-            <p className="text-xl font-bold text-green-400">{formatCurrency(summary.total_paid_down)}</p>
+            <p className="text-xl font-bold text-green-400">
+              {formatCurrency(Math.max(0, summary.total_original_debt - summary.total_debt))}
+            </p>
             <p className="text-xs text-gray-500 mt-1">
               from {formatCurrency(summary.total_original_debt)}
             </p>
@@ -649,10 +664,14 @@ const LiabilityTable = ({
                       </td>
                       <td className="px-2 py-2 text-right">
                         <p className="font-medium text-green-400">
-                          {formatCurrency(liability.total_paid_down)}
+                          {formatCurrency(Math.max(0, liability.total_original_amount - liability.total_current_balance))}
                         </p>
                         <p className="text-xs text-gray-400">
-                          {formatPercentage(liability.paydown_percentage)}
+                          {formatPercentage(
+                            liability.total_original_amount > 0
+                              ? ((liability.total_original_amount - liability.total_current_balance) / liability.total_original_amount) * 100
+                              : 0
+                          )}
                         </p>
                       </td>
                       <td className="px-2 py-2 text-right">
