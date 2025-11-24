@@ -21,7 +21,7 @@ import {
   Plus, X, Check, TrendingUp, Building2, Coins, DollarSign,
   Home, BarChart3, Briefcase, Eye, EyeOff, Save, Trash2,
   AlertCircle, CheckCircle, Clock, Hash, Search, ChevronDown,
-  Copy, ArrowUp, ArrowDown, Sparkles, Zap, Activity, Layers,
+  Copy, ArrowUp, ArrowDown, ArrowRight, Sparkles, Zap, Activity, Layers,
   FileSpreadsheet, Table, Grid3x3, Filter, Download, Upload,
   Keyboard, MousePointer, MoreVertical, ChevronRight, Shield,
   PieChart, Target, Wallet, CreditCard, Gem, Building,
