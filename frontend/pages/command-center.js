@@ -911,6 +911,7 @@ export default function Analytics() {
               sectorData={sectorData}
               assetAllocationData={assetAllocationData}
               institutionAllocation={institutionAllocation}
+              concentrationMetrics={concentrationMetrics}
             />
           )}
 
@@ -1474,12 +1475,12 @@ const PerformanceTab = ({
                   <span className="text-gray-500 font-mono text-sm">#{idx + 1}</span>
                   <div>
                     <p className="text-white font-medium">{pos.name || pos.identifier}</p>
-                    <p className="text-xs text-gray-400">{pos.asset_type}</p>
+                    <p className="text-xs text-gray-400">{pos.identifier}</p>
                   </div>
                 </div>
                 <div className="text-right">
                   <p className="text-purple-400 font-bold">
-                    +{formatPercent((pos.total_gain_loss_pct || 0) * 100, false)}
+                    +{formatPercent(pos.total_gain_loss_pct || 0, false)}
                   </p>
                   <p className="text-xs text-gray-400">
                     +{formatCurrency(pos.total_gain_loss_amt || pos.total_gain_loss || 0)}
@@ -1506,7 +1507,12 @@ const PerformanceTab = ({
             Object.entries(summary.assetAllocation)
               .filter(([, d]) => d.value > 0)
               .map(([assetType, data]) => {
-                const perf = assetPerformance?.[assetType] || {};
+                // Map assetAllocation keys to assetPerformance keys
+                const perfKey = assetType === 'securities' ? 'security'
+                  : assetType === 'metals' ? 'metal'
+                  : assetType === 'otherAssets' ? 'other_assets'
+                  : assetType;
+                const perf = assetPerformance?.[perfKey] || {};
                 const hasGainLoss = data.gainLoss !== undefined && data.gainLoss !== null;
                 return (
                   <motion.div
@@ -1585,13 +1591,15 @@ const AllocationTab = ({
   summary,
   sectorData,
   assetAllocationData,
-  institutionAllocation
+  institutionAllocation,
+  concentrationMetrics
 }) => {
   console.log('AllocationTab: Rendering with data:', {
     hasSummary: !!summary,
     sectorDataLength: sectorData?.length,
     assetAllocationLength: assetAllocationData?.length,
-    institutionAllocationLength: institutionAllocation?.length
+    institutionAllocationLength: institutionAllocation?.length,
+    hasConcentrationMetrics: !!concentrationMetrics
   });
 
   if (!summary || !assetAllocationData || assetAllocationData.length === 0) {
@@ -1768,6 +1776,48 @@ const AllocationTab = ({
           ))}
         </div>
       </motion.div>
+
+      {/* Concentration Analysis */}
+      {concentrationMetrics && (
+        <motion.div
+          variants={cardVariants}
+          className="bg-gradient-to-br from-gray-800/60 to-gray-900/60 backdrop-blur-xl rounded-3xl border border-gray-700/50 p-6"
+        >
+          <div className="flex items-center gap-3 mb-6">
+            <Target className="w-6 h-6 text-amber-400" />
+            <h3 className="text-lg font-bold text-white">Portfolio Diversification</h3>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div>
+              <p className="text-sm text-gray-400 mb-2">Diversification Score</p>
+              <p className="text-3xl font-bold text-white mb-2">
+                {concentrationMetrics?.herfindahl_index !== undefined && concentrationMetrics?.herfindahl_index !== null
+                  ? (100 - concentrationMetrics.herfindahl_index * 100).toFixed(0)
+                  : '—'}
+              </p>
+              <p className="text-xs text-gray-500">Higher is better (0-100)</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-400 mb-2">Top 5 Concentration</p>
+              <p className="text-3xl font-bold text-white mb-2">
+                {concentrationMetrics?.top_5_concentration !== undefined && concentrationMetrics?.top_5_concentration !== null
+                  ? `${(concentrationMetrics.top_5_concentration * 100).toFixed(1)}%`
+                  : '—'}
+              </p>
+              <p className="text-xs text-gray-500">Of total portfolio</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-400 mb-2">Largest Position</p>
+              <p className="text-3xl font-bold text-white mb-2">
+                {concentrationMetrics?.largest_position_weight !== undefined && concentrationMetrics?.largest_position_weight !== null
+                  ? `${(concentrationMetrics.largest_position_weight * 100).toFixed(1)}%`
+                  : '—'}
+              </p>
+              <p className="text-xs text-gray-500">Single holding weight</p>
+            </div>
+          </div>
+        </motion.div>
+      )}
 
       {/* Asset Class Detail Cards */}
       <motion.div
@@ -1951,7 +2001,7 @@ const RiskAnalysisTab = ({
           <div>
             <p className="text-sm text-gray-400 mb-2">Top 5 Concentration</p>
             <p className="text-3xl font-bold text-white mb-2">
-              {concentrationMetrics?.top_5_concentration
+              {concentrationMetrics?.top_5_concentration !== undefined && concentrationMetrics?.top_5_concentration !== null
                 ? `${(concentrationMetrics.top_5_concentration * 100).toFixed(1)}%`
                 : '—'}
             </p>
@@ -1960,7 +2010,7 @@ const RiskAnalysisTab = ({
           <div>
             <p className="text-sm text-gray-400 mb-2">Largest Position</p>
             <p className="text-3xl font-bold text-white mb-2">
-              {concentrationMetrics?.largest_position_weight
+              {concentrationMetrics?.largest_position_weight !== undefined && concentrationMetrics?.largest_position_weight !== null
                 ? `${(concentrationMetrics.largest_position_weight * 100).toFixed(1)}%`
                 : '—'}
             </p>
@@ -1969,7 +2019,7 @@ const RiskAnalysisTab = ({
           <div>
             <p className="text-sm text-gray-400 mb-2">Diversification Score</p>
             <p className="text-3xl font-bold text-white mb-2">
-              {concentrationMetrics?.herfindahl_index
+              {concentrationMetrics?.herfindahl_index !== undefined && concentrationMetrics?.herfindahl_index !== null
                 ? (100 - concentrationMetrics.herfindahl_index * 100).toFixed(0)
                 : '—'}
             </p>
@@ -1992,7 +2042,7 @@ const RiskAnalysisTab = ({
             <div>
               <p className="text-sm text-gray-400 mb-2">Long-Term Holdings</p>
               <p className="text-3xl font-bold text-emerald-400 mb-2">
-                {taxEfficiencyMetrics.long_term_percentage
+                {taxEfficiencyMetrics.long_term_percentage !== undefined && taxEfficiencyMetrics.long_term_percentage !== null
                   ? `${(taxEfficiencyMetrics.long_term_percentage * 100).toFixed(1)}%`
                   : '—'}
               </p>
@@ -2001,10 +2051,8 @@ const RiskAnalysisTab = ({
             <div>
               <p className="text-sm text-gray-400 mb-2">Tax-Advantaged</p>
               <p className="text-3xl font-bold text-white mb-2">
-                {taxEfficiencyMetrics.tax_advantaged_percentage
-                  ? `${(taxEfficiencyMetrics.tax_advantaged_percentage * 100).toFixed(
-                      1
-                    )}%`
+                {taxEfficiencyMetrics.tax_advantaged_percentage !== undefined && taxEfficiencyMetrics.tax_advantaged_percentage !== null
+                  ? `${(taxEfficiencyMetrics.tax_advantaged_percentage * 100).toFixed(1)}%`
                   : '—'}
               </p>
               <p className="text-xs text-gray-500">In retirement accounts</p>
@@ -2012,7 +2060,7 @@ const RiskAnalysisTab = ({
             <div>
               <p className="text-sm text-gray-400 mb-2">Unrealized Gains</p>
               <p className="text-3xl font-bold text-white mb-2">
-                {taxEfficiencyMetrics.unrealized_gains
+                {taxEfficiencyMetrics.unrealized_gains !== undefined && taxEfficiencyMetrics.unrealized_gains !== null
                   ? formatCurrency(taxEfficiencyMetrics.unrealized_gains, true)
                   : '—'}
               </p>
