@@ -583,15 +583,13 @@ const SidebarEggMascot = ({ isCollapsed }) => {
           ease: "easeInOut"
         }}
       >
-        {/* Evolution Stage Emoji */}
-        <div className="flex justify-center mb-2">
-          <span className="text-5xl">{EVOLUTION_MILESTONES[evolutionStage].emoji}</span>
-        </div>
-
         {/* Stage and Mood */}
-        <div className="text-center mb-2">
-          <p className="text-xs font-semibold text-white">{EVOLUTION_MILESTONES[evolutionStage].label} Egg</p>
-          <p className="text-[10px] text-gray-400">Mood: {getMoodEmoji} {mood}</p>
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-2xl">{EVOLUTION_MILESTONES[evolutionStage].emoji}</span>
+          <div>
+            <p className="text-xs font-semibold text-white">{EVOLUTION_MILESTONES[evolutionStage].label} Egg</p>
+            <p className="text-[10px] text-gray-400">Mood: {getMoodEmoji} {mood}</p>
+          </div>
         </div>
 
         {/* Mini Stats */}
@@ -607,53 +605,6 @@ const SidebarEggMascot = ({ isCollapsed }) => {
               {formatPercent(dayChangePct)}
             </span>
           </div>
-        </div>
-
-        {/* Evolution Journey - Show all stages */}
-        <div className="mt-3 pt-2 border-t border-gray-700/50">
-          <div className="flex justify-between items-center mb-2">
-            {EVOLUTION_STAGES.map((stage, index) => (
-              <div key={stage} className="flex flex-col items-center gap-1">
-                <motion.div
-                  className={`w-6 h-6 rounded-full flex items-center justify-center text-xs border-2 transition-all ${
-                    index <= currentStageIndex
-                      ? 'bg-gradient-to-r from-blue-500 to-purple-500 border-blue-400'
-                      : 'bg-gray-700 border-gray-600'
-                  }`}
-                  animate={index === currentStageIndex ? {
-                    scale: [1, 1.1, 1],
-                  } : {}}
-                  transition={{
-                    duration: 2,
-                    repeat: Infinity,
-                  }}
-                >
-                  {EVOLUTION_MILESTONES[stage].emoji}
-                </motion.div>
-                {index < EVOLUTION_STAGES.length - 1 && (
-                  <div className={`w-8 h-0.5 ${index < currentStageIndex ? 'bg-gradient-to-r from-blue-500 to-purple-500' : 'bg-gray-700'}`} />
-                )}
-              </div>
-            ))}
-          </div>
-
-          {/* Progress to next stage */}
-          {evolutionStage !== 'wise' && (
-            <>
-              <div className="flex justify-between text-[10px] text-gray-400 mb-1">
-                <span>Progress to {nextStageName}</span>
-                <span>{evolutionProgress.toFixed(0)}%</span>
-              </div>
-              <div className="w-full bg-gray-700 rounded-full h-1.5">
-                <motion.div
-                  className="bg-gradient-to-r from-blue-500 to-purple-500 h-1.5 rounded-full"
-                  initial={{ width: 0 }}
-                  animate={{ width: `${evolutionProgress}%` }}
-                  transition={{ duration: 0.5 }}
-                />
-              </div>
-            </>
-          )}
         </div>
 
         <motion.div
@@ -742,6 +693,28 @@ const QuickStatsContent = ({
   const dayChangePct = summary?.periodChanges?.['1d']?.netWorthPercent || 0;
   const weekChangePct = summary?.periodChanges?.['1w']?.netWorthPercent || 0;
   const monthChangePct = summary?.periodChanges?.['1m']?.netWorthPercent || 0;
+
+  // Calculate remaining amount needed for next stage
+  const getRemainingAmount = () => {
+    const currentIndex = EVOLUTION_STAGES.indexOf(evolutionStage);
+    if (currentIndex >= EVOLUTION_STAGES.length - 1) return 0;
+
+    const nextStage = EVOLUTION_STAGES[currentIndex + 1];
+    const currentNetWorth = summary?.netWorth || 0;
+    const currentStageMilestone = EVOLUTION_MILESTONES[evolutionStage];
+
+    // For wise stage, use $1M as goal (same as progress calculation)
+    if (nextStage === 'wise') {
+      const wiseGoal = 1_000_000;
+      return Math.max(0, wiseGoal - currentNetWorth);
+    }
+
+    const nextMilestone = EVOLUTION_MILESTONES[nextStage];
+    return Math.max(0, nextMilestone.maxNetWorth - currentNetWorth);
+  };
+
+  const remainingAmount = getRemainingAmount();
+  const isProgressingToWise = evolutionStage === 'adult' && EVOLUTION_STAGES.indexOf(evolutionStage) < EVOLUTION_STAGES.length - 1 && EVOLUTION_STAGES[EVOLUTION_STAGES.indexOf(evolutionStage) + 1] === 'wise';
 
   return (
     <div className="p-5">
@@ -834,7 +807,11 @@ const QuickStatsContent = ({
           <>
             <div className="flex justify-between text-xs text-gray-400 mb-2">
               <span>Progress to {nextStageName}</span>
-              <span>{evolutionProgress.toFixed(1)}%</span>
+              {isProgressingToWise ? (
+                <span className="text-purple-400 font-medium">{formatCurrency(remainingAmount)} remaining</span>
+              ) : (
+                <span>{evolutionProgress.toFixed(1)}%</span>
+              )}
             </div>
             <div className="w-full bg-gray-700 rounded-full h-2.5 mb-2">
               <motion.div
@@ -845,7 +822,9 @@ const QuickStatsContent = ({
               />
             </div>
             <p className="text-[10px] text-gray-500 italic">
-              {evolutionProgress < 50
+              {isProgressingToWise
+                ? `Reach $1M net worth to achieve mastery`
+                : evolutionProgress < 50
                 ? "Keep growing your wealth!"
                 : evolutionProgress < 90
                 ? "Almost there! Keep it up!"
