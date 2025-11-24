@@ -510,35 +510,38 @@ const Navbar = () => {
   const [showTour, setShowTour] = useState(false);
 
   // Refs to spotlight targets
-  const addRef     = useRef(null);
-  const editRef    = useRef(null);
-  const recRef     = useRef(null);
-  const summaryRef = useRef(null);
-  const tickerRef  = useRef(null);
+  const addRef      = useRef(null);
+  const editRef     = useRef(null);
+  const recRef      = useRef(null);
+  const validateRef = useRef(null);
+  const summaryRef  = useRef(null);
+  const tickerRef   = useRef(null);
 
   // Keep center behavior on scroll
   useRafScroll(() => setScrolled(window.scrollY > 10));
 
-  // Steps: Add, Edit, Update, Summary (chips), Ticker (right-pinned card), Final summary
+  // Steps: Add, Edit, Update, Validate, Summary (chips), Ticker (right-pinned card), Final summary
   const steps = useMemo(() => ([
     { title: "Add to NestEgg", desc: "Create accounts, add positions, and track liabilities." },
     { title: "Edit & Delete",  desc: "Update entries quickly—inline edits and clean removals." },
     { title: "Update Manual",  desc: "Refresh non-market items like cash, loans, or other assets." },
+    { title: "Validate Accounts", desc: "Reconcile your accounts against statements to ensure accuracy." },
     { title: "Portfolio Summary", desc: "Your key totals and changes for the selected period (top right)." },
     { title: "Live Ticker", desc: "Quick view of top holdings, prices, and 1D/1W/YTD moves.", placement: "right" },
     {
-      title: "What’s Next",
-      desc: "You’re ready to go! Here’s a quick game plan.",
+      title: "You're All Set!",
+      desc: "You now know the essentials. Here's your quick workflow:",
       extra: (
         <>
           <ul className="list-disc pl-5 space-y-1">
-            <li>Add your primary accounts (brokerage, cash, loans).</li>
-            <li>Enter positions or balances for anything manual.</li>
-            <li>Use Edit to correct any import mistakes.</li>
-            <li>Check Summary to validate totals and moves.</li>
+            <li>Add your primary accounts (brokerage, retirement, cash, loans).</li>
+            <li>Enter positions or import balances for manual tracking.</li>
+            <li>Use Edit to correct mistakes or update values.</li>
+            <li>Run Validate periodically to reconcile with statements.</li>
+            <li>Monitor your Summary to track portfolio changes over time.</li>
           </ul>
-          <div className="mt-2 italic">
-            Placeholder: “How to Use NestEgg” – we’ll swap in your final copy here.
+          <div className="mt-3 text-blue-200 text-xs">
+            💡 Tip: Use keyboard shortcuts and export features for faster workflows!
           </div>
         </>
       )
@@ -546,7 +549,7 @@ const Navbar = () => {
   ]), []);
 
   const { step, setStep, rect } = useCoachMarks(
-    [addRef, editRef, recRef, summaryRef, tickerRef, { current: null }], // last step is centered card only
+    [addRef, editRef, recRef, validateRef, summaryRef, tickerRef, { current: null }], // last step is centered card only
     showTour,
     () => setShowTour(false)
   );
@@ -610,7 +613,7 @@ const Navbar = () => {
                   </div>
 
                   {/* Validate / Statement Reconciliation */}
-                  <div className={PRO_WRAP_CLASSES}>
+                  <div ref={validateRef} className={PRO_WRAP_CLASSES}>
                     <QuickStatementValidationButton />
                   </div>
                 </div>
