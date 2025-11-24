@@ -2696,11 +2696,11 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
     const baseClass = `
       w-full px-3 py-2 text-sm border rounded-lg transition-all duration-200
       ${field.readOnly ? 'bg-gray-800 cursor-not-allowed' : ''}
-      ${hasError 
-        ? 'border-red-400 bg-rose-500/10 focus:border-red-500 focus:ring-2 focus:ring-red-200 text-red-900' 
+      ${hasError
+        ? 'border-red-400 bg-rose-500/10 focus:border-red-500 focus:ring-2 focus:ring-red-500/30 text-white'
         : focusedCell === cellKey
-          ? 'border-blue-500 bg-blue-500/10 ring-2 ring-blue-200'
-          : 'border-gray-600 bg-gray-900 hover:border-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200'
+          ? 'border-blue-500 bg-blue-500/10 ring-2 ring-blue-500/30 text-white'
+          : 'border-gray-600 bg-gray-900 hover:border-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 text-white'
       }
     `;
 
@@ -3009,12 +3009,12 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
 
 
     return (
-        <div 
-          key={assetType} 
+        <div
+          key={assetType}
           className={`
             bg-gray-900 rounded-xl shadow-sm border overflow-hidden transition-all duration-300
-            ${isExpanded ? 'border-blue-500/30 shadow-lg ring-2 ring-blue-100' : 'border-gray-700 hover:border-gray-600 hover:shadow-md'}
-            ${typePositions.length > 0 ? 'ring-1 ring-gray-100' : ''}
+            ${isExpanded ? 'border-blue-500/30 shadow-lg ring-2 ring-blue-500/30' : 'border-gray-700 hover:border-gray-600 hover:shadow-md'}
+            ${typePositions.length > 0 ? 'ring-1 ring-gray-700/50' : ''}
           `}
         >
         {/* Section Header - Entire row is clickable */}
@@ -3209,10 +3209,10 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                                   {(() => {
                                     const s = getRowStatus(position);
                                     const styles = {
-                                      ready:      "bg-emerald-500/10 text-emerald-400 border-emerald-200",
-                                      draft:      "bg-amber-500/10 text-amber-400 border-amber-200",
+                                      ready:      "bg-emerald-500/10 text-emerald-400 border-emerald-500/30",
+                                      draft:      "bg-amber-500/10 text-amber-400 border-amber-500/30",
                                       submitting: "bg-blue-500/10 text-blue-400 border-blue-500/30",
-                                      added:      "bg-indigo-500/10 text-indigo-400 border-indigo-200",
+                                      added:      "bg-indigo-500/10 text-indigo-400 border-indigo-500/30",
                                       error:      "bg-rose-500/10 text-rose-400 border-rose-500/30",
                                     }[s] || "bg-gray-800 text-gray-400 border-gray-700";
                                     return (
@@ -3397,7 +3397,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
           return (
             <div key={account.id} className="bg-gray-900 rounded-xl shadow-sm border border-gray-700 overflow-hidden">
               {/* Account Header with asset type buttons */}
-              <div className="px-4 py-3 bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-700">
+              <div className="px-4 py-3 bg-gradient-to-r from-gray-800 to-gray-900 border-b border-gray-700">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-4">
                     <div>
@@ -3568,10 +3568,10 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                                         {(() => {
                                           const s = getRowStatus(position);
                                           const styles = {
-                                            ready:      "bg-emerald-500/10 text-emerald-400 border-emerald-200",
-                                            draft:      "bg-amber-500/10 text-amber-400 border-amber-200",
+                                            ready:      "bg-emerald-500/10 text-emerald-400 border-emerald-500/30",
+                                            draft:      "bg-amber-500/10 text-amber-400 border-amber-500/30",
                                             submitting: "bg-blue-500/10 text-blue-400 border-blue-500/30",
-                                            added:      "bg-indigo-500/10 text-indigo-400 border-indigo-200",
+                                            added:      "bg-indigo-500/10 text-indigo-400 border-indigo-500/30",
                                             error:      "bg-rose-500/10 text-rose-400 border-rose-500/30",
                                           }[s] || "bg-gray-800 text-gray-400 border-gray-700";
 
@@ -3639,7 +3639,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
           {/* Add Other Assets section at the end if there are any */}
           {otherAssetsPositions.length > 0 && (
             <div className="bg-gray-900 rounded-xl shadow-sm border border-gray-700 overflow-hidden mt-4">
-              <div className="px-4 py-3 bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-700">
+              <div className="px-4 py-3 bg-gradient-to-r from-gray-800 to-gray-900 border-b border-gray-700">
                 <div className="flex items-center justify-between">
                   <div>
                     <h3 className="font-semibold text-gray-200">Other Assets (Not in Accounts)</h3>
@@ -3763,9 +3763,9 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
       title="Quick Position Entry"
       size="max-w-[1600px]"
     >
-      <div className="h-[90vh] flex flex-col bg-gradient-to-br from-gray-50 via-slate-50 to-gray-100">
+      <div className="h-[90vh] flex flex-col bg-gradient-to-br from-gray-950 via-slate-900 to-gray-900">
         {/* Enhanced Header with Action Bar */}
-          <div className="flex-shrink-0 bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/40 border-b-2 border-gray-700 px-6 py-3 shadow-sm">
+          <div className="flex-shrink-0 bg-gradient-to-br from-slate-900/50 via-blue-900/20 to-indigo-900/30 border-b-2 border-gray-700 px-6 py-3 shadow-sm">
             {/* Single Line Header */}
             <div className="flex items-center justify-between gap-4 mb-3">
               {/* Left: Core Actions */}
@@ -4279,13 +4279,13 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
           <div className={`
             absolute bottom-6 left-6 right-6 p-4 rounded-lg shadow-lg border
             animate-in slide-in-from-bottom duration-300 z-40
-            ${message.type === 'error' 
-              ? 'bg-rose-500/10 border-rose-500/30' 
-              : message.type === 'warning' 
-                ? 'bg-amber-500/10 border-amber-200' 
+            ${message.type === 'error'
+              ? 'bg-rose-500/10 border-rose-500/30'
+              : message.type === 'warning'
+                ? 'bg-amber-500/10 border-amber-500/30'
                 : message.type === 'info'
                   ? 'bg-blue-500/10 border-blue-500/30'
-                  : 'bg-emerald-500/100/10 border-emerald-500/30'
+                  : 'bg-emerald-500/10 border-emerald-500/30'
             }
           `}>
             <div className="flex items-start space-x-3">
@@ -4308,13 +4308,13 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
               <div className="flex-1">
                 <p className={`
                   font-medium text-sm
-                  ${message.type === 'error' 
-                    ? 'text-red-900' 
-                    : message.type === 'warning' 
-                      ? 'text-amber-900' 
+                  ${message.type === 'error'
+                    ? 'text-rose-300'
+                    : message.type === 'warning'
+                      ? 'text-amber-300'
                       : message.type === 'info'
                         ? 'text-blue-300'
-                        : 'text-green-900'
+                        : 'text-emerald-300'
                   }
                 `}>
                   {message.text}
