@@ -46,7 +46,7 @@ const FixedModal = ({
 
     return ReactDOM.createPortal(
         <div
-            className={`fixed inset-0 bg-black/50 backdrop-blur-sm flex justify-center items-start ${zIndex} p-4 sm:p-6 lg:p-8 pt-8 sm:pt-12 lg:pt-16 overflow-y-auto`}
+            className={`fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-start ${zIndex} p-4 sm:p-6 lg:p-8 pt-8 sm:pt-12 lg:pt-16 overflow-y-auto`}
             style={{
                 display: isOpen ? 'flex' : 'none'
             }}
@@ -58,21 +58,19 @@ const FixedModal = ({
             aria-modal="true"
         >
             <div
-                className={`bg-white rounded-2xl shadow-2xl w-full ${size} text-gray-900 my-auto max-h-[calc(100vh-8rem)] flex flex-col border border-gray-200`}
+                className={`bg-gray-950 rounded-2xl shadow-2xl w-full ${size} text-white my-auto max-h-[calc(100vh-8rem)] flex flex-col border border-gray-800`}
                 onClick={e => e.stopPropagation()}
             >
                 {/* Header */}
                 <div className={`
                     flex justify-between items-center p-5 border-b flex-shrink-0
                     ${colorfulHeader
-                        ? 'bg-gradient-to-r from-blue-600 to-purple-600 border-blue-700'
-                        : 'border-gray-200 bg-white'
+                        ? 'bg-gradient-to-r from-indigo-600 to-purple-600 border-indigo-700'
+                        : 'border-gray-800 bg-gray-950'
                     }
                 `}>
                     <h2
-                        className={`text-xl font-bold ${
-                            colorfulHeader ? 'text-white' : 'text-gray-900'
-                        }`}
+                        className="text-xl font-bold text-white"
                         id={titleId}
                     >
                         {title}
@@ -84,7 +82,7 @@ const FixedModal = ({
                             transition-colors
                             ${colorfulHeader
                                 ? 'text-white hover:bg-white/20'
-                                : 'text-gray-500 hover:text-gray-800 hover:bg-gray-100'
+                                : 'text-gray-400 hover:text-white hover:bg-gray-800'
                             }
                         `}
                         aria-label="Close modal"
@@ -93,8 +91,8 @@ const FixedModal = ({
                     </button>
                 </div>
 
-                {/* Content - Clean white background */}
-                <div className="flex-1 overflow-y-auto bg-white p-6">
+                {/* Content - Clean dark background */}
+                <div className="flex-1 overflow-y-auto bg-gray-950 p-6">
                     {children}
                 </div>
             </div>

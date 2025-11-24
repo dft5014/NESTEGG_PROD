@@ -456,44 +456,44 @@ const InstitutionCard = ({
       {/* Header */}
       <button
         onClick={() => onToggleExpanded(institution)}
-        className="w-full px-8 py-6 flex items-center justify-between bg-gray-900 hover:bg-gray-800 transition-colors border-b border-gray-800"
+        className="w-full px-6 py-5 flex items-center justify-between bg-gray-900 hover:bg-gray-800 transition-colors border-b border-gray-800"
       >
-        <div className="flex items-center gap-6 flex-1 min-w-0">
+        <div className="flex items-center gap-4 flex-1 min-w-0">
           {logo ? (
-            <img src={logo} alt={institution} className="w-16 h-16 rounded-lg object-contain border border-gray-700 bg-white p-2 flex-shrink-0" />
+            <img src={logo} alt={institution} className="w-12 h-12 rounded-lg object-contain border border-gray-700 bg-white p-1.5 flex-shrink-0" />
           ) : (
-            <div className="w-16 h-16 rounded-lg bg-gray-800 flex items-center justify-center border border-gray-700 flex-shrink-0">
-              <Building2 className="w-8 h-8 text-gray-400" />
+            <div className="w-12 h-12 rounded-lg bg-gray-800 flex items-center justify-center border border-gray-700 flex-shrink-0">
+              <Building2 className="w-6 h-6 text-gray-400" />
             </div>
           )}
 
           <div className="flex-1 text-left min-w-0">
-            <div className="flex items-center gap-3 mb-2 flex-wrap">
-              <h3 className="text-lg font-bold text-white truncate max-w-md leading-tight">{institution}</h3>
-              <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold ${statusConfig.bg} ${statusConfig.border} border flex-shrink-0`}>
+            <div className="flex items-center gap-3 mb-1.5 flex-wrap">
+              <h3 className="text-base font-bold text-white truncate max-w-sm leading-snug">{institution}</h3>
+              <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold ${statusConfig.bg} ${statusConfig.border} border flex-shrink-0`}>
                 <StatusIcon className={`w-3.5 h-3.5 ${statusConfig.color}`} />
                 <span className={statusConfig.color}>{statusConfig.text}</span>
               </span>
             </div>
-            <div className="text-sm text-gray-300 leading-relaxed">
+            <div className="text-xs text-gray-400 leading-tight">
               {accounts.length} {accounts.length === 1 ? 'account' : 'accounts'}
               {totals.accountsWithInput > 0 && (
-                <span className="text-gray-400"> • {totals.accountsWithInput}/{accounts.length} entered</span>
+                <span className="text-gray-500"> • {totals.accountsWithInput}/{accounts.length} entered</span>
               )}
             </div>
           </div>
 
-          <div className="text-right mr-6 flex-shrink-0">
-            <div className="text-xs text-gray-400 mb-2 font-semibold uppercase tracking-wider">NestEgg Total</div>
-            <div className="text-2xl font-bold text-white tabular-nums leading-tight">{fmtCurrency(totals.nesteggTotal, hideValues)}</div>
+          <div className="text-right mr-4 flex-shrink-0">
+            <div className="text-xs text-gray-500 mb-1 font-semibold uppercase tracking-wide">NestEgg Total</div>
+            <div className="text-xl font-bold text-white tabular-nums leading-tight">{fmtCurrency(totals.nesteggTotal, hideValues)}</div>
             {totals.allInputted && Math.abs(totals.diff) >= 0.01 && (
-              <div className={`text-sm font-bold mt-2 tabular-nums leading-tight ${totals.diff > 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+              <div className={`text-sm font-bold mt-1 tabular-nums leading-tight ${totals.diff > 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                 {totals.diff > 0 ? '+' : ''}{fmtCurrency(totals.diff, hideValues)}
               </div>
             )}
           </div>
 
-          <ChevronDown className={`w-6 h-6 text-gray-400 transition-transform duration-200 flex-shrink-0 ${expanded ? 'rotate-180' : ''}`} />
+          <ChevronDown className={`w-5 h-5 text-gray-400 transition-transform duration-200 flex-shrink-0 ${expanded ? 'rotate-180' : ''}`} />
         </div>
       </button>
 
@@ -923,9 +923,14 @@ const QuickStatementValidationModal = ({ isOpen, onClose }) => {
 
   return (
     <>
-      <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 bg-black/60 backdrop-blur-sm">
-        <div className="relative w-full max-w-7xl max-h-[90vh] animate-in slide-in-from-bottom-4 duration-300 flex flex-col">
-          <div className="bg-gray-950 rounded-2xl shadow-2xl overflow-hidden border border-gray-800 flex flex-col max-h-full">
+      <div className="fixed inset-0 z-[9999]" aria-modal="true" role="dialog">
+        {/* Backdrop */}
+        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={(e) => {
+          if (e.target === e.currentTarget) onClose();
+        }} />
+
+        <div className="relative z-[10000] mx-auto my-6 w-full max-w-7xl px-4 sm:px-6">
+          <div className="bg-gray-950 rounded-2xl shadow-2xl overflow-hidden border border-gray-800">
             {/* Header */}
             <div className="sticky top-0 z-10 px-6 py-5 bg-gray-950 border-b border-gray-800">
               <div className="flex items-center justify-between mb-4">
@@ -1078,7 +1083,7 @@ const QuickStatementValidationModal = ({ isOpen, onClose }) => {
             </div>
 
             {/* Content */}
-            <div className="p-6 bg-gray-950 flex-1 overflow-y-auto">
+            <div className="p-6 bg-gray-950 max-h-[85vh] overflow-y-auto">
               {loading ? (
                 <div className="flex items-center justify-center py-12">
                   <div className="text-center">

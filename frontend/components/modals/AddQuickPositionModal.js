@@ -88,7 +88,7 @@ const AnimatedNumber = ({ value, prefix = '', suffix = '', decimals = 0, duratio
     : Math.floor(displayValue).toLocaleString();
     
   return (
-    <span className={`transition-all duration-300 ${isAnimating ? 'text-blue-600' : ''}`}>
+    <span className={`transition-all duration-300 ${isAnimating ? 'text-blue-400' : ''}`}>
       {prefix}{formattedValue}{suffix}
     </span>
   );
@@ -100,15 +100,15 @@ const ProgressIndicator = ({ current, total, className = '' }) => {
   
   return (
     <div className={`relative ${className}`}>
-      <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
-        <div 
+      <div className="h-1.5 bg-gray-700 rounded-full overflow-hidden">
+        <div
           className="h-full bg-gradient-to-r from-blue-500 to-blue-600 transition-all duration-500 ease-out"
           style={{ width: `${percentage}%` }}
         />
       </div>
-      <div className="absolute -top-1 transition-all duration-500 ease-out" 
+      <div className="absolute -top-1 transition-all duration-500 ease-out"
            style={{ left: `${percentage}%`, transform: 'translateX(-50%)' }}>
-        <div className="w-3 h-3 bg-blue-600 rounded-full ring-2 ring-white shadow-sm" />
+        <div className="w-3 h-3 bg-blue-600 rounded-full ring-2 ring-gray-800 shadow-sm" />
       </div>
     </div>
   );
@@ -123,7 +123,7 @@ const AssetTypeBadge = ({ type, count, icon: Icon, color, active = false, onClic
         relative px-3 py-1.5 rounded-lg transition-all duration-300 transform
         ${active 
           ? `${color.bg} text-white shadow-lg scale-105 ring-2 ring-${color.main}-400 ring-opacity-50` 
-          : 'bg-white text-gray-700 hover:shadow-md hover:scale-102 border border-gray-200'
+          : 'bg-gray-900 text-gray-300 hover:shadow-md hover:scale-102 border border-gray-700'
         }
       `}
     >
@@ -133,7 +133,7 @@ const AssetTypeBadge = ({ type, count, icon: Icon, color, active = false, onClic
         {count > 0 && (
           <span className={`
             px-1.5 py-0.5 text-xs rounded-full font-bold
-            ${active ? 'bg-white/20 text-white' : `${color.lightBg} ${color.text}`}
+            ${active ? 'bg-gray-900/20 text-white' : `${color.lightBg} ${color.text}`}
           `}>
             {count}
           </span>
@@ -149,14 +149,14 @@ const AssetTypeBadge = ({ type, count, icon: Icon, color, active = false, onClic
 // Toggle switch component
 const ToggleSwitch = ({ value, onChange, leftLabel, rightLabel, leftIcon: LeftIcon, rightIcon: RightIcon }) => {
   return (
-    <div className="flex items-center space-x-3 bg-gray-100 rounded-lg p-1">
+    <div className="flex items-center space-x-3 bg-gray-800 rounded-lg p-1">
       <button
         onClick={() => onChange(false)}
         className={`
           flex items-center space-x-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-200
           ${!value 
-            ? 'bg-white text-gray-900 shadow-sm' 
-            : 'text-gray-600 hover:text-gray-900'
+            ? 'bg-gray-900 text-white shadow-sm' 
+            : 'text-gray-400 hover:text-white'
           }
         `}
       >
@@ -168,8 +168,8 @@ const ToggleSwitch = ({ value, onChange, leftLabel, rightLabel, leftIcon: LeftIc
         className={`
           flex items-center space-x-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-200
           ${value 
-            ? 'bg-white text-gray-900 shadow-sm' 
-            : 'text-gray-600 hover:text-gray-900'
+            ? 'bg-gray-900 text-white shadow-sm' 
+            : 'text-gray-400 hover:text-white'
           }
         `}
       >
@@ -252,12 +252,12 @@ const AccountFilter = ({ accounts, selectedAccounts, onChange, filterType = 'acc
       <button
         onClick={() => setIsOpen(!isOpen)}
         className={`
-          flex items-center px-4 py-2 bg-white rounded-lg shadow-sm
+          flex items-center px-4 py-2 bg-gray-900 rounded-lg shadow-sm
           transition-all duration-200 text-sm border
-          ${isOpen ? 'ring-2 ring-blue-500 border-blue-300' : ''}
+          ${isOpen ? 'ring-2 ring-blue-500 border-blue-500/50' : ''}
           ${selectedCount > 0 && !isAllSelected 
-            ? 'border-blue-300 text-blue-700 bg-blue-50 hover:bg-blue-100' 
-            : 'border-gray-200 text-gray-700 hover:bg-gray-50 hover:border-gray-300'
+            ? 'border-blue-500/50 text-blue-400 bg-blue-500/10 hover:bg-blue-500/20' 
+            : 'border-gray-700 text-gray-300 hover:bg-gray-800 hover:border-gray-600'
           }
           transform hover:scale-[1.02] active:scale-[0.98]
         `}
@@ -266,17 +266,17 @@ const AccountFilter = ({ accounts, selectedAccounts, onChange, filterType = 'acc
         <span className="font-medium">{getFilterLabel()}</span>
         <ChevronDown className={`w-4 h-4 ml-3 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
         {selectedCount > 0 && !isAllSelected && (
-          <span className="absolute -top-1 -right-1 w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
+          <span className="absolute -top-1 -right-1 w-2 h-2 bg-blue-500/100 rounded-full animate-pulse" />
         )}
       </button>
       
       {isOpen && (
-        <div className="absolute z-50 right-0 mt-2 w-96 bg-white border border-gray-200 rounded-xl shadow-2xl animate-in slide-in-from-top-2 duration-200">
-          <div className="p-4 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
+        <div className="absolute z-50 right-0 mt-2 w-96 bg-gray-900 border border-gray-700 rounded-xl shadow-2xl animate-in slide-in-from-top-2 duration-200">
+          <div className="p-4 border-b border-gray-800 bg-gradient-to-r from-gray-900 to-gray-800">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center space-x-2">
-                <FilterIcon className="w-5 h-5 text-gray-700" />
-                <span className="text-sm font-semibold text-gray-800">
+                <FilterIcon className="w-5 h-5 text-gray-300" />
+                <span className="text-sm font-semibold text-gray-200">
                   Filter by {filterType === 'institutions' ? 'Institution' : 'Account'}
                 </span>
               </div>
@@ -284,14 +284,14 @@ const AccountFilter = ({ accounts, selectedAccounts, onChange, filterType = 'acc
               <div className="flex items-center space-x-2">
                 <button
                   onClick={handleSelectAll}
-                  className="text-xs text-blue-600 hover:text-blue-700 font-medium px-2 py-1 hover:bg-blue-50 rounded transition-all duration-200"
+                  className="text-xs text-blue-400 hover:text-blue-400 font-medium px-2 py-1 hover:bg-blue-500/10 rounded transition-all duration-200"
                 >
                   Select All
                 </button>
                 <span className="text-gray-300">|</span>
                 <button
                   onClick={handleSelectNone}
-                  className="text-xs text-blue-600 hover:text-blue-700 font-medium px-2 py-1 hover:bg-blue-50 rounded transition-all duration-200"
+                  className="text-xs text-blue-400 hover:text-blue-400 font-medium px-2 py-1 hover:bg-blue-500/10 rounded transition-all duration-200"
                 >
                   Select None
                 </button>
@@ -333,7 +333,7 @@ const AccountFilter = ({ accounts, selectedAccounts, onChange, filterType = 'acc
                         transition-all duration-200 text-sm group
                         ${isSelected 
                           ? 'bg-gradient-to-r from-blue-50 to-blue-100 hover:from-blue-100 hover:to-blue-200' 
-                          : 'hover:bg-gray-50'
+                          : 'hover:bg-gray-800'
                         }
                       `}
                     >
@@ -343,13 +343,13 @@ const AccountFilter = ({ accounts, selectedAccounts, onChange, filterType = 'acc
                           transition-all duration-200 group-hover:scale-110
                           ${isSelected 
                             ? 'bg-blue-600 border-blue-600 shadow-sm' 
-                            : 'border-gray-300 group-hover:border-gray-400'
+                            : 'border-gray-600 group-hover:border-gray-400'
                           }
                         `}>
                           {isSelected && <Check className="w-3 h-3 text-white" />}
                         </div>
                         <div className="flex-1 text-left">
-                          <div className="font-medium text-gray-900 group-hover:text-gray-800">
+                          <div className="font-medium text-white group-hover:text-gray-200">
                             {institution}
                           </div>
                           <div className="text-xs text-gray-500">
@@ -357,7 +357,7 @@ const AccountFilter = ({ accounts, selectedAccounts, onChange, filterType = 'acc
                           </div>
                         </div>
                       </div>
-                      <Building2 className={`w-4 h-4 transition-colors ${isSelected ? 'text-blue-600' : 'text-gray-400'}`} />
+                      <Building2 className={`w-4 h-4 transition-colors ${isSelected ? 'text-blue-400' : 'text-gray-500'}`} />
                     </button>
                   );
                 })}
@@ -371,7 +371,7 @@ const AccountFilter = ({ accounts, selectedAccounts, onChange, filterType = 'acc
                 
                 return (
                   <div key={categoryId} className="mb-4">
-                    <div className="flex items-center px-3 py-2 text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    <div className="flex items-center px-3 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
                       <Icon className="w-3.5 h-3.5 mr-2" />
                       {category?.name}
                     </div>
@@ -395,7 +395,7 @@ const AccountFilter = ({ accounts, selectedAccounts, onChange, filterType = 'acc
                               transition-all duration-200 text-sm group
                               ${isSelected 
                                 ? 'bg-gradient-to-r from-blue-50 to-blue-100 hover:from-blue-100 hover:to-blue-200' 
-                                : 'hover:bg-gray-50'
+                                : 'hover:bg-gray-800'
                               }
                             `}
                           >
@@ -405,13 +405,13 @@ const AccountFilter = ({ accounts, selectedAccounts, onChange, filterType = 'acc
                                 transition-all duration-200 group-hover:scale-110
                                 ${isSelected 
                                   ? 'bg-blue-600 border-blue-600 shadow-sm' 
-                                  : 'border-gray-300 group-hover:border-gray-400'
+                                  : 'border-gray-600 group-hover:border-gray-400'
                                 }
                               `}>
                                 {isSelected && <Check className="w-3 h-3 text-white" />}
                               </div>
                               <div className="flex-1 text-left">
-                                <div className="font-medium text-gray-900 group-hover:text-gray-800">
+                                <div className="font-medium text-white group-hover:text-gray-200">
                                   {account.account_name}
                                 </div>
                                 <div className="text-xs text-gray-500">{account.institution}</div>
@@ -440,28 +440,28 @@ const QueueModal = ({ isOpen, onClose, positions, assetTypes, accounts, onClearC
     switch (status) {
       case 'added':
         return (
-          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-emerald-500/20 text-emerald-400">
             <CheckCircle className="w-3 h-3 mr-1" />
             Added
           </span>
         );
       case 'error':
         return (
-          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-rose-500/20 text-rose-400">
             <XCircle className="w-3 h-3 mr-1" />
             Error
           </span>
         );
       case 'submitting':
         return (
-          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-500/20 text-blue-400">
             <Loader2 className="w-3 h-3 mr-1 animate-spin" />
             Submitting
           </span>
         );
       case 'ready':
         return (
-          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">
+          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-emerald-500/20 text-emerald-400">
             <CheckCircle className="w-3 h-3 mr-1" />
             Ready
           </span>
@@ -469,7 +469,7 @@ const QueueModal = ({ isOpen, onClose, positions, assetTypes, accounts, onClearC
       case 'draft':
       default:
         return (
-          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-amber-500/20 text-amber-400">
             <Clock className="w-3 h-3 mr-1" />
             Draft
           </span>
@@ -508,16 +508,16 @@ const QueueModal = ({ isOpen, onClose, positions, assetTypes, accounts, onClearC
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-xl shadow-xl max-w-4xl w-full max-h-[80vh] flex flex-col">
-        <div className="px-6 py-4 border-b border-gray-200">
+      <div className="bg-gray-900 rounded-xl shadow-xl max-w-4xl w-full max-h-[80vh] flex flex-col">
+        <div className="px-6 py-4 border-b border-gray-700">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-gray-900 flex items-center">
+            <h2 className="text-lg font-semibold text-white flex items-center">
               <ClipboardList className="w-5 h-5 mr-2" />
               Position Queue
             </h2>
             <button
               onClick={onClose}
-              className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
+              className="p-1 hover:bg-gray-800 rounded-lg transition-colors"
             >
               <X className="w-5 h-5 text-gray-500" />
             </button>
@@ -534,19 +534,19 @@ const QueueModal = ({ isOpen, onClose, positions, assetTypes, accounts, onClearC
             </div>
             <div className="flex items-center space-x-2">
               <span className="text-gray-500">Draft:</span>
-              <span className="font-semibold text-amber-600">{stats.draft}</span>
+              <span className="font-semibold text-amber-400">{stats.draft}</span>
             </div>
             <div className="flex items-center space-x-2">
               <span className="text-gray-500">Submitting:</span>
-              <span className="font-semibold text-blue-600">{stats.submitting}</span>
+              <span className="font-semibold text-blue-400">{stats.submitting}</span>
             </div>
             <div className="flex items-center space-x-2">
               <span className="text-gray-500">Added:</span>
-              <span className="font-semibold text-green-600">{stats.added}</span>
+              <span className="font-semibold text-emerald-400">{stats.added}</span>
             </div>
             <div className="flex items-center space-x-2">
               <span className="text-gray-500">Errors:</span>
-              <span className="font-semibold text-red-600">{stats.error}</span>
+              <span className="font-semibold text-rose-400">{stats.error}</span>
             </div>
           </div>
         </div>
@@ -569,9 +569,9 @@ const QueueModal = ({ isOpen, onClose, positions, assetTypes, accounts, onClearC
                     key={`${position.assetType}-${position.id}`}
                     className={`
                       p-4 rounded-lg border transition-all duration-200
-                      ${position.status === 'success' ? 'bg-green-50 border-green-200' :
-                        position.status === 'error' ? 'bg-red-50 border-red-200' :
-                        'bg-white border-gray-200'}
+                      ${position.status === 'success' ? 'bg-emerald-500/100/10 border-emerald-500/30' :
+                        position.status === 'error' ? 'bg-rose-500/10 border-rose-500/30' :
+                        'bg-gray-900 border-gray-700'}
                     `}
                   >
                     <div className="flex items-center justify-between">
@@ -580,7 +580,7 @@ const QueueModal = ({ isOpen, onClose, positions, assetTypes, accounts, onClearC
                           <Icon className={`w-5 h-5 ${config.color.text}`} />
                         </div>
                         <div>
-                          <div className="font-medium text-gray-900">
+                          <div className="font-medium text-white">
                             {position.data.ticker || position.data.symbol || position.data.asset_name || 
                             position.data.metal_type || position.data.currency || 'Position'}
                           </div>
@@ -594,7 +594,7 @@ const QueueModal = ({ isOpen, onClose, positions, assetTypes, accounts, onClearC
                       </div>
                       <div className="flex items-center space-x-3">
                         <div className="text-right">
-                          <div className="font-medium text-gray-900">
+                          <div className="font-medium text-white">
                             {formatCurrency(calculatePositionValue(position.assetType, position))}
                           </div>
                           <div className="text-xs text-gray-500">
@@ -605,7 +605,7 @@ const QueueModal = ({ isOpen, onClose, positions, assetTypes, accounts, onClearC
                       </div>
                     </div>
                     {position.errorMessage && (
-                      <div className="mt-2 text-sm text-red-600 bg-red-100 rounded p-2">
+                      <div className="mt-2 text-sm text-rose-400 bg-rose-500/20 rounded p-2">
                         {position.errorMessage}
                       </div>
                     )}
@@ -616,15 +616,15 @@ const QueueModal = ({ isOpen, onClose, positions, assetTypes, accounts, onClearC
           )}
         </div>
         
-        <div className="px-6 py-4 border-t border-gray-200 flex justify-between">
+        <div className="px-6 py-4 border-t border-gray-700 flex justify-between">
           <button
             onClick={onClearCompleted}
             disabled={stats.added === 0}
             className={`
               px-4 py-2 text-sm font-medium rounded-lg transition-all
               ${stats.added === 0 
-                ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
-                : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+                ? 'bg-gray-800 text-gray-500 cursor-not-allowed' 
+                : 'bg-gray-900 border border-gray-600 text-gray-300 hover:bg-gray-800'
               }
             `}
           >
@@ -912,10 +912,10 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
       color: {
         main: 'blue',
         bg: 'bg-blue-600',
-        lightBg: 'bg-blue-50',
-        border: 'border-blue-200',
-        text: 'text-blue-700',
-        hover: 'hover:bg-blue-100',
+        lightBg: 'bg-blue-500/10',
+        border: 'border-blue-500/30',
+        text: 'text-blue-400',
+        hover: 'hover:bg-blue-500/20',
         gradient: 'from-blue-500 to-blue-600'
       },
       description: 'Stocks, ETFs, Mutual Funds',
@@ -938,10 +938,10 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
       color: {
         main: 'purple',
         bg: 'bg-purple-600',
-        lightBg: 'bg-purple-50',
+        lightBg: 'bg-purple-500/10',
         border: 'border-purple-200',
-        text: 'text-purple-700',
-        hover: 'hover:bg-purple-100',
+        text: 'text-purple-400',
+        hover: 'hover:bg-purple-500/20',
         gradient: 'from-purple-500 to-purple-600'
       },
       description: 'Savings, Checking, Money Market',
@@ -984,10 +984,10 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
       color: {
         main: 'orange',
         bg: 'bg-orange-600',
-        lightBg: 'bg-orange-50',
-        border: 'border-orange-200',
-        text: 'text-orange-700',
-        hover: 'hover:bg-orange-100',
+        lightBg: 'bg-orange-500/10',
+        border: 'border-orange-500/50',
+        text: 'text-orange-400',
+        hover: 'hover:bg-orange-500/20',
         gradient: 'from-orange-500 to-orange-600'
       },
       description: 'Bitcoin, Ethereum, Altcoins',
@@ -1010,10 +1010,10 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
       color: {
         main: 'yellow',
         bg: 'bg-yellow-600',
-        lightBg: 'bg-yellow-50',
-        border: 'border-yellow-200',
-        text: 'text-yellow-700',
-        hover: 'hover:bg-yellow-100',
+        lightBg: 'bg-yellow-500/10',
+        border: 'border-yellow-500/50',
+        text: 'text-yellow-400',
+        hover: 'hover:bg-yellow-500/20',
         gradient: 'from-yellow-500 to-yellow-600'
       },
       description: 'Gold, Silver, Platinum',
@@ -1053,11 +1053,11 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
       color: {
         main: 'green',
         bg: 'bg-green-600',
-        lightBg: 'bg-green-50',
-        border: 'border-green-200',
-        text: 'text-green-700',
-        hover: 'hover:bg-green-100',
-        gradient: 'from-green-500 to-green-600'
+        lightBg: 'bg-emerald-500/100/10',
+        border: 'border-emerald-500/30',
+        text: 'text-emerald-400',
+        hover: 'hover:bg-emerald-500/100/20',
+        gradient: 'from-emerald-500/100 to-green-600'
       },
       description: 'Real Estate, Vehicles, Collectibles',
       emoji: '🏠',
@@ -2660,12 +2660,12 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
     
     const baseClass = `
       w-full px-3 py-2 text-sm border rounded-lg transition-all duration-200
-      ${field.readOnly ? 'bg-gray-100 cursor-not-allowed' : ''}
+      ${field.readOnly ? 'bg-gray-800 cursor-not-allowed' : ''}
       ${hasError 
-        ? 'border-red-400 bg-red-50 focus:border-red-500 focus:ring-2 focus:ring-red-200 text-red-900' 
+        ? 'border-red-400 bg-rose-500/10 focus:border-red-500 focus:ring-2 focus:ring-red-200 text-red-900' 
         : focusedCell === cellKey
-          ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200'
-          : 'border-gray-300 bg-white hover:border-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200'
+          ? 'border-blue-500 bg-blue-500/10 ring-2 ring-blue-200'
+          : 'border-gray-600 bg-gray-900 hover:border-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200'
       }
     `;
 
@@ -2715,16 +2715,16 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                 width: `${Math.max(inputRect.width, 450)}px`,
                 zIndex: 9999999
               }}
-              className="bg-white border-2 border-blue-200 rounded-xl shadow-2xl overflow-hidden animate-in slide-in-from-top-2 duration-200"
+              className="bg-gray-900 border-2 border-blue-500/30 rounded-xl shadow-2xl overflow-hidden animate-in slide-in-from-top-2 duration-200"
             >
               {/* Search header */}
               <div className="px-3 py-2 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-100">
                 <div className="flex items-center justify-between text-xs">
-                  <span className="font-semibold text-blue-900 flex items-center">
+                  <span className="font-semibold text-blue-300 flex items-center">
                     <Search className="w-3 h-3 mr-1.5" />
                     {searchResultsForField.length} Result{searchResultsForField.length !== 1 ? 's' : ''}
                   </span>
-                  <span className="text-blue-600">Click to select</span>
+                  <span className="text-blue-400">Click to select</span>
                 </div>
               </div>
               
@@ -2742,7 +2742,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                       className={`
                         w-full px-4 py-3 text-left hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50
                         transition-all duration-150 group
-                        ${idx !== searchResultsForField.length - 1 ? 'border-b border-gray-100' : ''}
+                        ${idx !== searchResultsForField.length - 1 ? 'border-b border-gray-800' : ''}
                       `}
                       onClick={() => {
                         handleSelectSecurity(assetType, position.id, result);
@@ -2765,7 +2765,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                           
                           {/* Company name */}
                           <div className="flex-1 min-w-0">
-                            <div className="font-semibold text-gray-900 truncate text-sm group-hover:text-blue-900 transition-colors">
+                            <div className="font-semibold text-white truncate text-sm group-hover:text-blue-300 transition-colors">
                               {result.name}
                             </div>
                           </div>
@@ -2774,7 +2774,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                         {/* Price */}
                         <div className="flex-shrink-0 ml-3">
                           <div className="text-right">
-                            <div className="font-bold text-gray-900 text-base group-hover:text-blue-900 transition-colors">
+                            <div className="font-bold text-white text-base group-hover:text-blue-300 transition-colors">
                               ${price.toFixed(2)}
                             </div>
                           </div>
@@ -2784,17 +2784,17 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                       {/* Metadata row */}
                       <div className="flex items-center space-x-3 text-xs text-gray-500">
                         {exchange && (
-                          <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 font-medium">
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 font-medium">
                             {exchange}
                           </span>
                         )}
                         {type && (
-                          <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-purple-50 text-purple-700 font-medium">
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400 font-medium">
                             {type}
                           </span>
                         )}
                         {sector && (
-                          <span className="truncate text-gray-600">
+                          <span className="truncate text-gray-400">
                             {sector}
                           </span>
                         )}
@@ -2805,13 +2805,13 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
               </div>
               
               {/* Footer hint */}
-              <div className="px-3 py-2 bg-gray-50 border-t border-gray-100">
+              <div className="px-3 py-2 bg-gray-800 border-t border-gray-800">
                 <div className="flex items-center justify-between text-xs text-gray-500">
                   <span className="flex items-center">
                     <Keyboard className="w-3 h-3 mr-1" />
                     Use ↑↓ to navigate
                   </span>
-                  <span className="text-gray-400">Press Enter to select</span>
+                  <span className="text-gray-500">Press Enter to select</span>
                 </div>
               </div>
             </div>,
@@ -2852,7 +2852,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                   ))}
                 </optgroup>
               </select>
-              <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+              <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
               {isRecent && (
                 <div className="absolute -left-1 top-1/2 -translate-y-1/2 w-2 h-2 bg-yellow-400 rounded-full" />
               )}
@@ -2873,7 +2873,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                   </option>
                 ))}
               </select>
-              <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+              <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
             </div>
           );
         }
@@ -2884,7 +2884,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
             {field.prefix && (
               <span className={`
                 absolute left-3 top-1/2 -translate-y-1/2 text-sm font-medium transition-colors duration-200
-                ${focusedCell === cellKey ? 'text-blue-600' : 'text-gray-400'}
+                ${focusedCell === cellKey ? 'text-blue-400' : 'text-gray-500'}
               `}>
                 {field.prefix}
               </span>
@@ -2904,13 +2904,13 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
             {field.suffix && (
               <span className={`
                 absolute right-3 top-1/2 -translate-y-1/2 text-sm font-medium transition-colors duration-200
-                ${focusedCell === cellKey ? 'text-blue-600' : 'text-gray-400'}
+                ${focusedCell === cellKey ? 'text-blue-400' : 'text-gray-500'}
               `}>
                 {field.suffix}
               </span>
             )}
             {hasError && (
-              <div id={`${cellKey}-error`} className="absolute left-0 -bottom-5 text-xs text-red-600 font-medium">
+              <div id={`${cellKey}-error`} className="absolute left-0 -bottom-5 text-xs text-rose-400 font-medium">
                 {position.errors[field.key]}
               </div>
             )}
@@ -2928,7 +2928,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
               max={field.max}
               className={baseClass}
             />
-            <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+            <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
           </div>
         );
         
@@ -2946,7 +2946,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
               className={baseClass}
               />
               {field.autocomplete && value.length > 0 && (
-              <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 animate-pulse" />
+              <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 animate-pulse" />
               )}
               </div>
               );
@@ -2977,8 +2977,8 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
         <div 
           key={assetType} 
           className={`
-            bg-white rounded-xl shadow-sm border overflow-hidden transition-all duration-300
-            ${isExpanded ? 'border-blue-200 shadow-lg ring-2 ring-blue-100' : 'border-gray-200 hover:border-gray-300 hover:shadow-md'}
+            bg-gray-900 rounded-xl shadow-sm border overflow-hidden transition-all duration-300
+            ${isExpanded ? 'border-blue-500/30 shadow-lg ring-2 ring-blue-100' : 'border-gray-700 hover:border-gray-600 hover:shadow-md'}
             ${typePositions.length > 0 ? 'ring-1 ring-gray-100' : ''}
           `}
         >
@@ -2989,7 +2989,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
             px-4 py-3 cursor-pointer transition-all duration-200
             ${isExpanded 
               ? `bg-gradient-to-r ${config.color.gradient} text-white shadow-sm` 
-              : 'bg-gray-50 hover:bg-gray-100'
+              : 'bg-gray-800 hover:bg-gray-800'
               }
             `}
           >
@@ -2997,20 +2997,20 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
               <div className="flex items-center space-x-3 flex-1">
                 <div className={`
                   p-2 rounded-lg transition-all duration-200 
-                  ${isExpanded ? 'bg-white/20' : `${config.color.lightBg}`}
+                  ${isExpanded ? 'bg-gray-900/20' : `${config.color.lightBg}`}
                 `}>
                   <Icon className={`w-5 h-5 ${isExpanded ? 'text-white' : config.color.text}`} />
                 </div>
                 
                 <div className="flex-1">
                   <h3 className={`font-semibold text-base flex items-center ${
-                    isExpanded ? 'text-white' : 'text-gray-800'
+                    isExpanded ? 'text-white' : 'text-gray-200'
                   }`}>
                     {config.name}
                     {validPositions.length > 0 && (
                       <span className={`
                         ml-2 px-2 py-0.5 text-xs font-bold rounded-full
-                        ${isExpanded ? 'bg-white/20 text-white' : `${config.color.bg} text-white`}
+                        ${isExpanded ? 'bg-gray-900/20 text-white' : `${config.color.bg} text-white`}
                       `}>
                         {validPositions.length}
                       </span>
@@ -3023,7 +3023,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                 
                 {typeStats && typeStats.count > 0 && (
                   <div className={`flex items-center space-x-4 text-xs ${
-                    isExpanded ? 'text-white/90' : 'text-gray-600'
+                    isExpanded ? 'text-white/90' : 'text-gray-400'
                   }`}>
                     <div className="text-right">
                       <div className="font-medium">
@@ -3054,7 +3054,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                   className={`
                     p-1.5 rounded-lg transition-all duration-200 
                     ${isExpanded 
-                      ? 'bg-white/20 hover:bg-white/30 text-white' 
+                      ? 'bg-gray-900/20 hover:bg-gray-900/30 text-white' 
                       : `${config.color.lightBg} hover:${config.color.hover} ${config.color.text}`
                     }
                   `}
@@ -3065,7 +3065,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                 
                 <ChevronDown className={`
                   w-5 h-5 transition-transform duration-300
-                  ${isExpanded ? 'rotate-180 text-white' : 'text-gray-400'}
+                  ${isExpanded ? 'rotate-180 text-white' : 'text-gray-500'}
                 `} />
               </div>
             </div>
@@ -3073,13 +3073,13 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
 
           {/* Table Content */}
           {isExpanded && (
-            <div className="bg-white animate-in slide-in-from-top-2 duration-300">
+            <div className="bg-gray-900 animate-in slide-in-from-top-2 duration-300">
               {typePositions.length === 0 ? (
                 <div className="p-8 text-center">
                   <div className={`inline-flex p-4 rounded-full ${config.color.lightBg} mb-4`}>
                     <Icon className={`w-8 h-8 ${config.color.text}`} />
                   </div>
-                  <p className="text-gray-600 mb-4">No {config.name.toLowerCase()} positions yet</p>
+                  <p className="text-gray-400 mb-4">No {config.name.toLowerCase()} positions yet</p>
                   <button
                     onClick={() => addNewRow(assetType)}
                     className={`
@@ -3096,7 +3096,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                   <div className="overflow-x-auto overflow-y-visible" ref={el => tableRefs.current[assetType] = el}>
                     <table className="w-full">
                       <thead>
-                        <tr className="bg-gray-50 border-b border-gray-200">
+                        <tr className="bg-gray-800 border-b border-gray-700">
                           <th className="w-12 px-3 py-3 text-left">
                             <input
                               type="checkbox"
@@ -3105,26 +3105,26 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                                 typePositions.length > 0 && 
                                 typePositions.every(p => selectedIds.has(p.id))
                               }
-                              className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                              className="w-4 h-4 rounded border-gray-600 text-blue-400 focus:ring-blue-500 cursor-pointer"
                               title="Select all"
                             />
                           </th>
                           {config.fields.map(field => (
                             <th key={field.key} className={`${field.width} px-2 py-3 text-left`}>
-                              <span className="text-xs font-semibold text-gray-600 flex items-center">
+                              <span className="text-xs font-semibold text-gray-400 flex items-center">
                                 {field.label}
                                 {field.required && <span className="text-red-500 ml-1">*</span>}
                                 {field.readOnly && (
-                                  <Info className="w-3 h-3 ml-1 text-gray-400" title="Auto-filled from search" />
+                                  <Info className="w-3 h-3 ml-1 text-gray-500" title="Auto-filled from search" />
                                 )}
                               </span>
                             </th>
                           ))}
                           <th className="w-24 px-2 py-3 text-left">
-                            <span className="text-xs font-semibold text-gray-600">Status</span>
+                            <span className="text-xs font-semibold text-gray-400">Status</span>
                           </th>
                           <th className="w-24 px-2 py-3 text-center">
-                            <span className="text-xs font-semibold text-gray-600">Actions</span>
+                            <span className="text-xs font-semibold text-gray-400">Actions</span>
                           </th>
                         </tr>
                       </thead>
@@ -3138,11 +3138,11 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                             <tr 
                               key={position.id}
                               className={`
-                                border-b border-gray-100 transition-all duration-300 group relative
-                                ${position.isNew ? 'bg-blue-50/50' : 'hover:bg-gray-50/50'}
+                                border-b border-gray-800 transition-all duration-300 group relative
+                                ${position.isNew ? 'bg-blue-500/10/50' : 'hover:bg-gray-800/50'}
                                 ${position.animateIn ? 'animate-in slide-in-from-left duration-300' : ''}
                                 ${position.animateOut ? 'animate-out slide-out-to-right duration-300' : ''}
-                                ${hasErrors ? 'bg-red-50/30' : ''}
+                                ${hasErrors ? 'bg-rose-500/10/30' : ''}
                               `}
                               style={{ zIndex: typePositions.length - index }}
                             >
@@ -3152,11 +3152,11 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                                     type="checkbox"
                                     checked={selectedIds.has(position.id)}
                                     onChange={(e) => toggleRowSelected(position.id, e.target.checked)}
-                                    className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                                    className="w-4 h-4 rounded border-gray-600 text-blue-400 focus:ring-blue-500 cursor-pointer"
                                     aria-label={`Select row ${index + 1}`}
                                   />
                                   <span className="text-sm font-medium text-gray-500">{index + 1}</span>
-                                  {position.isNew && <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />}
+                                  {position.isNew && <span className="w-2 h-2 bg-blue-500/100 rounded-full animate-pulse" />}
                                 </div>
                               </td>
 
@@ -3174,12 +3174,12 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                                   {(() => {
                                     const s = getRowStatus(position);
                                     const styles = {
-                                      ready:      "bg-emerald-50 text-emerald-700 border-emerald-200",
-                                      draft:      "bg-amber-50 text-amber-700 border-amber-200",
-                                      submitting: "bg-blue-50 text-blue-700 border-blue-200",
-                                      added:      "bg-indigo-50 text-indigo-700 border-indigo-200",
-                                      error:      "bg-red-50 text-red-700 border-red-200",
-                                    }[s] || "bg-gray-50 text-gray-600 border-gray-200";
+                                      ready:      "bg-emerald-500/10 text-emerald-400 border-emerald-200",
+                                      draft:      "bg-amber-500/10 text-amber-400 border-amber-200",
+                                      submitting: "bg-blue-500/10 text-blue-400 border-blue-500/30",
+                                      added:      "bg-indigo-500/10 text-indigo-400 border-indigo-200",
+                                      error:      "bg-rose-500/10 text-rose-400 border-rose-500/30",
+                                    }[s] || "bg-gray-800 text-gray-400 border-gray-700";
                                     return (
                                       <span className={`inline-flex items-center px-2 py-0.5 text-[11px] rounded border ${styles}`}>
                                         {s}
@@ -3279,7 +3279,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                                             showMessage('error', 'Failed to add position', [error.message]);
                                           }
                                         }}
-                                        className="p-1 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded transition-all"
+                                        className="p-1 text-gray-500 hover:text-emerald-400 hover:bg-emerald-500/100/10 rounded transition-all"
                                         title="Submit this position"
                                         disabled={position.status === 'submitting'}
                                       >
@@ -3292,14 +3292,14 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                                     )}
                                     <button
                                       onClick={() => duplicatePosition(assetType, position)}
-                                      className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-all"
+                                      className="p-1 text-gray-500 hover:text-blue-400 hover:bg-blue-500/10 rounded transition-all"
                                       title="Duplicate"
                                     >
                                       <Copy className="w-3 h-3" />
                                     </button>
                                     <button
                                       onClick={() => deletePosition(assetType, position.id)}
-                                      className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-all"
+                                      className="p-1 text-gray-500 hover:text-rose-400 hover:bg-rose-500/10 rounded transition-all"
                                       title="Delete"
                                     >
                                       <Trash2 className="w-3 h-3" />
@@ -3315,7 +3315,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                   </div>
                   
                   {/* Add row footer */}
-                  <div className="p-3 bg-gray-50 border-t border-gray-100">
+                  <div className="p-3 bg-gray-800 border-t border-gray-800">
                     <button
                       onClick={() => addNewRow(assetType)}
                       className={`
@@ -3360,14 +3360,14 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
           const hasPositions = accountStats && accountStats.count > 0;
           
           return (
-            <div key={account.id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <div key={account.id} className="bg-gray-900 rounded-xl shadow-sm border border-gray-700 overflow-hidden">
               {/* Account Header with asset type buttons */}
-              <div className="px-4 py-3 bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
+              <div className="px-4 py-3 bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-700">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-4">
                     <div>
-                      <h3 className="font-semibold text-gray-800">{account.account_name}</h3>
-                      <p className="text-sm text-gray-600 mt-1">
+                      <h3 className="font-semibold text-gray-200">{account.account_name}</h3>
+                      <p className="text-sm text-gray-400 mt-1">
                         {accountStats ? `${accountStats.count} position${accountStats.count !== 1 ? 's' : ''}` : 'No positions'} • 
                         {showValues && accountStats ? ` ${formatCurrency(accountStats.value)}` : ' ••••'}
                       </p>
@@ -3397,7 +3397,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                             <Icon className="w-3.5 h-3.5 mr-1.5" />
                             <span>{config.name}</span>
                             {typeCount > 0 && (
-                              <span className="ml-1.5 px-1.5 py-0.5 bg-white/20 rounded-full text-[10px] font-bold">
+                              <span className="ml-1.5 px-1.5 py-0.5 bg-gray-900/20 rounded-full text-[10px] font-bold">
                                 {typeCount}
                               </span>
                             )}
@@ -3422,7 +3422,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                     const isExpanded = accountExpandedSections[sectionKey] !== false; // Default expanded
                     
                     return (
-                      <div key={type} className="border border-gray-200 rounded-lg overflow-hidden">
+                      <div key={type} className="border border-gray-700 rounded-lg overflow-hidden">
                         <div 
                           onClick={() => setAccountExpandedSections(prev => ({
                             ...prev,
@@ -3447,7 +3447,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                             <table className="w-full text-sm">
 
                               <thead>
-                                <tr className="bg-gray-50 border-b border-gray-200">
+                                <tr className="bg-gray-800 border-b border-gray-700">
                                   <th className="w-10 px-3 py-3 text-left">
                                     <input
                                       type="checkbox"
@@ -3479,21 +3479,21 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                                     .filter(f => f.key !== 'account_id')
                                     .map(field => (
                                       <th key={field.key} className={`${field.width} px-2 py-3 text-left`}>
-                                        <span className="text-xs font-semibold text-gray-600 flex items-center">
+                                        <span className="text-xs font-semibold text-gray-400 flex items-center">
                                           {field.label}
                                           {field.required && <span className="text-red-500 ml-1">*</span>}
                                           {field.readOnly && (
-                                            <Info className="w-3 h-3 ml-1 text-gray-400" title="Auto-filled from search" />
+                                            <Info className="w-3 h-3 ml-1 text-gray-500" title="Auto-filled from search" />
                                           )}
                                         </span>
                                       </th>
                                     ))}
 
                                   <th className="w-24 px-2 py-3 text-left">
-                                    <span className="text-xs font-semibold text-gray-600">Status</span>
+                                    <span className="text-xs font-semibold text-gray-400">Status</span>
                                   </th>
                                   <th className="w-24 px-2 py-3 text-center">
-                                    <span className="text-xs font-semibold text-gray-600">Actions</span>
+                                    <span className="text-xs font-semibold text-gray-400">Actions</span>
                                   </th>
                                 </tr>
                               </thead>
@@ -3503,7 +3503,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
 
                                 <tbody>
                                   {typePositions.map((position) => (
-                                    <tr key={position.id} className="border-b border-gray-100 hover:bg-gray-50">
+                                    <tr key={position.id} className="border-b border-gray-800 hover:bg-gray-800">
                                       {/* Row checkbox */}
                                       <td className="px-3 py-2">
                                         <div className="flex items-center space-x-2">
@@ -3533,12 +3533,12 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                                         {(() => {
                                           const s = getRowStatus(position);
                                           const styles = {
-                                            ready:      "bg-emerald-50 text-emerald-700 border-emerald-200",
-                                            draft:      "bg-amber-50 text-amber-700 border-amber-200",
-                                            submitting: "bg-blue-50 text-blue-700 border-blue-200",
-                                            added:      "bg-indigo-50 text-indigo-700 border-indigo-200",
-                                            error:      "bg-red-50 text-red-700 border-red-200",
-                                          }[s] || "bg-gray-50 text-gray-600 border-gray-200";
+                                            ready:      "bg-emerald-500/10 text-emerald-400 border-emerald-200",
+                                            draft:      "bg-amber-500/10 text-amber-400 border-amber-200",
+                                            submitting: "bg-blue-500/10 text-blue-400 border-blue-500/30",
+                                            added:      "bg-indigo-500/10 text-indigo-400 border-indigo-200",
+                                            error:      "bg-rose-500/10 text-rose-400 border-rose-500/30",
+                                          }[s] || "bg-gray-800 text-gray-400 border-gray-700";
 
                                           return (
                                             <span className={`inline-flex items-center px-2 py-0.5 text-[11px] rounded border ${styles}`}>
@@ -3553,14 +3553,14 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                                         <div className="flex items-center justify-center space-x-1">
                                           <button
                                             onClick={() => duplicatePosition(type, position)}
-                                            className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-all"
+                                            className="p-1 text-gray-500 hover:text-blue-400 hover:bg-blue-500/10 rounded transition-all"
                                             title="Duplicate"
                                           >
                                             <Copy className="w-3 h-3" />
                                           </button>
                                           <button
                                             onClick={() => deletePosition(type, position.id)}
-                                            className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-all"
+                                            className="p-1 text-gray-500 hover:text-rose-400 hover:bg-rose-500/10 rounded transition-all"
                                             title="Delete"
                                           >
                                             <Trash2 className="w-3 h-3" />
@@ -3572,7 +3572,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                                 </tbody>
 
                             </table>
-                            <div className="p-2 bg-gray-50 border-t border-gray-100">
+                            <div className="p-2 bg-gray-800 border-t border-gray-800">
                               <button
                                 onClick={() => addNewRowForAccount(account.id, type)}
                                 className={`
@@ -3603,12 +3603,12 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
 
           {/* Add Other Assets section at the end if there are any */}
           {otherAssetsPositions.length > 0 && (
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mt-4">
-              <div className="px-4 py-3 bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
+            <div className="bg-gray-900 rounded-xl shadow-sm border border-gray-700 overflow-hidden mt-4">
+              <div className="px-4 py-3 bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-700">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="font-semibold text-gray-800">Other Assets (Not in Accounts)</h3>
-                    <p className="text-sm text-gray-600 mt-1">
+                    <h3 className="font-semibold text-gray-200">Other Assets (Not in Accounts)</h3>
+                    <p className="text-sm text-gray-400 mt-1">
                       {otherAssetsPositions.length} asset{otherAssetsPositions.length !== 1 ? 's' : ''} • 
                       {showValues ? ` ${formatCurrency(stats.byType.otherAssets?.value || 0)}` : ' ••••'}
                     </p>
@@ -3639,19 +3639,19 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="bg-gray-50 border-b border-gray-200">
+                      <tr className="bg-gray-800 border-b border-gray-700">
                         {assetTypes.otherAssets.fields.map(field => (
-                          <th key={field.key} className="px-2 py-2 text-left text-xs font-medium text-gray-600">
+                          <th key={field.key} className="px-2 py-2 text-left text-xs font-medium text-gray-400">
                             {field.label}
                             {field.required && <span className="text-red-500 ml-0.5">*</span>}
                           </th>
                         ))}
-                        <th className="px-2 py-2 text-center text-xs font-medium text-gray-600">Actions</th>
+                        <th className="px-2 py-2 text-center text-xs font-medium text-gray-400">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
                       {otherAssetsPositions.map((position, index) => (
-                        <tr key={position.id} className="border-b border-gray-100 hover:bg-gray-50">
+                        <tr key={position.id} className="border-b border-gray-800 hover:bg-gray-800">
                           {assetTypes.otherAssets.fields.map(field => (
                             <td key={field.key} className="px-1 py-1">
                               {renderCellInput(
@@ -3666,14 +3666,14 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                             <div className="flex items-center justify-center space-x-1">
                               <button
                                 onClick={() => duplicatePosition('otherAssets', position)}
-                                className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-all"
+                                className="p-1 text-gray-500 hover:text-blue-400 hover:bg-blue-500/10 rounded transition-all"
                                 title="Duplicate"
                               >
                                 <Copy className="w-3 h-3" />
                               </button>
                               <button
                                 onClick={() => deletePosition('otherAssets', position.id)}
-                                className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-all"
+                                className="p-1 text-gray-500 hover:text-rose-400 hover:bg-rose-500/10 rounded transition-all"
                                 title="Delete"
                               >
                                 <Trash2 className="w-3 h-3" />
@@ -3730,18 +3730,18 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
     >
       <div className="h-[90vh] flex flex-col bg-gradient-to-br from-gray-50 via-slate-50 to-gray-100">
         {/* Enhanced Header with Action Bar */}
-          <div className="flex-shrink-0 bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/40 border-b-2 border-gray-200 px-6 py-3 shadow-sm">
+          <div className="flex-shrink-0 bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/40 border-b-2 border-gray-700 px-6 py-3 shadow-sm">
             {/* Single Line Header */}
             <div className="flex items-center justify-between gap-4 mb-3">
               {/* Left: Core Actions */}
               <div className="flex items-center space-x-3">
                 {/* File Actions Group */}
-                <div className="flex items-center space-x-2 px-3 py-2 bg-white rounded-lg border border-gray-200 shadow-sm">
+                <div className="flex items-center space-x-2 px-3 py-2 bg-gray-900 rounded-lg border border-gray-700 shadow-sm">
                   <button
                     onClick={clearAll}
-                    className="px-3 py-1.5 text-xs bg-white border border-gray-300 text-gray-700 font-medium rounded-md hover:bg-gray-50 hover:border-gray-400 transition-all flex items-center space-x-1.5 group"
+                    className="px-3 py-1.5 text-xs bg-gray-900 border border-gray-600 text-gray-300 font-medium rounded-md hover:bg-gray-800 hover:border-gray-400 transition-all flex items-center space-x-1.5 group"
                   >
-                    <Trash2 className="w-3.5 h-3.5 group-hover:text-red-600 transition-colors" />
+                    <Trash2 className="w-3.5 h-3.5 group-hover:text-rose-400 transition-colors" />
                     <span>Clear All</span>
                   </button>
                   
@@ -3749,7 +3749,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                   
                   <button
                     onClick={onClose}
-                    className="px-3 py-1.5 text-xs bg-white border border-gray-300 text-gray-700 font-medium rounded-md hover:bg-gray-50 hover:border-gray-400 transition-all"
+                    className="px-3 py-1.5 text-xs bg-gray-900 border border-gray-600 text-gray-300 font-medium rounded-md hover:bg-gray-800 hover:border-gray-400 transition-all"
                   >
                     Cancel
                   </button>
@@ -3757,11 +3757,11 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                 
                 {/* Selection Actions Group */}
                 {selectedIds.size > 0 && (
-                  <div className="flex items-center space-x-2 px-3 py-2 bg-red-50 rounded-lg border border-red-200 shadow-sm animate-in slide-in-from-left duration-200">
-                    <span className="text-xs font-semibold text-red-700">{selectedIds.size} selected</span>
+                  <div className="flex items-center space-x-2 px-3 py-2 bg-rose-500/10 rounded-lg border border-rose-500/30 shadow-sm animate-in slide-in-from-left duration-200">
+                    <span className="text-xs font-semibold text-rose-400">{selectedIds.size} selected</span>
                     <button
                       onClick={deleteSelected}
-                      className="px-3 py-1.5 text-xs bg-red-100 text-red-700 font-medium rounded-md hover:bg-red-200 border border-red-300 transition-all flex items-center space-x-1.5"
+                      className="px-3 py-1.5 text-xs bg-rose-500/20 text-rose-400 font-medium rounded-md hover:bg-red-200 border border-red-500/50 transition-all flex items-center space-x-1.5"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                       <span>Delete</span>
@@ -3770,8 +3770,8 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                 )}
                 
                 {/* View Mode Toggle */}
-                <div className="flex items-center space-x-2 px-3 py-2 bg-white rounded-lg border border-gray-200 shadow-sm">
-                  <span className="text-xs text-gray-600 font-medium">View:</span>
+                <div className="flex items-center space-x-2 px-3 py-2 bg-gray-900 rounded-lg border border-gray-700 shadow-sm">
+                  <span className="text-xs text-gray-400 font-medium">View:</span>
                   <ToggleSwitch
                     value={viewMode}
                     onChange={setViewMode}
@@ -3784,11 +3784,11 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
               </div>
               
               {/* Center: Stats */}
-              <div className="flex items-center space-x-6 px-4 py-2 bg-white rounded-lg border border-gray-200 shadow-sm">
+              <div className="flex items-center space-x-6 px-4 py-2 bg-gray-900 rounded-lg border border-gray-700 shadow-sm">
                 <div className="flex items-center space-x-2">
-                  <Hash className="w-4 h-4 text-gray-400" />
-                  <span className="text-xs text-gray-600">Positions:</span>
-                  <span className="text-sm font-bold text-gray-900">
+                  <Hash className="w-4 h-4 text-gray-500" />
+                  <span className="text-xs text-gray-400">Positions:</span>
+                  <span className="text-sm font-bold text-white">
                     <AnimatedNumber value={stats.totalPositions} />
                   </span>
                 </div>
@@ -3796,9 +3796,9 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                 <div className="w-px h-5 bg-gray-300" />
                 
                 <div className="flex items-center space-x-2">
-                  <DollarSign className="w-4 h-4 text-gray-400" />
-                  <span className="text-xs text-gray-600">Value:</span>
-                  <span className="text-sm font-bold text-gray-900">
+                  <DollarSign className="w-4 h-4 text-gray-500" />
+                  <span className="text-xs text-gray-400">Value:</span>
+                  <span className="text-sm font-bold text-white">
                     {showValues ? (
                       <AnimatedNumber value={stats.totalValue} prefix="$" decimals={0} />
                     ) : (
@@ -3812,12 +3812,12 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                     <div className="w-px h-5 bg-gray-300" />
                     <div className="flex items-center space-x-2">
                       {stats.totalPerformance >= 0 ? (
-                        <TrendingUp className="w-4 h-4 text-green-600" />
+                        <TrendingUp className="w-4 h-4 text-emerald-400" />
                       ) : (
-                        <TrendingDown className="w-4 h-4 text-red-600" />
+                        <TrendingDown className="w-4 h-4 text-rose-400" />
                       )}
                       <span className={`text-sm font-bold ${
-                        stats.totalPerformance >= 0 ? 'text-green-600' : 'text-red-600'
+                        stats.totalPerformance >= 0 ? 'text-emerald-400' : 'text-rose-400'
                       }`}>
                         {showValues ? (
                           <>
@@ -3852,13 +3852,13 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
               {/* Right: Submit Actions */}
               <div className="flex items-center space-x-2">
                 {/* Settings */}
-                <div className="flex items-center space-x-1 px-2 py-2 bg-white rounded-lg border border-gray-200 shadow-sm">
+                <div className="flex items-center space-x-1 px-2 py-2 bg-gray-900 rounded-lg border border-gray-700 shadow-sm">
                   <button
                     onClick={() => setShowValues(!showValues)}
                     className={`p-1.5 rounded-md transition-all duration-200 ${
                       showValues 
-                        ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' 
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        ? 'bg-blue-500/20 text-blue-400 hover:bg-blue-200' 
+                        : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
                     }`}
                     title={showValues ? 'Hide values' : 'Show values'}
                   >
@@ -3869,8 +3869,8 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                     onClick={() => setShowKeyboardShortcuts(!showKeyboardShortcuts)}
                     className={`p-1.5 rounded-md transition-all duration-200 ${
                       showKeyboardShortcuts 
-                        ? 'bg-purple-100 text-purple-700 hover:bg-purple-200' 
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        ? 'bg-purple-500/20 text-purple-400 hover:bg-purple-200' 
+                        : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
                     }`}
                     title="Keyboard shortcuts (Ctrl+K)"
                   >
@@ -3881,7 +3881,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                 {/* Queue Button */}
                 <button
                   onClick={() => setShowQueue(true)}
-                  className="px-3 py-2 text-xs bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all flex items-center space-x-2 shadow-sm"
+                  className="px-3 py-2 text-xs bg-gray-900 border border-gray-600 text-gray-300 font-medium rounded-lg hover:bg-gray-800 hover:border-gray-400 transition-all flex items-center space-x-2 shadow-sm"
                 >
                   <ClipboardList className="w-3.5 h-3.5" />
                   <span>Queue</span>
@@ -3894,14 +3894,14 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                 
 
                {/* Submit Buttons Group */}
-                <div className="flex items-center space-x-2 px-3 py-2 bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg border border-green-200 shadow-sm">
+                <div className="flex items-center space-x-2 px-3 py-2 bg-gradient-to-r from-emerald-500/10 to-emerald-500/50/5 rounded-lg border border-emerald-500/30 shadow-sm">
                   <button
                     onClick={submitReadyOnly}
                     disabled={isSubmitting || getAllReadyRows().length === 0}
                     className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all flex items-center space-x-1.5 ${
                       isSubmitting || getAllReadyRows().length === 0
-                        ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                        : 'bg-emerald-100 text-emerald-700 border border-emerald-300 hover:bg-emerald-200'
+                        ? 'bg-gray-800 text-gray-500 cursor-not-allowed'
+                        : 'bg-emerald-500/100/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/100/30'
                     }`}
                   >
                     <CheckCircle className="w-3.5 h-3.5" />
@@ -3952,7 +3952,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
 
             {/* Second Row: Filters (conditional) */}
             {viewMode && accounts.length > 0 && (
-              <div className="flex items-center space-x-3 py-2 px-4 bg-white rounded-lg border border-gray-200 shadow-sm">
+              <div className="flex items-center space-x-3 py-2 px-4 bg-gray-900 rounded-lg border border-gray-700 shadow-sm">
                 <span className="text-xs text-gray-500 font-medium">Filters:</span>
                 <AccountFilter
                   accounts={accounts}
@@ -3982,7 +3982,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                     className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all duration-200 ${
                       activeFilter === 'all' 
                         ? 'bg-gray-900 text-white shadow-sm' 
-                        : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
+                        : 'bg-gray-900 text-gray-400 hover:bg-gray-800 border border-gray-700'
                     }`}
                   >
                     All Types
@@ -4033,15 +4033,15 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                         className={`px-2.5 py-1.5 text-xs rounded-md border transition-all duration-200 flex items-center space-x-1.5 ${
                           statusFilter === opt.k
                             ? 'bg-gray-900 text-white border-gray-900'
-                            : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                            : 'bg-gray-900 text-gray-300 border-gray-600 hover:bg-gray-800'
                         }`}
                       >
                         <span>{opt.label}</span>
                         {count > 0 && (
                           <span className={`px-1.5 py-0.5 text-[10px] rounded-full font-bold ${
                             statusFilter === opt.k
-                              ? 'bg-white/20 text-white'
-                              : 'bg-gray-100 text-gray-600'
+                              ? 'bg-gray-900/20 text-white'
+                              : 'bg-gray-800 text-gray-400'
                           }`}>
                             {count}
                           </span>
@@ -4055,28 +4055,28 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
 
             {/* Keyboard shortcuts hint */}
             {showKeyboardShortcuts && (
-              <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg animate-in slide-in-from-top duration-300">
+              <div className="mt-3 p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg animate-in slide-in-from-top duration-300">
                 <div className="flex items-start space-x-2">
-                  <Keyboard className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
+                  <Keyboard className="w-4 h-4 text-blue-400 flex-shrink-0 mt-0.5" />
                   <div className="flex-1">
-                    <p className="text-xs font-medium text-blue-900 mb-1">Keyboard Shortcuts</p>
-                    <div className="grid grid-cols-3 gap-x-4 gap-y-1 text-[10px] text-blue-700">
-                      <div><kbd className="px-1 py-0.5 bg-white rounded text-blue-900 font-mono">Tab</kbd> Next field</div>
-                      <div><kbd className="px-1 py-0.5 bg-white rounded text-blue-900 font-mono">Enter</kbd> Next field / New row</div>
-                      <div><kbd className="px-1 py-0.5 bg-white rounded text-blue-900 font-mono">Ctrl+Enter</kbd> Submit all</div>
-                      <div><kbd className="px-1 py-0.5 bg-white rounded text-blue-900 font-mono">↑↓</kbd> Navigate rows</div>
-                      <div><kbd className="px-1 py-0.5 bg-white rounded text-blue-900 font-mono">Ctrl+D</kbd> Duplicate row</div>
-                      <div><kbd className="px-1 py-0.5 bg-white rounded text-blue-900 font-mono">Ctrl+Del</kbd> Delete row</div>
-                      <div><kbd className="px-1 py-0.5 bg-white rounded text-blue-900 font-mono">Alt+↑↓</kbd> Move row</div>
-                      <div><kbd className="px-1 py-0.5 bg-white rounded text-blue-900 font-mono">Shift+Enter</kbd> Insert above</div>
-                      <div><kbd className="px-1 py-0.5 bg-white rounded text-blue-900 font-mono">Ctrl+K</kbd> Toggle shortcuts</div>
+                    <p className="text-xs font-medium text-blue-300 mb-1">Keyboard Shortcuts</p>
+                    <div className="grid grid-cols-3 gap-x-4 gap-y-1 text-[10px] text-blue-400">
+                      <div><kbd className="px-1 py-0.5 bg-gray-900 rounded text-blue-300 font-mono">Tab</kbd> Next field</div>
+                      <div><kbd className="px-1 py-0.5 bg-gray-900 rounded text-blue-300 font-mono">Enter</kbd> Next field / New row</div>
+                      <div><kbd className="px-1 py-0.5 bg-gray-900 rounded text-blue-300 font-mono">Ctrl+Enter</kbd> Submit all</div>
+                      <div><kbd className="px-1 py-0.5 bg-gray-900 rounded text-blue-300 font-mono">↑↓</kbd> Navigate rows</div>
+                      <div><kbd className="px-1 py-0.5 bg-gray-900 rounded text-blue-300 font-mono">Ctrl+D</kbd> Duplicate row</div>
+                      <div><kbd className="px-1 py-0.5 bg-gray-900 rounded text-blue-300 font-mono">Ctrl+Del</kbd> Delete row</div>
+                      <div><kbd className="px-1 py-0.5 bg-gray-900 rounded text-blue-300 font-mono">Alt+↑↓</kbd> Move row</div>
+                      <div><kbd className="px-1 py-0.5 bg-gray-900 rounded text-blue-300 font-mono">Shift+Enter</kbd> Insert above</div>
+                      <div><kbd className="px-1 py-0.5 bg-gray-900 rounded text-blue-300 font-mono">Ctrl+K</kbd> Toggle shortcuts</div>
                     </div>
                   </div>
                   <button
                     onClick={() => setShowKeyboardShortcuts(false)}
-                    className="p-1 hover:bg-blue-100 rounded transition-colors"
+                    className="p-1 hover:bg-blue-500/20 rounded transition-colors"
                   >
-                    <X className="w-3 h-3 text-blue-600" />
+                    <X className="w-3 h-3 text-blue-400" />
                   </button>
                 </div>
               </div>
@@ -4103,7 +4103,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                       className: `w-8 h-8 ${assetTypes[activeFilter].color.text}`
                     })}
                   </div>
-                  <p className="text-gray-600 mb-4">No {assetTypes[activeFilter].name.toLowerCase()} positions yet</p>
+                  <p className="text-gray-400 mb-4">No {assetTypes[activeFilter].name.toLowerCase()} positions yet</p>
                   <button
                     onClick={() => {
                       addNewRow(activeFilter);
@@ -4129,30 +4129,30 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
             absolute bottom-6 left-6 right-6 p-4 rounded-lg shadow-lg border
             animate-in slide-in-from-bottom duration-300 z-40
             ${message.type === 'error' 
-              ? 'bg-red-50 border-red-200' 
+              ? 'bg-rose-500/10 border-rose-500/30' 
               : message.type === 'warning' 
-                ? 'bg-amber-50 border-amber-200' 
+                ? 'bg-amber-500/10 border-amber-200' 
                 : message.type === 'info'
-                  ? 'bg-blue-50 border-blue-200'
-                  : 'bg-green-50 border-green-200'
+                  ? 'bg-blue-500/10 border-blue-500/30'
+                  : 'bg-emerald-500/100/10 border-emerald-500/30'
             }
           `}>
             <div className="flex items-start space-x-3">
               <div className={`
                 flex-shrink-0 p-2 rounded-full
                 ${message.type === 'error' 
-                  ? 'bg-red-100' 
+                  ? 'bg-rose-500/20' 
                   : message.type === 'warning' 
-                    ? 'bg-amber-100' 
+                    ? 'bg-amber-500/100/20' 
                     : message.type === 'info'
-                      ? 'bg-blue-100'
-                      : 'bg-green-100'
+                      ? 'bg-blue-500/20'
+                      : 'bg-emerald-500/100/20'
                 }
               `}>
-                {message.type === 'error' ? <AlertCircle className="w-5 h-5 text-red-600" /> :
-                  message.type === 'warning' ? <AlertCircle className="w-5 h-5 text-amber-600" /> :
-                  message.type === 'info' ? <Info className="w-5 h-5 text-blue-600" /> :
-                  <CheckCircle className="w-5 h-5 text-green-600" />}
+                {message.type === 'error' ? <AlertCircle className="w-5 h-5 text-rose-400" /> :
+                  message.type === 'warning' ? <AlertCircle className="w-5 h-5 text-amber-400" /> :
+                  message.type === 'info' ? <Info className="w-5 h-5 text-blue-400" /> :
+                  <CheckCircle className="w-5 h-5 text-emerald-400" />}
               </div>
               <div className="flex-1">
                 <p className={`
@@ -4162,7 +4162,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                     : message.type === 'warning' 
                       ? 'text-amber-900' 
                       : message.type === 'info'
-                        ? 'text-blue-900'
+                        ? 'text-blue-300'
                         : 'text-green-900'
                   }
                 `}>
@@ -4172,12 +4172,12 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                   <ul className={`
                     mt-2 space-y-1 text-xs
                     ${message.type === 'error' 
-                      ? 'text-red-700' 
+                      ? 'text-rose-400' 
                       : message.type === 'warning' 
-                        ? 'text-amber-700' 
+                        ? 'text-amber-400' 
                         : message.type === 'info'
-                          ? 'text-blue-700'
-                          : 'text-green-700'
+                          ? 'text-blue-400'
+                          : 'text-emerald-400'
                     }
                   `}>
                     {message.details.slice(0, 3).map((detail, index) => (
@@ -4199,24 +4199,24 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                 className={`
                   p-1 rounded transition-colors
                   ${message.type === 'error' 
-                    ? 'hover:bg-red-100' 
+                    ? 'hover:bg-rose-500/20' 
                     : message.type === 'warning' 
-                      ? 'hover:bg-amber-100' 
+                      ? 'hover:bg-amber-500/100/20' 
                       : message.type === 'info'
-                        ? 'hover:bg-blue-100'
-                        : 'hover:bg-green-100'
+                        ? 'hover:bg-blue-500/20'
+                        : 'hover:bg-emerald-500/100/20'
                   }
                 `}
               >
                 <X className={`
                   w-4 h-4
                   ${message.type === 'error' 
-                    ? 'text-red-600' 
+                    ? 'text-rose-400' 
                     : message.type === 'warning' 
-                      ? 'text-amber-600' 
+                      ? 'text-amber-400' 
                       : message.type === 'info'
-                        ? 'text-blue-600'
-                        : 'text-green-600'
+                        ? 'text-blue-400'
+                        : 'text-emerald-400'
                   }
                 `} />
               </button>
@@ -4331,11 +4331,11 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
         
         /* High contrast mode support */
         @media (prefers-contrast: high) {
-          .border-gray-200 {
+          .border-gray-700 {
             border-color: #374151;
           }
           
-          .text-gray-600 {
+          .text-gray-400 {
             color: #1f2937;
           }
         }
