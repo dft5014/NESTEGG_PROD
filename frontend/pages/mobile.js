@@ -58,9 +58,17 @@ const fmtCurrency = (value, inThousands = false) => {
   }).format(value);
 };
 
-const fmtPct = (val) => {
-  if (val === null || val === undefined || isNaN(val)) return '0%';
-  return `${val > 0 ? '+' : ''}${val.toFixed(2)}%`;
+// Normalize percentages: if > 1 assume it's already a percentage, divide by 100
+const toFrac = (x) => {
+  const n = Number(x ?? 0);
+  return Math.abs(n) > 1 ? n / 100 : n;
+};
+
+// Format percentage from decimal (0.025 -> "+2.50%")
+const fmtPct = (decimalVal) => {
+  if (decimalVal === null || decimalVal === undefined || isNaN(decimalVal)) return '0.00%';
+  const pct = toFrac(decimalVal) * 100;
+  return `${pct > 0 ? '+' : ''}${pct.toFixed(2)}%`;
 };
 
 const chipColor = (n) =>
@@ -224,7 +232,7 @@ const PositionDetailSheet = ({ position, isOpen, onClose }) => {
   if (!position) return null;
 
   const gainLoss = position.gain_loss || position.total_gain_loss || 0;
-  const gainLossPct = (position.gain_loss_percent || position.total_gain_loss_pct || 0) * 100;
+  const gainLossPct = position.gain_loss_percent || position.total_gain_loss_pct || 0;
   const currentValue = position.current_value || position.total_current_value || 0;
   const costBasis = position.cost_basis || position.total_cost_basis || 0;
   const quantity = position.quantity || position.total_quantity || 0;
@@ -434,8 +442,8 @@ const QuickStatsCarousel = ({ summary }) => {
     },
     {
       label: 'Total Return',
-      value: summary?.unrealizedGain || 0,
-      change: summary?.unrealizedGainPercent || 0,
+      value: summary?.unrealizedGainPercent || 0,
+      change: summary?.unrealizedGain || 0,
       icon: TrendingUp,
       color: 'text-green-400',
       bgColor: 'bg-green-500/15',
@@ -482,7 +490,7 @@ const QuickStatsCarousel = ({ summary }) => {
                 {stat.isPercent ? fmtPct(stat.value) : fmtCurrency(stat.value)}
               </div>
               <div className={`text-xs ${chipColor(stat.change)}`}>
-                {stat.change >= 0 ? '+' : ''}{stat.isPercent ? fmtPct(stat.change) : fmtCurrency(stat.change)}
+                {stat.change >= 0 ? '+' : ''}{fmtCurrency(stat.change)}
               </div>
             </div>
           </motion.div>
@@ -561,7 +569,7 @@ export default function MobilePortfolio() {
       name: p.name || p.identifier,
       id: p.identifier,
       value: p.current_value ?? p.value ?? 0,
-      pct: (p.gain_loss_percent || 0) * 100,
+      pct: p.gain_loss_percent || 0,
       gl: p.gain_loss || 0,
       type: p.asset_type || 'security',
       fullData: p
