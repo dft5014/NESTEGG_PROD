@@ -9,7 +9,7 @@ import {
   detectAssetType,
   getSupportedInstitutions
 } from '@/utils/institutionTemplates';
-import { fetchAllAccounts } from '@/utils/apimethods/accountMethods';
+import { useAccounts } from '@/store/hooks/useAccounts';
 import { addSecurityPositionBulk } from '@/utils/apimethods/positionMethods';
 import { formatCurrency } from '@/utils/formatters';
 import {
@@ -411,7 +411,6 @@ const AddStatementImportModal = ({ isOpen, onClose }) => {
   const [currentStep, setCurrentStep] = useState(0);
   const [files, setFiles] = useState([]);
   const [parsedData, setParsedData] = useState([]);
-  const [accounts, setAccounts] = useState([]);
   const [selectedAccount, setSelectedAccount] = useState(null);
   const [columnMappings, setColumnMappings] = useState({});
   const [detectedInstitution, setDetectedInstitution] = useState(null);
@@ -425,24 +424,40 @@ const AddStatementImportModal = ({ isOpen, onClose }) => {
     { id: 'review', label: 'Review', sublabel: 'Confirm & import', icon: CheckCircle }
   ];
 
-  // Fetch accounts on mount
+  // Use accounts from DataStore
+  const {
+    accounts: existingAccounts = [],
+    loading: isLoadingAccounts,
+    error: accountsError,
+    lastFetched,
+    refresh: refreshAccounts
+  } = useAccounts();
+
+  // Bootstrap fetch exactly once if we've never fetched accounts yet
+  const bootstrapRef = useRef(false);
   useEffect(() => {
-    if (isOpen) {
-      fetchAllAccounts()
-        .then(data => {
-          const filteredAccounts = data.filter(acc =>
-            acc.account_type === 'brokerage' ||
-            acc.account_type === 'retirement' ||
-            acc.account_type === 'cryptocurrency'
-          );
-          setAccounts(filteredAccounts);
-        })
-        .catch(err => {
-          console.error('Failed to fetch accounts:', err);
-          toast.error('Failed to load accounts');
-        });
+    if (!isOpen) return; // don't run when modal is closed
+    if (bootstrapRef.current) return;
+    // Only trigger if we have NEVER fetched accounts in this session
+    if (!isLoadingAccounts && lastFetched == null) {
+      bootstrapRef.current = true;
+      refreshAccounts();
     }
-  }, [isOpen]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, isLoadingAccounts, lastFetched, refreshAccounts]);
+
+  // Filter accounts to only brokerage, retirement, and crypto
+  const filteredAccounts = useMemo(() => {
+    const accounts = Array.isArray(existingAccounts) ? existingAccounts : [];
+    return accounts.filter(acc => {
+      const accountType = (acc?.account_type || '').toLowerCase();
+      return (
+        accountType === 'brokerage' ||
+        accountType === 'retirement' ||
+        accountType === 'cryptocurrency'
+      );
+    });
+  }, [existingAccounts]);
 
   // Handle file selection
   const handleFilesSelected = async (selectedFiles) => {
@@ -607,39 +622,60 @@ const AddStatementImportModal = ({ isOpen, onClose }) => {
             <p className="text-sm text-gray-400">
               Select the account where these positions will be imported
             </p>
-            <div className="space-y-2 max-h-96 overflow-y-auto">
-              {accounts.map(account => (
-                <button
-                  key={account.id}
-                  onClick={() => setSelectedAccount(account.id)}
-                  className={`
-                    w-full p-4 rounded-lg border-2 transition-all text-left
-                    ${selectedAccount === account.id
-                      ? 'border-blue-600 bg-blue-900/20'
-                      : 'border-gray-700 bg-gray-800/50 hover:border-gray-600'
-                    }
-                  `}
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-medium text-white">{account.name}</p>
-                      <p className="text-sm text-gray-400">
-                        {account.institution} • {account.account_type}
-                      </p>
-                    </div>
-                    {selectedAccount === account.id && (
-                      <CheckCircle className="w-5 h-5 text-blue-400" />
-                    )}
-                  </div>
-                </button>
-              ))}
-            </div>
+            {isLoadingAccounts ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="w-6 h-6 text-blue-400 animate-spin" />
+                <span className="ml-2 text-gray-400">Loading accounts...</span>
+              </div>
+            ) : filteredAccounts.length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-gray-400">No eligible accounts found</p>
+                <p className="text-sm text-gray-500 mt-1">
+                  Create a brokerage, retirement, or crypto account first
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-96 overflow-y-auto">
+                {filteredAccounts.map(account => {
+                  const accountName = account.account_name || account.name;
+                  const accountInstitution = account.institution;
+                  const accountType = account.account_type;
+
+                  return (
+                    <button
+                      key={account.id}
+                      onClick={() => setSelectedAccount(account.id)}
+                      className={`
+                        w-full p-4 rounded-lg border-2 transition-all text-left
+                        ${selectedAccount === account.id
+                          ? 'border-blue-600 bg-blue-900/20'
+                          : 'border-gray-700 bg-gray-800/50 hover:border-gray-600'
+                        }
+                      `}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-medium text-white">{accountName}</p>
+                          <p className="text-sm text-gray-400">
+                            {accountInstitution} • {accountType}
+                          </p>
+                        </div>
+                        {selectedAccount === account.id && (
+                          <CheckCircle className="w-5 h-5 text-blue-400" />
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
         );
 
       case 3:
         const totalPositions = parsedData.reduce((sum, file) => sum + file.data.length, 0);
-        const selectedAccountData = accounts.find(a => a.id === selectedAccount);
+        const selectedAccountData = filteredAccounts.find(a => a.id === selectedAccount);
+        const selectedAccountName = selectedAccountData?.account_name || selectedAccountData?.name;
 
         return (
           <div className="space-y-4">
@@ -656,7 +692,7 @@ const AddStatementImportModal = ({ isOpen, onClose }) => {
               <div className="p-4 bg-gray-800 rounded-lg">
                 <p className="text-xs text-gray-400 mb-1">Account</p>
                 <p className="text-sm font-medium text-white truncate">
-                  {selectedAccountData?.name}
+                  {selectedAccountName}
                 </p>
               </div>
             </div>
@@ -676,7 +712,7 @@ const AddStatementImportModal = ({ isOpen, onClose }) => {
                   Review before importing
                 </p>
                 <p className="text-xs text-yellow-400/70 mt-1">
-                  This will add {totalPositions} positions to {selectedAccountData?.name}.
+                  This will add {totalPositions} positions to {selectedAccountName}.
                   Make sure the column mappings are correct.
                 </p>
               </div>
