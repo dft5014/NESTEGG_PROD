@@ -1,7 +1,7 @@
 // Bulk Submit Hook for QuickStart Modal
 // Handles submission of accounts, positions, and liabilities
 import { useCallback } from 'react';
-import { addAccount } from '@/utils/apimethods/accountMethods';
+import { createAccount } from '@/utils/apimethods/accountMethods';
 import {
   addSecurityPositionBulk,
   addCashPositionBulk,
@@ -44,7 +44,7 @@ export default function useBulkSubmit({ state, dispatch, onSuccess }) {
           account_type: account.accountType
         };
 
-        const result = await addAccount(payload);
+        const result = await createAccount(payload);
 
         // Mark as added
         dispatch(actions.updateAccount(account.id, { status: 'added', serverId: result.id }));
@@ -119,7 +119,7 @@ export default function useBulkSubmit({ state, dispatch, onSuccess }) {
 
     // Submit each group
     for (const group of Object.values(grouped)) {
-      const { assetType, positions } = group;
+      const { assetType, accountId, positions } = group;
 
       // Mark all as submitting
       for (const pos of positions) {
@@ -127,28 +127,31 @@ export default function useBulkSubmit({ state, dispatch, onSuccess }) {
       }
 
       try {
-        const payload = positions.map(pos => ({
-          ...pos.data,
-          account_id: pos.data.account_id
-        }));
+        // Prepare payload - strip account_id from individual items since it's in the URL
+        const payload = positions.map(pos => {
+          const { account_id, ...rest } = pos.data;
+          return rest;
+        });
 
-        // Call appropriate bulk API
+        // Call appropriate bulk API - most take (accountId, data) except other assets
         let response;
         switch (assetType) {
           case 'security':
-            response = await addSecurityPositionBulk(payload);
+            response = await addSecurityPositionBulk(accountId, payload);
             break;
           case 'cash':
-            response = await addCashPositionBulk(payload);
+            response = await addCashPositionBulk(accountId, payload);
             break;
           case 'crypto':
-            response = await addCryptoPositionBulk(payload);
+            response = await addCryptoPositionBulk(accountId, payload);
             break;
           case 'metal':
-            response = await addMetalPositionBulk(payload);
+            response = await addMetalPositionBulk(accountId, payload);
             break;
           case 'other':
-            response = await addOtherAssetBulk(payload);
+            // Other assets expects account_id in each payload item
+            const otherPayload = positions.map(pos => pos.data);
+            response = await addOtherAssetBulk(otherPayload);
             break;
           default:
             throw new Error(`Unknown asset type: ${assetType}`);
