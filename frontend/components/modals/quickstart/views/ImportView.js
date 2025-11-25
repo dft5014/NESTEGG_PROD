@@ -506,11 +506,55 @@ export default function ImportView({
           </div>
         )}
 
-        {/* Error */}
+        {/* Error Panel */}
         {parseError && (
-          <div className="mt-4 flex items-center justify-center space-x-2 text-rose-400">
-            <AlertCircle className="w-4 h-4" />
-            <span className="text-sm">{parseError}</span>
+          <div className="mt-6 bg-rose-900/20 border border-rose-500/30 rounded-xl p-5 text-left">
+            <div className="flex items-start space-x-3">
+              <div className="flex-shrink-0 w-10 h-10 bg-rose-500/20 rounded-full flex items-center justify-center">
+                <AlertCircle className="w-5 h-5 text-rose-400" />
+              </div>
+              <div className="flex-1">
+                <h4 className="text-rose-300 font-semibold mb-1">Import Failed</h4>
+                <p className="text-rose-200/80 text-sm mb-3">{parseError}</p>
+
+                <div className="bg-gray-900/50 rounded-lg p-3 mb-4">
+                  <p className="text-xs text-gray-400 font-medium mb-2">Common causes:</p>
+                  <ul className="text-xs text-gray-400 space-y-1.5">
+                    <li className="flex items-start">
+                      <span className="text-gray-500 mr-2">•</span>
+                      <span>File is not from the official NestEgg template</span>
+                    </li>
+                    <li className="flex items-start">
+                      <span className="text-gray-500 mr-2">•</span>
+                      <span>Required columns are missing or renamed</span>
+                    </li>
+                    <li className="flex items-start">
+                      <span className="text-gray-500 mr-2">•</span>
+                      <span>File is corrupted or in an unsupported format</span>
+                    </li>
+                    <li className="flex items-start">
+                      <span className="text-gray-500 mr-2">•</span>
+                      <span>Data contains invalid characters or formatting</span>
+                    </li>
+                  </ul>
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={resetImport}
+                    className="px-3 py-1.5 bg-rose-600/30 hover:bg-rose-600/50 text-rose-200 text-sm rounded-lg transition-colors"
+                  >
+                    Try Another File
+                  </button>
+                  <button
+                    onClick={() => setStep('template')}
+                    className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm rounded-lg transition-colors"
+                  >
+                    Download Template
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </div>
