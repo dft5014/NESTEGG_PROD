@@ -629,7 +629,7 @@ const Navbar = () => {
                 </div>
               </div>
 
-              {/* Right: “?” then Summary (as requested) */}
+              {/* Right: "?" then Summary (as requested) */}
               <div className="justify-self-end shrink-0 flex items-center gap-2">
                 {/* Orientation toggle to the LEFT of Summary */}
                 <button
