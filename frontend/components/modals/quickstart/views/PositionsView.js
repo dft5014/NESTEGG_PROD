@@ -407,6 +407,19 @@ export default function PositionsView({
                       showStatus={true}
                       emptyMessage={`No ${config.name.toLowerCase()} positions`}
                     />
+                    {/* Add button within section */}
+                    <button
+                      onClick={() => handleAddPosition(assetType)}
+                      className={`
+                        mt-3 w-full px-3 py-2 rounded-lg flex items-center justify-center space-x-2
+                        bg-gray-800/50 border border-dashed border-gray-600 text-gray-400
+                        hover:bg-gray-800 hover:border-gray-500 hover:text-gray-300
+                        transition-all duration-200
+                      `}
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span className="text-sm">Add {config.name.replace(/s$/, '')}</span>
+                    </button>
                   </div>
                 </CollapsibleSection>
               );
