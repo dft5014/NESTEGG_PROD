@@ -259,8 +259,58 @@ export default function AccountsView({
 
       {/* Content */}
       <div className="flex-1 overflow-auto p-4">
+        {/* Prominent import banner when no accounts */}
+        {accounts.length === 0 && (
+          <div className="mb-6 bg-gradient-to-r from-blue-900/40 to-purple-900/40 rounded-xl border border-blue-700/50 p-5">
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <h3 className="text-lg font-semibold text-white flex items-center">
+                  <FileSpreadsheet className="w-5 h-5 mr-2 text-blue-400" />
+                  Have accounts in a spreadsheet?
+                </h3>
+                <p className="text-gray-300 text-sm mt-1.5 max-w-lg">
+                  Download our Excel template, fill in your accounts offline, and import them all at once.
+                  Great for adding many accounts quickly!
+                </p>
+                <div className="flex items-center space-x-3 mt-4">
+                  <button
+                    onClick={handleDownloadTemplate}
+                    disabled={isDownloading}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center space-x-2 transition-colors text-sm font-medium disabled:opacity-50"
+                  >
+                    {isDownloading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Downloading...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Download className="w-4 h-4" />
+                        <span>Download Template</span>
+                      </>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => {
+                      dispatch(actions.setImportTarget('accounts'));
+                      goToView(VIEWS.import);
+                    }}
+                    className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center space-x-2 transition-colors text-sm font-medium"
+                  >
+                    <Upload className="w-4 h-4" />
+                    <span>Import Excel</span>
+                  </button>
+                </div>
+              </div>
+              <div className="hidden md:flex items-center justify-center w-24 h-24 bg-blue-900/30 rounded-lg ml-6">
+                <FileSpreadsheet className="w-12 h-12 text-blue-400/60" />
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Add button */}
-        <div className="mb-4">
+        <div className="mb-4 flex items-center space-x-3">
           <button
             onClick={handleAddAccount}
             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center space-x-2 transition-colors"
@@ -268,6 +318,20 @@ export default function AccountsView({
             <Plus className="w-4 h-4" />
             <span>Add Account</span>
           </button>
+          {accounts.length > 0 && (
+            <span className="text-sm text-gray-400">
+              or{' '}
+              <button
+                onClick={() => {
+                  dispatch(actions.setImportTarget('accounts'));
+                  goToView(VIEWS.import);
+                }}
+                className="text-blue-400 hover:text-blue-300 underline"
+              >
+                import from Excel
+              </button>
+            </span>
+          )}
         </div>
 
         {/* Data table */}
