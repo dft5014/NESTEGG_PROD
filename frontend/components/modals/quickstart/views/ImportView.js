@@ -1,72 +1,157 @@
 // Import View - Excel/CSV import functionality
-import React, { useState, useRef, useCallback } from 'react';
+// Complete workflow matching original QuickStartModal
+import React, { useState, useRef, useCallback, useMemo } from 'react';
 import {
-  ArrowLeft, Upload, Download, FileSpreadsheet, Check,
-  AlertCircle, Loader2, ArrowRight, CheckCircle, X
+  ArrowLeft, Upload, Download, FileSpreadsheet, Check, FolderOpen,
+  AlertCircle, Loader2, ArrowRight, CheckCircle, X, Table, ListPlus,
+  Star, Zap, MousePointer, Keyboard, Import, Copy, Info
 } from 'lucide-react';
 import { VIEWS, ASSET_TYPES, ACCOUNT_CATEGORIES, ACCOUNT_TYPES_BY_CATEGORY } from '../utils/constants';
+import {
+  downloadTemplate,
+  parsePositionsExcel,
+  parseAccountsExcel,
+  detectTemplateType,
+  buildAccountNameToIdMap,
+  isValidExcelFile
+} from '../utils/excelUtils';
 
 export default function ImportView({
   state,
   dispatch,
   actions,
-  accounts,
+  accounts, // existing accounts from DataStore
   goToView,
-  goBack
+  goBack,
+  importTarget // 'accounts' or 'positions' - which type we're importing for
 }) {
+  // Import workflow state
+  const [step, setStep] = useState('choice'); // 'choice' | 'template' | 'upload' | 'preview'
+  const [importMethod, setImportMethod] = useState(null); // 'ui' | 'excel'
+  const [selectedTemplate, setSelectedTemplate] = useState(importTarget || null);
+
+  // File handling state
   const [file, setFile] = useState(null);
-  const [parsing, setParsing] = useState(false);
-  const [preview, setPreview] = useState(null);
-  const [error, setError] = useState(null);
-  const [accountMapping, setAccountMapping] = useState({});
-  const [importType, setImportType] = useState(null); // 'accounts' or 'positions'
+  const [isDragging, setIsDragging] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [isParsing, setIsParsing] = useState(false);
+  const [parseError, setParseError] = useState(null);
+  const [validationStatus, setValidationStatus] = useState(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
+
+  // Parsed data
+  const [parsedAccounts, setParsedAccounts] = useState([]);
+  const [parsedPositions, setParsedPositions] = useState({ security: [], cash: [], crypto: [], metal: [] });
+  const [unmappedAccounts, setUnmappedAccounts] = useState([]);
+
   const fileInputRef = useRef(null);
 
+  // Build account name to ID map for position imports
+  const accountNameToId = useMemo(() => buildAccountNameToIdMap(accounts), [accounts]);
+
+  // Handle template download
+  const handleDownloadTemplate = useCallback(async (type) => {
+    try {
+      await downloadTemplate(type, setIsDownloading);
+    } catch (error) {
+      console.error('Download failed:', error);
+      // Could show toast notification here
+    }
+  }, []);
+
   // Handle file selection
-  const handleFileSelect = useCallback(async (e) => {
-    const selectedFile = e.target.files?.[0];
+  const handleFileSelect = useCallback(async (selectedFile) => {
     if (!selectedFile) return;
 
+    if (!isValidExcelFile(selectedFile)) {
+      setParseError('Please select a valid Excel file (.xlsx, .xls) or CSV file');
+      return;
+    }
+
     setFile(selectedFile);
-    setParsing(true);
-    setError(null);
-    setPreview(null);
+    setIsParsing(true);
+    setParseError(null);
+    setValidationStatus('validating');
+    setUploadProgress(0);
 
     try {
-      const text = await selectedFile.text();
-      const rows = parseCSV(text);
+      // Detect template type
+      setUploadProgress(25);
+      const { kind } = await detectTemplateType(selectedFile);
 
-      if (rows.length === 0) {
-        throw new Error('No data found in file');
+      if (kind === 'unknown') {
+        throw new Error('Could not detect template type. Please use the official NestEgg template.');
       }
 
-      // Detect import type based on headers
-      const detectedType = detectImportType(rows[0]);
-      setImportType(detectedType);
+      setUploadProgress(50);
 
-      // Parse based on type
-      if (detectedType === 'accounts') {
-        const parsed = parseAccountRows(rows);
-        setPreview(parsed);
-      } else {
-        const parsed = parsePositionRows(rows, accounts);
-        setPreview(parsed);
+      if (kind === 'accounts') {
+        setSelectedTemplate('accounts');
+        const parsed = await parseAccountsExcel(selectedFile, ACCOUNT_CATEGORIES);
+        setParsedAccounts(parsed);
+        setUploadProgress(100);
+        setValidationStatus('success');
+        setStep('preview');
+      } else if (kind === 'positions') {
+        setSelectedTemplate('positions');
+        const parsed = await parsePositionsExcel(selectedFile, accountNameToId);
+        setParsedPositions(parsed);
+
+        // Find unmapped accounts
+        const unmapped = new Set();
+        Object.values(parsed).forEach(typeArray => {
+          typeArray.forEach(item => {
+            if (item.data.account_name && !item.data.account_id) {
+              unmapped.add(item.data.account_name);
+            }
+          });
+        });
+        setUnmappedAccounts(Array.from(unmapped));
+
+        setUploadProgress(100);
+        setValidationStatus('success');
+        setStep('preview');
       }
-    } catch (err) {
-      console.error('Parse error:', err);
-      setError(err.message);
+    } catch (error) {
+      console.error('Parse error:', error);
+      setParseError(error.message || 'Failed to parse file');
+      setValidationStatus('error');
     } finally {
-      setParsing(false);
+      setIsParsing(false);
     }
-  }, [accounts]);
+  }, [accountNameToId]);
 
-  // Import the data
+  // Drag and drop handlers
+  const handleDragEnter = useCallback((e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  }, []);
+
+  const handleDragOver = useCallback((e) => {
+    e.preventDefault();
+    e.stopPropagation();
+  }, []);
+
+  const handleDrop = useCallback((e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    const droppedFile = e.dataTransfer.files?.[0];
+    if (droppedFile) handleFileSelect(droppedFile);
+  }, [handleFileSelect]);
+
+  // Import the parsed data
   const handleImport = useCallback(() => {
-    if (!preview) return;
-
-    if (importType === 'accounts') {
-      // Import accounts
-      preview.items.forEach(account => {
+    if (selectedTemplate === 'accounts' && parsedAccounts.length > 0) {
+      // Bulk import accounts
+      parsedAccounts.forEach(account => {
         dispatch(actions.addAccount({
           accountName: account.accountName,
           institution: account.institution,
@@ -75,78 +160,565 @@ export default function ImportView({
         }));
       });
       goToView(VIEWS.accounts);
-    } else {
-      // Import positions with account mapping applied
-      const positionsByType = {};
-
-      preview.items.forEach(item => {
-        const assetType = item.assetType;
-        if (!positionsByType[assetType]) {
-          positionsByType[assetType] = [];
-        }
-
-        // Apply account mapping if needed
-        let accountId = item.data.account_id;
-        if (item.unmappedAccount && accountMapping[item.unmappedAccount]) {
-          accountId = accountMapping[item.unmappedAccount];
-        }
-
-        positionsByType[assetType].push({
-          ...item.data,
-          account_id: accountId
-        });
-      });
-
-      // Bulk import all positions
-      dispatch(actions.bulkImportPositions(positionsByType));
+    } else if (selectedTemplate === 'positions') {
+      // Bulk import positions
+      dispatch(actions.bulkImportPositions(parsedPositions));
       goToView(VIEWS.positions);
     }
-  }, [preview, importType, accountMapping, dispatch, actions, goToView]);
+  }, [selectedTemplate, parsedAccounts, parsedPositions, dispatch, actions, goToView]);
 
-  // Download template
-  const downloadTemplate = useCallback((type) => {
-    let csv;
-    if (type === 'accounts') {
-      const headers = ['Account Name', 'Institution', 'Account Category', 'Account Type'];
-      const samples = [
-        ['My 401k', 'Fidelity', 'retirement', '401k'],
-        ['Brokerage', 'TD Ameritrade', 'investment', 'brokerage'],
-        ['Savings', 'Chase', 'cash', 'savings']
-      ];
-      csv = [headers.join(','), ...samples.map(r => r.join(','))].join('\n');
-    } else {
-      const headers = ['asset_type', 'account_name', 'ticker', 'symbol', 'shares', 'quantity', 'cost_basis', 'purchase_price', 'purchase_date', 'cash_type', 'amount', 'metal_type', 'asset_name', 'current_value'];
-      const samples = [
-        ['security', 'My Brokerage', 'AAPL', '', '10', '', '175.00', '', '2024-01-15', '', '', '', '', ''],
-        ['crypto', 'Coinbase', '', 'BTC', '', '0.5', '', '60000', '2024-02-01', '', '', '', '', ''],
-        ['cash', 'Chase', '', '', '', '', '', '', '', 'Checking', '5000', '', '', ''],
-        ['metal', 'Gold Vault', '', '', '', '10', '', '2400', '2024-03-01', '', '', 'Gold', '', ''],
-        ['other', '', '', '', '', '', '', '', '', '', '', '', 'My House', '500000']
-      ];
-      csv = [headers.join(','), ...samples.map(r => r.join(','))].join('\n');
-    }
-
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `nestegg-${type}-template.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  }, []);
-
+  // Reset import state
   const resetImport = useCallback(() => {
     setFile(null);
-    setPreview(null);
-    setError(null);
-    setAccountMapping({});
-    setImportType(null);
+    setParseError(null);
+    setValidationStatus(null);
+    setUploadProgress(0);
+    setParsedAccounts([]);
+    setParsedPositions({ security: [], cash: [], crypto: [], metal: [] });
+    setUnmappedAccounts([]);
+    setStep('upload');
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
   }, []);
+
+  // Go directly to UI mode
+  const handleUIMode = useCallback(() => {
+    if (importTarget === 'accounts') {
+      goToView(VIEWS.accounts);
+    } else {
+      goToView(VIEWS.positions);
+    }
+  }, [importTarget, goToView]);
+
+  // Calculate totals for preview
+  const positionTotals = useMemo(() => {
+    const totals = { total: 0, security: 0, cash: 0, crypto: 0, metal: 0 };
+    Object.entries(parsedPositions).forEach(([type, items]) => {
+      totals[type] = items.length;
+      totals.total += items.length;
+    });
+    return totals;
+  }, [parsedPositions]);
+
+  // Render import method choice (UI vs Excel)
+  const renderImportChoice = () => {
+    const isAccounts = importTarget === 'accounts';
+    const color = isAccounts ? 'blue' : 'purple';
+    const Icon = isAccounts ? ListPlus : FileSpreadsheet;
+    const title = isAccounts ? 'Add Accounts' : 'Add Positions';
+
+    return (
+      <div className="space-y-6 animate-fadeIn p-6">
+        <div className="text-center">
+          <div className={`inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-${color}-500 to-${color}-600 rounded-full mb-4`}>
+            <Icon className="w-8 h-8 text-white" />
+          </div>
+          <h3 className="text-2xl font-bold text-white mb-2">{title}</h3>
+          <p className="text-gray-300 max-w-md mx-auto">
+            Choose how you'd like to add your {isAccounts ? 'accounts' : 'positions'}
+          </p>
+        </div>
+
+        <div className="grid md:grid-cols-12 gap-4">
+          {/* UI Option */}
+          <div
+            className={`md:col-span-7 group relative bg-gradient-to-br from-emerald-900/30 to-emerald-800/30 p-6 rounded-xl cursor-pointer hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 border border-emerald-800/50`}
+            onClick={handleUIMode}
+          >
+            <div className="absolute inset-0 bg-gradient-to-br from-emerald-600 to-emerald-700 rounded-xl opacity-0 group-hover:opacity-10 transition-opacity duration-300"></div>
+            <div className="relative z-10">
+              <div className="flex items-center justify-center w-12 h-12 bg-emerald-900/50 rounded-full mb-4 group-hover:bg-emerald-800 transition-colors">
+                <ListPlus className="w-6 h-6 text-emerald-400 group-hover:text-emerald-300" />
+              </div>
+              <div className="inline-flex items-center px-2 py-1 bg-emerald-900/40 text-emerald-300 text-xs font-semibold rounded-full mb-3 border border-emerald-700">
+                <Star className="w-3 h-3 mr-1" />
+                Recommended
+              </div>
+              <h4 className="text-xl font-semibold text-white group-hover:text-emerald-300 mb-2 transition-colors">
+                Quick Add UI
+              </h4>
+              <p className="text-gray-300 group-hover:text-emerald-100 text-sm transition-colors mb-4">
+                Add {isAccounts ? 'accounts' : 'positions'} directly in the browser with our intuitive form
+              </p>
+              <div className="space-y-2">
+                <div className="flex items-center text-emerald-400 group-hover:text-emerald-200 text-sm transition-colors">
+                  <Zap className="w-4 h-4 mr-2" />
+                  <span>Fastest method</span>
+                </div>
+                <div className="flex items-center text-emerald-400 group-hover:text-emerald-200 text-sm transition-colors">
+                  <MousePointer className="w-4 h-4 mr-2" />
+                  <span>No file downloads needed</span>
+                </div>
+                <div className="flex items-center text-emerald-400 group-hover:text-emerald-200 text-sm transition-colors">
+                  <Keyboard className="w-4 h-4 mr-2" />
+                  <span>Keyboard shortcuts supported</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Excel Option */}
+          <div
+            className={`md:col-span-5 group relative bg-gradient-to-br from-${color}-900/30 to-${color}-800/30 p-6 rounded-xl cursor-pointer hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 border border-${color}-800/50`}
+            onClick={() => setStep('template')}
+          >
+            <div className={`absolute inset-0 bg-gradient-to-br from-${color}-600 to-${color}-700 rounded-xl opacity-0 group-hover:opacity-10 transition-opacity duration-300`}></div>
+            <div className="relative z-10">
+              <div className={`flex items-center justify-center w-12 h-12 bg-${color}-900/50 rounded-full mb-4 group-hover:bg-${color}-800 transition-colors`}>
+                <Table className={`w-6 h-6 text-${color}-400 group-hover:text-${color}-300`} />
+              </div>
+              <h4 className={`text-xl font-semibold text-white group-hover:text-${color}-300 mb-2 transition-colors`}>
+                Excel Import
+              </h4>
+              <p className={`text-gray-300 group-hover:text-${color}-100 text-sm transition-colors mb-4`}>
+                Download a template and upload your completed spreadsheet
+              </p>
+              <div className="space-y-2">
+                <div className={`flex items-center text-${color}-400 group-hover:text-${color}-200 text-sm transition-colors`}>
+                  <FileSpreadsheet className="w-4 h-4 mr-2" />
+                  <span>Work offline</span>
+                </div>
+                <div className={`flex items-center text-${color}-400 group-hover:text-${color}-200 text-sm transition-colors`}>
+                  <Import className="w-4 h-4 mr-2" />
+                  <span>Bulk import many {isAccounts ? 'accounts' : 'positions'}</span>
+                </div>
+                <div className={`flex items-center text-${color}-400 group-hover:text-${color}-200 text-sm transition-colors`}>
+                  <Copy className="w-4 h-4 mr-2" />
+                  <span>Copy/paste from existing data</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Direct upload shortcut */}
+            <div className="mt-4">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setStep('upload');
+                }}
+                className="text-sm font-medium text-emerald-400 hover:text-emerald-300 underline"
+              >
+                I already have a filled template — Upload now
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className={`bg-${color}-900/20 border border-${color}-800/50 rounded-lg p-4`}>
+          <div className="flex items-center">
+            <Star className={`w-5 h-5 text-${color}-400 mr-3 flex-shrink-0`} />
+            <p className={`text-sm text-${color}-200`}>
+              <span className="font-medium">Pro tip:</span> Use the Quick Add UI for a few {isAccounts ? 'accounts' : 'positions'}, or Excel Import for 10+ {isAccounts ? 'accounts' : 'positions'}
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Render template download section
+  const renderTemplateSection = () => {
+    const type = selectedTemplate || importTarget || 'positions';
+    const isAccounts = type === 'accounts';
+    const color = isAccounts ? 'blue' : 'purple';
+
+    return (
+      <div className="space-y-6 animate-fadeIn p-6">
+        <div className="text-center">
+          <div className={`inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-${color}-500 to-${color}-600 rounded-full mb-4`}>
+            <Download className="w-8 h-8 text-white" />
+          </div>
+          <h3 className="text-2xl font-bold text-white mb-2">
+            Download {isAccounts ? 'Accounts' : 'Positions'} Template
+          </h3>
+          <p className="text-gray-300 max-w-md mx-auto">
+            {isAccounts
+              ? 'Download the template and fill in your account information'
+              : 'Add your investment positions to your existing accounts'}
+          </p>
+        </div>
+
+        {!isAccounts && (
+          <div className="bg-purple-900/20 border border-purple-800/50 rounded-lg p-4">
+            <div className="flex items-center">
+              <AlertCircle className="w-5 h-5 text-purple-400 mr-3 flex-shrink-0" />
+              <p className="text-sm text-purple-300">
+                Make sure you've imported your accounts first. The positions template will include your account names.
+              </p>
+            </div>
+          </div>
+        )}
+
+        <div className="bg-gray-900 rounded-xl p-6">
+          <h4 className="font-semibold text-white mb-4">How it works:</h4>
+          <div className="space-y-3">
+            <div className="flex items-start">
+              <div className={`flex-shrink-0 w-8 h-8 bg-${color}-900/50 rounded-full flex items-center justify-center mr-3`}>
+                <span className={`text-sm font-semibold text-${color}-400`}>1</span>
+              </div>
+              <div>
+                <p className="font-medium text-white">Download the Excel template</p>
+                <p className="text-sm text-gray-300 mt-1">
+                  {isAccounts
+                    ? 'Pre-formatted with dropdowns for institutions and account types'
+                    : 'Customized with your account names for easy selection'}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-start">
+              <div className={`flex-shrink-0 w-8 h-8 bg-${color}-900/50 rounded-full flex items-center justify-center mr-3`}>
+                <span className={`text-sm font-semibold text-${color}-400`}>2</span>
+              </div>
+              <div>
+                <p className="font-medium text-white">Fill in your information</p>
+                <p className="text-sm text-gray-300 mt-1">
+                  {isAccounts
+                    ? 'Add your account names, institutions, and types'
+                    : 'Enter your securities, quantities, and purchase details'}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-start">
+              <div className={`flex-shrink-0 w-8 h-8 bg-${color}-900/50 rounded-full flex items-center justify-center mr-3`}>
+                <span className={`text-sm font-semibold text-${color}-400`}>3</span>
+              </div>
+              <div>
+                <p className="font-medium text-white">Upload the completed template</p>
+                <p className="text-sm text-gray-300 mt-1">We'll validate your data and import everything automatically</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-col items-center gap-3">
+          <button
+            onClick={() => handleDownloadTemplate(type)}
+            disabled={isDownloading}
+            className={`inline-flex items-center px-6 py-3 bg-gradient-to-r from-${color}-600 to-${color}-700 text-white font-medium rounded-lg hover:from-${color}-700 hover:to-${color}-800 transition-all duration-200 transform hover:scale-105 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none`}
+          >
+            {isDownloading ? (
+              <>
+                <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                Downloading...
+              </>
+            ) : (
+              <>
+                <Download className="w-5 h-5 mr-2" />
+                Download {isAccounts ? 'Accounts' : 'Positions'} Template
+              </>
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setStep('upload')}
+            className="text-sm font-medium text-emerald-400 hover:text-emerald-300 underline"
+          >
+            I already have a filled template — Upload now
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  // Render upload section
+  const renderUploadSection = () => (
+    <div className="space-y-6 animate-fadeIn p-6">
+      <div className="text-center">
+        <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-purple-500 to-purple-600 rounded-full mb-4">
+          <Upload className="w-8 h-8 text-white" />
+        </div>
+        <h3 className="text-2xl font-bold text-white mb-2">Upload Completed Template</h3>
+        <p className="text-gray-300 max-w-md mx-auto">
+          Upload your filled template for validation
+        </p>
+      </div>
+
+      {/* Dropzone */}
+      <div
+        onDragEnter={handleDragEnter}
+        onDragLeave={handleDragLeave}
+        onDragOver={handleDragOver}
+        onDrop={handleDrop}
+        className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors ${
+          isDragging ? 'border-purple-400 bg-purple-900/20' :
+          parseError ? 'border-rose-500/50 bg-rose-900/10' :
+          'border-gray-700'
+        }`}
+      >
+        <div className="mb-4">
+          {isParsing ? (
+            <Loader2 className="w-8 h-8 text-purple-400 inline-block animate-spin" />
+          ) : (
+            <Upload className="w-8 h-8 text-gray-400 inline-block" />
+          )}
+        </div>
+        <p className="text-gray-300 mb-2">
+          {isParsing ? 'Parsing file...' : 'Drag and drop your Excel file'}
+        </p>
+        <p className="text-xs text-gray-400 mb-4">.xlsx, .xls, or .csv</p>
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".xlsx,.xls,.csv"
+          hidden
+          onChange={(e) => {
+            const selectedFile = e.target.files?.[0];
+            if (selectedFile) handleFileSelect(selectedFile);
+            if (e.target) e.target.value = '';
+          }}
+        />
+
+        {!isParsing && (
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="inline-flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+          >
+            <FolderOpen className="w-4 h-4 mr-2" />
+            Browse Files
+          </button>
+        )}
+
+        {/* Show selected file */}
+        {file && !isParsing && (
+          <div className="mt-4 flex items-center justify-center space-x-3">
+            <span className="text-sm text-gray-300">
+              Selected: <span className="font-medium">{file.name}</span>
+            </span>
+            <button
+              type="button"
+              onClick={resetImport}
+              className="text-sm text-gray-400 hover:text-gray-200 underline"
+            >
+              Remove
+            </button>
+          </div>
+        )}
+
+        {/* Progress / Status */}
+        {validationStatus === 'validating' && (
+          <div className="mt-4 text-sm text-gray-300">
+            Validating... {uploadProgress}%
+          </div>
+        )}
+
+        {/* Error */}
+        {parseError && (
+          <div className="mt-4 flex items-center justify-center space-x-2 text-rose-400">
+            <AlertCircle className="w-4 h-4" />
+            <span className="text-sm">{parseError}</span>
+          </div>
+        )}
+      </div>
+
+      {/* Download templates from here too */}
+      <div className="grid grid-cols-2 gap-4">
+        <button
+          onClick={() => handleDownloadTemplate('accounts')}
+          disabled={isDownloading}
+          className="p-4 bg-gray-800 rounded-xl border border-gray-700 hover:border-blue-500/50 transition-all text-left group"
+        >
+          <div className="flex items-center space-x-3 mb-2">
+            <Download className="w-5 h-5 text-blue-400" />
+            <span className="font-medium text-white">Accounts Template</span>
+          </div>
+          <p className="text-sm text-gray-400">Download Excel template for bulk account import</p>
+        </button>
+
+        <button
+          onClick={() => handleDownloadTemplate('positions')}
+          disabled={isDownloading}
+          className="p-4 bg-gray-800 rounded-xl border border-gray-700 hover:border-purple-500/50 transition-all text-left group"
+        >
+          <div className="flex items-center space-x-3 mb-2">
+            <Download className="w-5 h-5 text-purple-400" />
+            <span className="font-medium text-white">Positions Template</span>
+          </div>
+          <p className="text-sm text-gray-400">Download Excel template for bulk position import</p>
+        </button>
+      </div>
+    </div>
+  );
+
+  // Render preview section
+  const renderPreviewSection = () => {
+    const isAccounts = selectedTemplate === 'accounts';
+    const items = isAccounts ? parsedAccounts : Object.values(parsedPositions).flat();
+    const itemCount = items.length;
+
+    return (
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Header */}
+        <div className="flex-shrink-0 p-4 border-b border-gray-700">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-white">
+                Preview: {itemCount} {isAccounts ? 'accounts' : 'positions'} found
+              </h3>
+              <p className="text-sm text-gray-400">
+                Review the data below before importing
+              </p>
+            </div>
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={resetImport}
+                className="px-3 py-1.5 text-sm bg-gray-800 text-gray-300 rounded-lg hover:bg-gray-700"
+              >
+                Upload Different File
+              </button>
+              <button
+                onClick={handleImport}
+                disabled={itemCount === 0}
+                className="px-4 py-1.5 text-sm bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+              >
+                <Check className="w-4 h-4" />
+                <span>Import {itemCount} Items</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Unmapped accounts warning */}
+        {!isAccounts && unmappedAccounts.length > 0 && (
+          <div className="flex-shrink-0 mx-4 mt-4 bg-amber-500/10 border border-amber-500/30 rounded-lg p-4">
+            <div className="flex items-start space-x-3">
+              <AlertCircle className="w-5 h-5 text-amber-400 flex-shrink-0" />
+              <div className="flex-1">
+                <h4 className="font-medium text-amber-300 mb-2">
+                  Some Accounts Not Found
+                </h4>
+                <p className="text-sm text-amber-400/80 mb-2">
+                  These account names from your file couldn't be matched to existing accounts:
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {unmappedAccounts.map(name => (
+                    <span key={name} className="px-2 py-1 bg-amber-900/30 text-amber-300 rounded text-xs">
+                      {name}
+                    </span>
+                  ))}
+                </div>
+                <p className="text-xs text-amber-400/60 mt-2">
+                  You can create these accounts first, or select the correct account after import.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Stats for positions */}
+        {!isAccounts && (
+          <div className="flex-shrink-0 mx-4 mt-4 bg-gray-800 rounded-lg p-4">
+            <div className="grid grid-cols-5 gap-4 text-center">
+              <div>
+                <p className="text-2xl font-bold text-white">{positionTotals.total}</p>
+                <p className="text-xs text-gray-400">Total</p>
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-blue-400">{positionTotals.security}</p>
+                <p className="text-xs text-gray-400">Securities</p>
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-green-400">{positionTotals.cash}</p>
+                <p className="text-xs text-gray-400">Cash</p>
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-orange-400">{positionTotals.crypto}</p>
+                <p className="text-xs text-gray-400">Crypto</p>
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-yellow-400">{positionTotals.metal}</p>
+                <p className="text-xs text-gray-400">Metals</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Preview table */}
+        <div className="flex-1 overflow-auto p-4">
+          <div className="bg-gray-900 rounded-xl border border-gray-700 overflow-hidden">
+            <div className="max-h-96 overflow-auto">
+              <table className="w-full text-sm">
+                <thead className="sticky top-0 bg-gray-800">
+                  <tr>
+                    {isAccounts ? (
+                      <>
+                        <th className="px-4 py-3 text-left text-xs text-gray-400 uppercase">Account Name</th>
+                        <th className="px-4 py-3 text-left text-xs text-gray-400 uppercase">Institution</th>
+                        <th className="px-4 py-3 text-left text-xs text-gray-400 uppercase">Category</th>
+                        <th className="px-4 py-3 text-left text-xs text-gray-400 uppercase">Type</th>
+                      </>
+                    ) : (
+                      <>
+                        <th className="px-4 py-3 text-left text-xs text-gray-400 uppercase">Type</th>
+                        <th className="px-4 py-3 text-left text-xs text-gray-400 uppercase">Symbol</th>
+                        <th className="px-4 py-3 text-left text-xs text-gray-400 uppercase">Quantity</th>
+                        <th className="px-4 py-3 text-left text-xs text-gray-400 uppercase">Cost</th>
+                        <th className="px-4 py-3 text-left text-xs text-gray-400 uppercase">Account</th>
+                      </>
+                    )}
+                    <th className="px-4 py-3 text-left text-xs text-gray-400 uppercase">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-800">
+                  {isAccounts ? (
+                    parsedAccounts.slice(0, 50).map((account, idx) => (
+                      <tr key={account.id || idx} className="hover:bg-gray-800/50">
+                        <td className="px-4 py-3 text-white">{account.accountName}</td>
+                        <td className="px-4 py-3 text-gray-300">{account.institution}</td>
+                        <td className="px-4 py-3 text-gray-400">{account.accountCategory}</td>
+                        <td className="px-4 py-3 text-gray-400">{account.accountType}</td>
+                        <td className="px-4 py-3">
+                          <CheckCircle className="w-4 h-4 text-emerald-400" />
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    items.slice(0, 50).map((item, idx) => (
+                      <tr key={item.id || idx} className="hover:bg-gray-800/50">
+                        <td className="px-4 py-3 text-gray-400 capitalize">{item.type}</td>
+                        <td className="px-4 py-3 text-white">
+                          {item.data.ticker || item.data.symbol || item.data.cash_type || item.data.metal_type || '-'}
+                        </td>
+                        <td className="px-4 py-3 text-gray-300">
+                          {item.data.shares || item.data.quantity || item.data.amount || '-'}
+                        </td>
+                        <td className="px-4 py-3 text-gray-300">
+                          {item.data.cost_basis || item.data.purchase_price || '-'}
+                        </td>
+                        <td className="px-4 py-3 text-gray-400">
+                          {item.data.account_id ? (
+                            accounts.find(a => a.id === item.data.account_id)?.account_name || item.data.account_name
+                          ) : (
+                            <span className="text-amber-400">{item.data.account_name || 'Not mapped'}</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          {item.data.account_id ? (
+                            <CheckCircle className="w-4 h-4 text-emerald-400" />
+                          ) : (
+                            <AlertCircle className="w-4 h-4 text-amber-400" />
+                          )}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+            {items.length > 50 && (
+              <div className="px-4 py-2 bg-gray-800 text-center text-sm text-gray-400">
+                Showing 50 of {items.length} items
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
@@ -155,430 +727,54 @@ export default function ImportView({
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
             <button
-              onClick={goBack}
+              onClick={() => {
+                if (step === 'preview') {
+                  resetImport();
+                } else if (step === 'upload' || step === 'template') {
+                  setStep('choice');
+                } else {
+                  goBack();
+                }
+              }}
               className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
             >
               <ArrowLeft className="w-5 h-5" />
             </button>
-            <h2 className="text-xl font-bold text-white">Import from Excel/CSV</h2>
+            <h2 className="text-xl font-bold text-white">
+              {step === 'choice' ? `Add ${importTarget === 'accounts' ? 'Accounts' : 'Positions'}` :
+               step === 'template' ? 'Download Template' :
+               step === 'upload' ? 'Upload File' :
+               'Preview Import'}
+            </h2>
           </div>
         </div>
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-auto p-6">
-        {!preview ? (
-          // Upload Section
-          <div className="max-w-2xl mx-auto space-y-6">
-            {/* Template downloads */}
-            <div className="grid grid-cols-2 gap-4 mb-6">
-              <button
-                onClick={() => downloadTemplate('accounts')}
-                className="p-4 bg-gray-800 rounded-xl border border-gray-700 hover:border-blue-500/50 transition-all text-left group"
-              >
-                <div className="flex items-center space-x-3 mb-2">
-                  <Download className="w-5 h-5 text-blue-400" />
-                  <span className="font-medium text-white">Accounts Template</span>
-                </div>
-                <p className="text-sm text-gray-400">Download CSV template for bulk account import</p>
-              </button>
-
-              <button
-                onClick={() => downloadTemplate('positions')}
-                className="p-4 bg-gray-800 rounded-xl border border-gray-700 hover:border-purple-500/50 transition-all text-left group"
-              >
-                <div className="flex items-center space-x-3 mb-2">
-                  <Download className="w-5 h-5 text-purple-400" />
-                  <span className="font-medium text-white">Positions Template</span>
-                </div>
-                <p className="text-sm text-gray-400">Download CSV template for bulk position import</p>
-              </button>
-            </div>
-
-            {/* File upload area */}
-            <div
-              className={`
-                border-2 border-dashed rounded-xl p-12 text-center transition-all
-                ${error ? 'border-rose-500/50 bg-rose-500/5' : 'border-gray-700 hover:border-gray-600'}
-              `}
-            >
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".csv,.xlsx,.xls"
-                onChange={handleFileSelect}
-                className="hidden"
-              />
-
-              <div className="space-y-4">
-                <div className="inline-flex items-center justify-center w-16 h-16 bg-gray-800 rounded-xl">
-                  {parsing ? (
-                    <Loader2 className="w-8 h-8 text-blue-400 animate-spin" />
-                  ) : (
-                    <Upload className="w-8 h-8 text-gray-400" />
-                  )}
-                </div>
-
-                <div>
-                  <p className="text-lg font-medium text-white mb-1">
-                    {parsing ? 'Parsing file...' : 'Upload your file'}
-                  </p>
-                  <p className="text-sm text-gray-400">
-                    CSV or Excel files supported
-                  </p>
-                </div>
-
-                {!parsing && (
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                  >
-                    Choose File
-                  </button>
-                )}
-
-                {file && !parsing && (
-                  <p className="text-sm text-gray-400">
-                    Selected: {file.name}
-                  </p>
-                )}
-
-                {error && (
-                  <div className="flex items-center justify-center space-x-2 text-rose-400">
-                    <AlertCircle className="w-4 h-4" />
-                    <span className="text-sm">{error}</span>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Instructions */}
-            <div className="bg-gray-800 rounded-xl p-4">
-              <h4 className="font-medium text-white mb-2">File Format Requirements</h4>
-              <ul className="text-sm text-gray-400 space-y-1">
-                <li>First row should contain column headers</li>
-                <li>For accounts: Account Name, Institution, Account Category, Account Type</li>
-                <li>For positions: asset_type, ticker/symbol, shares/quantity, cost_basis/purchase_price</li>
-                <li>Account names will be matched to your existing accounts</li>
-                <li>Use the templates above for the correct format</li>
-              </ul>
-            </div>
-          </div>
-        ) : (
-          // Preview Section
-          <div className="max-w-4xl mx-auto space-y-6">
-            {/* Header */}
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-lg font-semibold text-white">
-                  Preview: {preview.items?.length || 0} {importType === 'accounts' ? 'accounts' : 'positions'} found
-                </h3>
-                <p className="text-sm text-gray-400">
-                  Review the data below before importing
-                </p>
-              </div>
-              <div className="flex items-center space-x-2">
-                <button
-                  onClick={resetImport}
-                  className="px-3 py-1.5 text-sm bg-gray-800 text-gray-300 rounded-lg hover:bg-gray-700"
-                >
-                  Upload Different File
-                </button>
-                <button
-                  onClick={handleImport}
-                  className="px-4 py-1.5 text-sm bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 flex items-center space-x-2"
-                >
-                  <Check className="w-4 h-4" />
-                  <span>Import {preview.items?.length || 0} Items</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Unmapped accounts warning */}
-            {preview.unmappedAccounts?.length > 0 && (
-              <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-4">
-                <div className="flex items-start space-x-3">
-                  <AlertCircle className="w-5 h-5 text-amber-400 flex-shrink-0" />
-                  <div className="flex-1">
-                    <h4 className="font-medium text-amber-300 mb-2">
-                      Account Mapping Required
-                    </h4>
-                    <p className="text-sm text-amber-400/80 mb-3">
-                      Some account names in your file couldn't be matched. Please map them below:
-                    </p>
-                    <div className="space-y-2">
-                      {preview.unmappedAccounts.map((name) => (
-                        <div key={name} className="flex items-center space-x-3 bg-gray-800 p-3 rounded">
-                          <span className="text-sm text-gray-300 flex-1">"{name}"</span>
-                          <ArrowRight className="w-4 h-4 text-gray-600" />
-                          <select
-                            value={accountMapping[name] || ''}
-                            onChange={(e) => setAccountMapping(prev => ({
-                              ...prev,
-                              [name]: parseInt(e.target.value)
-                            }))}
-                            className="px-3 py-1.5 bg-gray-900 border border-gray-700 rounded text-white text-sm [&>option]:bg-gray-800"
-                          >
-                            <option value="">Select account...</option>
-                            {accounts.map(acc => (
-                              <option key={acc.id} value={acc.id}>
-                                {acc.account_name || acc.name} ({acc.institution || 'Unknown'})
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Preview table */}
-            <div className="bg-gray-900 rounded-xl border border-gray-700 overflow-hidden">
-              <div className="max-h-96 overflow-auto">
-                <table className="w-full text-sm">
-                  <thead className="sticky top-0 bg-gray-800">
-                    <tr>
-                      {importType === 'accounts' ? (
-                        <>
-                          <th className="px-4 py-3 text-left text-xs text-gray-400 uppercase">Account Name</th>
-                          <th className="px-4 py-3 text-left text-xs text-gray-400 uppercase">Institution</th>
-                          <th className="px-4 py-3 text-left text-xs text-gray-400 uppercase">Category</th>
-                          <th className="px-4 py-3 text-left text-xs text-gray-400 uppercase">Type</th>
-                        </>
-                      ) : (
-                        <>
-                          <th className="px-4 py-3 text-left text-xs text-gray-400 uppercase">Type</th>
-                          <th className="px-4 py-3 text-left text-xs text-gray-400 uppercase">Ticker/Symbol</th>
-                          <th className="px-4 py-3 text-left text-xs text-gray-400 uppercase">Quantity</th>
-                          <th className="px-4 py-3 text-left text-xs text-gray-400 uppercase">Cost</th>
-                          <th className="px-4 py-3 text-left text-xs text-gray-400 uppercase">Account</th>
-                        </>
-                      )}
-                      <th className="px-4 py-3 text-left text-xs text-gray-400 uppercase">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-800">
-                    {preview.items?.slice(0, 50).map((item, idx) => (
-                      <tr key={idx} className="hover:bg-gray-800/50">
-                        {importType === 'accounts' ? (
-                          <>
-                            <td className="px-4 py-3 text-white">{item.accountName}</td>
-                            <td className="px-4 py-3 text-gray-300">{item.institution}</td>
-                            <td className="px-4 py-3 text-gray-400">{item.accountCategory}</td>
-                            <td className="px-4 py-3 text-gray-400">{item.accountType}</td>
-                          </>
-                        ) : (
-                          <>
-                            <td className="px-4 py-3 text-gray-400">
-                              {ASSET_TYPES[item.assetType]?.name || item.assetType}
-                            </td>
-                            <td className="px-4 py-3 text-white">
-                              {item.data.ticker || item.data.symbol || item.data.asset_name || '-'}
-                            </td>
-                            <td className="px-4 py-3 text-gray-300">
-                              {item.data.shares || item.data.quantity || item.data.amount || '-'}
-                            </td>
-                            <td className="px-4 py-3 text-gray-300">
-                              {item.data.cost_basis || item.data.purchase_price || item.data.current_value || '-'}
-                            </td>
-                            <td className="px-4 py-3 text-gray-400">
-                              {item.unmappedAccount ? (
-                                <span className="text-amber-400">{item.unmappedAccount}</span>
-                              ) : (
-                                accounts.find(a => a.id === item.data.account_id)?.account_name || '-'
-                              )}
-                            </td>
-                          </>
-                        )}
-                        <td className="px-4 py-3">
-                          <CheckCircle className="w-4 h-4 text-emerald-400" />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              {preview.items?.length > 50 && (
-                <div className="px-4 py-2 bg-gray-800 text-center text-sm text-gray-400">
-                  Showing 50 of {preview.items.length} items
-                </div>
-              )}
-            </div>
-          </div>
-        )}
+      <div className="flex-1 overflow-auto">
+        {step === 'choice' && renderImportChoice()}
+        {step === 'template' && renderTemplateSection()}
+        {step === 'upload' && renderUploadSection()}
+        {step === 'preview' && renderPreviewSection()}
       </div>
 
       {/* Footer */}
-      <div className="flex-shrink-0 p-4 border-t border-gray-700">
-        <button
-          onClick={goBack}
-          className="px-4 py-2 text-gray-400 hover:text-white transition-colors"
-        >
-          Back
-        </button>
-      </div>
+      {step !== 'preview' && (
+        <div className="flex-shrink-0 p-4 border-t border-gray-700">
+          <button
+            onClick={() => {
+              if (step === 'upload' || step === 'template') {
+                setStep('choice');
+              } else {
+                goBack();
+              }
+            }}
+            className="px-4 py-2 text-gray-400 hover:text-white transition-colors"
+          >
+            Back
+          </button>
+        </div>
+      )}
     </div>
   );
-}
-
-// CSV Parser
-function parseCSV(text) {
-  const lines = text.split(/\r?\n/).filter(line => line.trim());
-  if (lines.length < 2) return [];
-
-  // Handle quoted fields with commas
-  const parseRow = (line) => {
-    const fields = [];
-    let current = '';
-    let inQuotes = false;
-
-    for (let i = 0; i < line.length; i++) {
-      const char = line[i];
-      if (char === '"') {
-        inQuotes = !inQuotes;
-      } else if (char === ',' && !inQuotes) {
-        fields.push(current.trim());
-        current = '';
-      } else {
-        current += char;
-      }
-    }
-    fields.push(current.trim());
-    return fields;
-  };
-
-  const headers = parseRow(lines[0]).map(h => h.toLowerCase().replace(/[^a-z0-9_]/g, '_'));
-  const rows = [];
-
-  for (let i = 1; i < lines.length; i++) {
-    const values = parseRow(lines[i]);
-    const row = {};
-    headers.forEach((header, idx) => {
-      row[header] = values[idx]?.trim() || '';
-    });
-    rows.push(row);
-  }
-
-  return rows;
-}
-
-// Detect import type from headers
-function detectImportType(headers) {
-  const headerKeys = Object.keys(headers).map(k => k.toLowerCase());
-
-  // Account indicators
-  const accountIndicators = ['account_name', 'account_category', 'account_type'];
-  const hasAccountHeaders = accountIndicators.some(ind =>
-    headerKeys.some(h => h.includes(ind))
-  );
-
-  // Position indicators
-  const positionIndicators = ['ticker', 'symbol', 'shares', 'quantity', 'asset_type'];
-  const hasPositionHeaders = positionIndicators.some(ind =>
-    headerKeys.some(h => h.includes(ind))
-  );
-
-  if (hasAccountHeaders && !hasPositionHeaders) {
-    return 'accounts';
-  }
-
-  return 'positions';
-}
-
-// Parse account rows
-function parseAccountRows(rows) {
-  const items = rows.map(row => ({
-    accountName: row.account_name || row.accountname || row.name || '',
-    institution: row.institution || row.bank || row.broker || '',
-    accountCategory: normalizeCategory(row.account_category || row.category || ''),
-    accountType: row.account_type || row.type || ''
-  })).filter(item => item.accountName);
-
-  return { items, unmappedAccounts: [] };
-}
-
-// Parse position rows
-function parsePositionRows(rows, existingAccounts) {
-  const items = [];
-  const unmappedAccountSet = new Set();
-
-  rows.forEach((row) => {
-    // Determine asset type
-    let assetType = 'security';
-    const rowType = (row.asset_type || row.type || '').toLowerCase();
-
-    if (rowType === 'crypto' || rowType === 'cryptocurrency' || row.crypto) {
-      assetType = 'crypto';
-    } else if (rowType === 'metal' || row.metal_type) {
-      assetType = 'metal';
-    } else if (rowType === 'cash' || row.cash_type) {
-      assetType = 'cash';
-    } else if (rowType === 'other' || row.asset_name) {
-      assetType = 'other';
-    }
-
-    // Find account
-    let accountId = null;
-    let unmappedAccount = null;
-    const accountName = row.account_name || row.account || '';
-
-    if (accountName) {
-      const match = existingAccounts.find(acc =>
-        (acc.account_name || acc.name || '').toLowerCase() === accountName.toLowerCase() ||
-        `${acc.account_name || acc.name} ${acc.institution || ''}`.toLowerCase().includes(accountName.toLowerCase())
-      );
-
-      if (match) {
-        accountId = match.id;
-      } else {
-        unmappedAccount = accountName;
-        unmappedAccountSet.add(accountName);
-      }
-    }
-
-    // Build position data
-    const data = {
-      account_id: accountId,
-      purchase_date: row.purchase_date || row.date || new Date().toISOString().split('T')[0]
-    };
-
-    if (assetType === 'security') {
-      data.ticker = (row.ticker || row.symbol || '').toUpperCase();
-      data.shares = parseFloat(row.shares || row.quantity || 0);
-      data.cost_basis = parseFloat(row.cost_basis || row.price || 0);
-    } else if (assetType === 'crypto') {
-      data.symbol = (row.symbol || row.ticker || '').toUpperCase();
-      data.quantity = parseFloat(row.quantity || row.shares || 0);
-      data.purchase_price = parseFloat(row.purchase_price || row.cost_basis || row.price || 0);
-    } else if (assetType === 'cash') {
-      data.cash_type = row.cash_type || 'Savings';
-      data.amount = parseFloat(row.amount || row.quantity || 0);
-    } else if (assetType === 'metal') {
-      data.metal_type = row.metal_type || 'Gold';
-      data.quantity = parseFloat(row.quantity || 0);
-      data.purchase_price = parseFloat(row.purchase_price || row.price || 0);
-    } else if (assetType === 'other') {
-      data.asset_name = row.asset_name || row.name || '';
-      data.current_value = parseFloat(row.current_value || row.value || 0);
-    }
-
-    items.push({ assetType, data, unmappedAccount });
-  });
-
-  return {
-    items,
-    unmappedAccounts: Array.from(unmappedAccountSet)
-  };
-}
-
-// Normalize category
-function normalizeCategory(category) {
-  const cat = category.toLowerCase();
-  if (cat.includes('invest') || cat.includes('brokerage')) return 'investment';
-  if (cat.includes('retire') || cat.includes('401') || cat.includes('ira')) return 'retirement';
-  if (cat.includes('cash') || cat.includes('bank') || cat.includes('check') || cat.includes('sav')) return 'cash';
-  if (cat.includes('crypto')) return 'crypto';
-  return 'other';
 }
