@@ -13,6 +13,7 @@ export const ActionTypes = {
 
   // Accounts
   SET_EXISTING_ACCOUNTS: 'SET_EXISTING_ACCOUNTS',
+  TRACK_RECENT_ACCOUNT: 'TRACK_RECENT_ACCOUNT',
   ADD_ACCOUNT: 'ADD_ACCOUNT',
   UPDATE_ACCOUNT: 'UPDATE_ACCOUNT',
   DELETE_ACCOUNT: 'DELETE_ACCOUNT',
@@ -93,6 +94,7 @@ export const initialState = {
   // Existing data from API
   existingAccounts: [],
   existingAccountsLoading: false,
+  recentAccountIds: [], // Track recently used accounts for dropdown
 
   // Account entry
   accounts: [],
@@ -176,12 +178,31 @@ export function quickStartReducer(state, action) {
       };
 
     // ====== Existing Accounts ======
-    case ActionTypes.SET_EXISTING_ACCOUNTS:
+    case ActionTypes.SET_EXISTING_ACCOUNTS: {
+      const accounts = action.payload || [];
+      // Initialize recent accounts with the first 3-5 accounts
+      const recentIds = state.recentAccountIds.length > 0
+        ? state.recentAccountIds
+        : accounts.slice(0, 5).map(a => a.id);
       return {
         ...state,
-        existingAccounts: action.payload,
-        existingAccountsLoading: false
+        existingAccounts: accounts,
+        existingAccountsLoading: false,
+        recentAccountIds: recentIds
       };
+    }
+
+    case ActionTypes.TRACK_RECENT_ACCOUNT: {
+      const accountId = action.payload;
+      if (!accountId) return state;
+      // Move this account to the front of recents, keep max 5
+      const filtered = state.recentAccountIds.filter(id => id !== accountId);
+      const newRecents = [accountId, ...filtered].slice(0, 5);
+      return {
+        ...state,
+        recentAccountIds: newRecents
+      };
+    }
 
     // ====== Account Entry ======
     case ActionTypes.ADD_ACCOUNT:
@@ -753,6 +774,7 @@ export const actions = {
 
   // Existing Accounts
   setExistingAccounts: (accounts) => ({ type: ActionTypes.SET_EXISTING_ACCOUNTS, payload: accounts }),
+  trackRecentAccount: (accountId) => ({ type: ActionTypes.TRACK_RECENT_ACCOUNT, payload: accountId }),
 
   // Accounts
   addAccount: (data = {}) => ({ type: ActionTypes.ADD_ACCOUNT, payload: data }),

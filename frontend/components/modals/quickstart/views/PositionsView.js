@@ -27,6 +27,7 @@ export default function PositionsView({
 }) {
   const positions = state.positions;
   const positionSections = state.positionSections;
+  const recentAccountIds = state.recentAccountIds || [];
   const [isDownloading, setIsDownloading] = useState(false);
 
   // Add new position
@@ -34,9 +35,13 @@ export default function PositionsView({
     dispatch(actions.addPosition(assetType, {}));
   }, [dispatch, actions]);
 
-  // Update position
+  // Update position - track account usage for recents
   const handleUpdatePosition = useCallback((assetType, id, data) => {
     dispatch(actions.updatePosition(assetType, id, data));
+    // Track account selection for recent accounts feature
+    if (data.account_id) {
+      dispatch(actions.trackRecentAccount(data.account_id));
+    }
   }, [dispatch, actions]);
 
   // Delete position
@@ -448,6 +453,7 @@ export default function PositionsView({
                       onToggleSelect={handleToggleSelect}
                       onSelectAll={(selectAll) => handleSelectAllForType(assetType, selectAll)}
                       accounts={accounts}
+                      recentAccountIds={recentAccountIds}
                       searchResults={searchResults}
                       isSearching={isSearching}
                       onSearch={handleSearch}

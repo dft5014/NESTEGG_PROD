@@ -24,6 +24,7 @@ export default function DataTable({
   onToggleSelect,
   onSelectAll,
   accounts = [],
+  recentAccountIds = [],
   searchResults = {},
   isSearching = {},
   onSearch,
@@ -245,23 +246,40 @@ export default function DataTable({
           </select>
         );
 
-      case 'account':
+      case 'account': {
+        const recentAccounts = accounts.filter(acc => recentAccountIds.includes(acc.id));
+        const otherAccounts = accounts.filter(acc => !recentAccountIds.includes(acc.id));
+
         return (
           <select
             ref={el => cellRefs.current[cellKey] = el}
             value={value}
             onChange={(e) => handleChange(parseInt(e.target.value) || '')}
             onKeyDown={(e) => handleKeyDown(e, rowId, fields.indexOf(field), rowIndex)}
-            className={`${inputClass} cursor-pointer ${field.width || 'w-48'} [&>option]:bg-gray-800 [&>option]:text-white`}
+            className={`${inputClass} cursor-pointer ${field.width || 'w-48'} [&>option]:bg-gray-800 [&>option]:text-white [&>optgroup]:bg-gray-900 [&>optgroup]:text-gray-400`}
           >
             <option value="">Select account...</option>
-            {accounts.map(acc => (
-              <option key={acc.id} value={acc.id}>
-                {acc.account_name || acc.name} {acc.institution ? `(${acc.institution})` : ''}
-              </option>
-            ))}
+            {recentAccounts.length > 0 && (
+              <optgroup label="⭐ Recent">
+                {recentAccounts.map(acc => (
+                  <option key={acc.id} value={acc.id}>
+                    {acc.account_name || acc.name} {acc.institution ? `(${acc.institution})` : ''}
+                  </option>
+                ))}
+              </optgroup>
+            )}
+            {otherAccounts.length > 0 && (
+              <optgroup label={recentAccounts.length > 0 ? "All Accounts" : "Accounts"}>
+                {otherAccounts.map(acc => (
+                  <option key={acc.id} value={acc.id}>
+                    {acc.account_name || acc.name} {acc.institution ? `(${acc.institution})` : ''}
+                  </option>
+                ))}
+              </optgroup>
+            )}
           </select>
         );
+      }
 
       case 'institution':
         return (
