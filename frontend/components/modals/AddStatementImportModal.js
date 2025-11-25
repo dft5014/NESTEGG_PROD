@@ -580,20 +580,34 @@ const AddStatementImportModal = ({ isOpen, onClose }) => {
 
       for (const fileData of parsedData) {
         for (const row of fileData.data) {
-          const position = {
-            ticker: row[columnMappings.symbol],
-            shares: parseFloat(row[columnMappings.quantity]) || 0,
-            purchase_price: parseFloat(row[columnMappings.purchasePrice]) || 0,
-            purchase_date: row[columnMappings.purchaseDate] || new Date().toISOString().split('T')[0],
-            account_id: selectedAccount
-          };
+          const ticker = row[columnMappings.symbol];
+          const shares = parseFloat(row[columnMappings.quantity]) || 0;
+          const price = parseFloat(row[columnMappings.purchasePrice]) || 0;
+          const purchaseDate = row[columnMappings.purchaseDate] || new Date().toISOString().split('T')[0];
 
           // Skip empty rows
-          if (position.ticker && position.shares > 0) {
-            allPositions.push(position);
+          if (!ticker || shares <= 0 || price <= 0) {
+            console.log('[AddStatementImportModal] Skipping invalid row:', { ticker, shares, price });
+            continue;
           }
+
+          const position = {
+            ticker: ticker.trim().toUpperCase(),
+            shares: shares,
+            price: price,
+            cost_basis: shares * price,
+            purchase_date: purchaseDate
+          };
+
+          allPositions.push(position);
         }
       }
+
+      console.log('[AddStatementImportModal] Importing positions:', {
+        count: allPositions.length,
+        firstPosition: allPositions[0],
+        accountId: selectedAccount
+      });
 
       // Import in bulk
       const result = await addSecurityPositionBulk(selectedAccount, allPositions);
