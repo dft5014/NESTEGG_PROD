@@ -1,5 +1,5 @@
 // Positions View - Add positions across all asset types
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   ArrowLeft, Plus, Trash2, Check, Loader2,
   Upload, Download, X, RefreshCw, HelpCircle
@@ -8,6 +8,7 @@ import DataTable, { CollapsibleSection } from '../components/DataTable';
 import StatsBar, { PositionTypeStats } from '../components/StatsBar';
 import { VIEWS, ASSET_TYPES } from '../utils/constants';
 import { formatCurrency } from '@/utils/formatters';
+import { downloadTemplate } from '../utils/excelUtils';
 
 export default function PositionsView({
   state,
@@ -27,6 +28,7 @@ export default function PositionsView({
 }) {
   const positions = state.positions;
   const positionSections = state.positionSections;
+  const [isDownloading, setIsDownloading] = useState(false);
 
   // Add new position
   const handleAddPosition = useCallback((assetType) => {
@@ -102,27 +104,14 @@ export default function PositionsView({
     await onSubmitPositions(mode);
   }, [onSubmitPositions]);
 
-  // Download template
-  const downloadTemplate = useCallback(() => {
-    const headers = ['asset_type', 'account_name', 'ticker', 'symbol', 'shares', 'quantity', 'price', 'current_price', 'cost_basis', 'purchase_price', 'purchase_date', 'cash_type', 'amount', 'metal_type', 'asset_name', 'current_value'];
-    const sampleRows = [
-      ['security', 'My Brokerage', 'AAPL', '', '10', '', '', '', '175.00', '', '2024-01-15', '', '', '', '', ''],
-      ['crypto', 'Coinbase', '', 'BTC', '', '0.5', '', '65000', '', '60000', '2024-02-01', '', '', '', '', ''],
-      ['cash', 'Chase Checking', '', '', '', '', '', '', '', '', '', 'Checking', '5000', '', '', ''],
-      ['metal', 'Gold Vault', '', '', '', '10', '', '', '', '2400', '2024-03-01', '', '', 'Gold', '', ''],
-      ['other', '', '', '', '', '', '', '', '', '', '', '', '', '', 'My House', '500000']
-    ];
-
-    const csv = [headers.join(','), ...sampleRows.map(row => row.join(','))].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'nestegg-positions-template.csv';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+  // Download template via API
+  const handleDownloadTemplate = useCallback(async () => {
+    try {
+      await downloadTemplate('positions', setIsDownloading);
+    } catch (error) {
+      console.error('Failed to download template:', error);
+      alert('Failed to download template. Please try again.');
+    }
   }, []);
 
   // Handle search for ticker/symbol
@@ -231,15 +220,28 @@ export default function PositionsView({
             </button>
 
             <button
-              onClick={downloadTemplate}
-              className="px-3 py-1.5 text-sm bg-gray-800 text-gray-300 rounded-lg hover:bg-gray-700 flex items-center space-x-1.5 transition-colors"
+              onClick={handleDownloadTemplate}
+              disabled={isDownloading}
+              className="px-3 py-1.5 text-sm bg-gray-800 text-gray-300 rounded-lg hover:bg-gray-700 flex items-center space-x-1.5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <Download className="w-4 h-4" />
-              <span>Template</span>
+              {isDownloading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Downloading...</span>
+                </>
+              ) : (
+                <>
+                  <Download className="w-4 h-4" />
+                  <span>Template</span>
+                </>
+              )}
             </button>
 
             <button
-              onClick={() => goToView(VIEWS.import)}
+              onClick={() => {
+                dispatch(actions.setImportTarget('positions'));
+                goToView(VIEWS.import);
+              }}
               className="px-3 py-1.5 text-sm bg-gray-800 text-gray-300 rounded-lg hover:bg-gray-700 flex items-center space-x-1.5 transition-colors"
             >
               <Upload className="w-4 h-4" />

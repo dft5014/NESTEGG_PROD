@@ -1,5 +1,5 @@
 // Accounts View - Add and manage accounts
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   ArrowLeft, Plus, Trash2, Check, Loader2,
   Upload, Download, FileSpreadsheet, HelpCircle, X
@@ -7,6 +7,7 @@ import {
 import DataTable from '../components/DataTable';
 import StatsBar from '../components/StatsBar';
 import { VIEWS, ACCOUNT_FIELDS, ACCOUNT_CATEGORIES, ACCOUNT_TYPES_BY_CATEGORY } from '../utils/constants';
+import { downloadTemplate } from '../utils/excelUtils';
 
 export default function AccountsView({
   state,
@@ -19,6 +20,7 @@ export default function AccountsView({
   isSubmitting
 }) {
   const accounts = state.accounts;
+  const [isDownloading, setIsDownloading] = useState(false);
 
   // Add new account row
   const handleAddAccount = useCallback(() => {
@@ -95,25 +97,14 @@ export default function AccountsView({
     await onSubmitAccounts();
   }, [onSubmitAccounts]);
 
-  // Download template
-  const downloadTemplate = useCallback(() => {
-    const headers = ['Account Name', 'Institution', 'Account Category', 'Account Type'];
-    const sampleRows = [
-      ['My Retirement', 'Fidelity', 'retirement', '401k'],
-      ['Trading Account', 'TD Ameritrade', 'investment', 'brokerage'],
-      ['Savings', 'Chase', 'cash', 'savings']
-    ];
-
-    const csv = [headers.join(','), ...sampleRows.map(row => row.join(','))].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'nestegg-accounts-template.csv';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+  // Download template via API
+  const handleDownloadTemplate = useCallback(async () => {
+    try {
+      await downloadTemplate('accounts', setIsDownloading);
+    } catch (error) {
+      console.error('Failed to download template:', error);
+      alert('Failed to download template. Please try again.');
+    }
   }, []);
 
   // Count ready accounts
@@ -141,15 +132,28 @@ export default function AccountsView({
 
           <div className="flex items-center space-x-2">
             <button
-              onClick={downloadTemplate}
-              className="px-3 py-1.5 text-sm bg-gray-800 text-gray-300 rounded-lg hover:bg-gray-700 flex items-center space-x-1.5 transition-colors"
+              onClick={handleDownloadTemplate}
+              disabled={isDownloading}
+              className="px-3 py-1.5 text-sm bg-gray-800 text-gray-300 rounded-lg hover:bg-gray-700 flex items-center space-x-1.5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <Download className="w-4 h-4" />
-              <span>Template</span>
+              {isDownloading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Downloading...</span>
+                </>
+              ) : (
+                <>
+                  <Download className="w-4 h-4" />
+                  <span>Template</span>
+                </>
+              )}
             </button>
 
             <button
-              onClick={() => goToView(VIEWS.import)}
+              onClick={() => {
+                dispatch(actions.setImportTarget('accounts'));
+                goToView(VIEWS.import);
+              }}
               className="px-3 py-1.5 text-sm bg-gray-800 text-gray-300 rounded-lg hover:bg-gray-700 flex items-center space-x-1.5 transition-colors"
             >
               <Upload className="w-4 h-4" />
