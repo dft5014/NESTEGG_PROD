@@ -170,7 +170,6 @@ export default function QuickStartModalV2({ isOpen, onClose, onSuccess }) {
     onSubmitAccounts: submitAccounts,
     onSubmitPositions: submitPositions,
     onSubmitLiabilities: submitLiabilities,
-    onHydratePrices: hydrateAllPending,
     getReadyCounts,
     isSubmitting,
     goToView,

@@ -2,7 +2,7 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import {
   ArrowLeft, Plus, Trash2, Check, Loader2,
-  Upload, Download, X, RefreshCw, HelpCircle
+  Upload, Download, X, HelpCircle
 } from 'lucide-react';
 import DataTable, { CollapsibleSection } from '../components/DataTable';
 import StatsBar, { PositionTypeStats } from '../components/StatsBar';
@@ -21,7 +21,6 @@ export default function PositionsView({
   onSearch,
   onSelectSearchResult,
   onSubmitPositions,
-  onHydratePrices,
   isSubmitting,
   goToView,
   goBack
@@ -249,15 +248,6 @@ export default function PositionsView({
             </button>
 
             <button
-              onClick={onHydratePrices}
-              className="px-3 py-1.5 text-sm bg-gray-800 text-gray-300 rounded-lg hover:bg-gray-700 flex items-center space-x-1.5 transition-colors"
-              title="Fetch prices for all tickers"
-            >
-              <RefreshCw className="w-4 h-4" />
-              <span>Fetch Prices</span>
-            </button>
-
-            <button
               onClick={handleClearAll}
               disabled={stats.total === 0}
               className="px-3 py-1.5 text-sm bg-gray-800 text-gray-300 rounded-lg hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-1.5 transition-colors"
@@ -310,9 +300,9 @@ export default function PositionsView({
                 <p className="font-semibold mb-1">How to Add Positions</p>
                 <ul className="space-y-1 text-blue-400/80">
                   <li>Click an asset type button to add a position of that type</li>
-                  <li>Type a ticker symbol to search and auto-fill price</li>
+                  <li>Type a ticker symbol to search and auto-fill current price</li>
                   <li>Fill all required fields - status changes to Ready when complete</li>
-                  <li>Use "Fetch Prices" to update all prices at once</li>
+                  <li>Use the Import button to bulk import from Excel</li>
                   <li>Click "Save" to add all ready positions to your portfolio</li>
                 </ul>
               </div>
