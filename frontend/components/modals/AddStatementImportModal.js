@@ -474,23 +474,25 @@ const AddStatementImportModal = ({ isOpen, onClose }) => {
     const accounts = Array.isArray(existingAccounts) ? existingAccounts : [];
     console.log('[AddStatementImportModal] Filtering accounts:', {
       totalAccounts: accounts.length,
-      accountTypes: accounts.map(a => ({ id: a.id, name: a.name, type: a.type }))
+      accountTypes: accounts.map(a => ({ id: a.id, name: a.name, type: a.type, category: a.category }))
     });
 
     const filtered = accounts.filter(acc => {
-      // Use 'type' field (not 'account_type') as returned by useAccounts hook
-      const accountType = (acc?.type || '').toLowerCase();
+      // Use 'category' field (not 'type') - category is brokerage/retirement/crypto
+      // 'type' contains specific types like 'Traditional IRA', 'Roth IRA', etc.
+      const accountCategory = (acc?.category || '').toLowerCase();
       const isMatch = (
-        accountType === 'brokerage' ||
-        accountType === 'retirement' ||
-        accountType === 'cryptocurrency'
+        accountCategory === 'brokerage' ||
+        accountCategory === 'retirement' ||
+        accountCategory === 'cryptocurrency'
       );
 
       console.log('[AddStatementImportModal] Account filter:', {
         id: acc.id,
         name: acc.name,
         type: acc.type,
-        accountType,
+        category: acc.category,
+        accountCategory,
         isMatch
       });
 
@@ -499,7 +501,7 @@ const AddStatementImportModal = ({ isOpen, onClose }) => {
 
     console.log('[AddStatementImportModal] Filtered accounts:', {
       filteredCount: filtered.length,
-      filteredAccounts: filtered.map(a => ({ id: a.id, name: a.name, type: a.type }))
+      filteredAccounts: filtered.map(a => ({ id: a.id, name: a.name, type: a.type, category: a.category }))
     });
 
     return filtered;
@@ -666,7 +668,7 @@ const AddStatementImportModal = ({ isOpen, onClose }) => {
         console.log('[AddStatementImportModal] Rendering step 2 (account selection):', {
           isLoadingAccounts,
           filteredAccountsLength: filteredAccounts.length,
-          filteredAccounts: filteredAccounts.map(a => ({ id: a.id, name: a.name, type: a.type }))
+          filteredAccounts: filteredAccounts.map(a => ({ id: a.id, name: a.name, type: a.type, category: a.category }))
         });
 
         return (
