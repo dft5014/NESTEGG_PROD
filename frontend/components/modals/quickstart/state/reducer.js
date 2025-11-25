@@ -69,6 +69,7 @@ export const ActionTypes = {
   SET_IMPORT_FILE: 'SET_IMPORT_FILE',
   SET_IMPORT_PROGRESS: 'SET_IMPORT_PROGRESS',
   SET_IMPORT_DATA: 'SET_IMPORT_DATA',
+  SET_IMPORT_TARGET: 'SET_IMPORT_TARGET',
   CLEAR_IMPORT: 'CLEAR_IMPORT',
 
   // Persistence
@@ -138,6 +139,7 @@ export const initialState = {
   importFile: null,
   importProgress: 0,
   importData: null,
+  importTarget: null, // 'accounts' or 'positions' - set when navigating from those views
 
   // Persistence
   isDirty: false
@@ -657,12 +659,16 @@ export function quickStartReducer(state, action) {
     case ActionTypes.SET_IMPORT_DATA:
       return { ...state, importData: action.payload };
 
+    case ActionTypes.SET_IMPORT_TARGET:
+      return { ...state, importTarget: action.payload };
+
     case ActionTypes.CLEAR_IMPORT:
       return {
         ...state,
         importFile: null,
         importProgress: 0,
-        importData: null
+        importData: null,
+        importTarget: null
       };
 
     // ====== Persistence ======
@@ -805,6 +811,7 @@ export const actions = {
   setImportFile: (file) => ({ type: ActionTypes.SET_IMPORT_FILE, payload: file }),
   setImportProgress: (progress) => ({ type: ActionTypes.SET_IMPORT_PROGRESS, payload: progress }),
   setImportData: (data) => ({ type: ActionTypes.SET_IMPORT_DATA, payload: data }),
+  setImportTarget: (target) => ({ type: ActionTypes.SET_IMPORT_TARGET, payload: target }),
   clearImport: () => ({ type: ActionTypes.CLEAR_IMPORT }),
 
   // Persistence

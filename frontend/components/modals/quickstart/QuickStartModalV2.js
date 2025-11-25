@@ -191,7 +191,7 @@ export default function QuickStartModalV2({ isOpen, onClose, onSuccess }) {
       case VIEWS.liabilities:
         return <LiabilitiesView {...viewProps} />;
       case VIEWS.import:
-        return <ImportView {...viewProps} />;
+        return <ImportView {...viewProps} importTarget={state.importTarget} />;
       case VIEWS.success:
         return <SuccessView {...viewProps} />;
       default:
