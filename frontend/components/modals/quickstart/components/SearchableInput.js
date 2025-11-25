@@ -232,7 +232,80 @@ export default function SearchableInput({
               const displayName = item.name || item.ticker || item.symbol || item.value || item.label;
               const isSelected = displayName === value || item.value === value;
               const isHighlighted = idx === highlightedIndex;
+              const price = parseFloat(item.price || item.current_price || 0);
+              const exchange = item.exchange || item.market || '';
+              const assetType = item.asset_type || '';
+              const sector = item.sector || item.industry || '';
 
+              // Enhanced security display
+              if (showEnhancedSecurityInfo) {
+                return (
+                  <button
+                    key={item.id || item.value || idx}
+                    type="button"
+                    onClick={() => handleSelect(item)}
+                    onMouseEnter={() => setHighlightedIndex(idx)}
+                    className={`
+                      w-full px-4 py-3 text-left hover:bg-gradient-to-r hover:from-blue-900/40 hover:to-indigo-900/40
+                      transition-all duration-150 group
+                      ${idx !== displayItems.length - 1 ? 'border-b border-gray-800' : ''}
+                      ${isHighlighted ? 'bg-gradient-to-r from-blue-900/40 to-indigo-900/40' : ''}
+                    `}
+                    onMouseDown={(e) => e.preventDefault()}
+                  >
+                    {/* Main row */}
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center space-x-3 flex-1 min-w-0">
+                        {/* Ticker badge */}
+                        <div className="flex-shrink-0">
+                          <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold text-sm shadow-sm group-hover:shadow-md transition-shadow">
+                            {item.ticker || item.symbol}
+                          </span>
+                        </div>
+
+                        {/* Company name */}
+                        <div className="flex-1 min-w-0">
+                          <div className="font-semibold text-white truncate text-sm group-hover:text-blue-300 transition-colors">
+                            {item.name || displayName}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Price */}
+                      {price > 0 && (
+                        <div className="flex-shrink-0 ml-3">
+                          <div className="text-right">
+                            <div className="font-bold text-white text-base group-hover:text-blue-300 transition-colors">
+                              ${price.toFixed(2)}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Metadata row */}
+                    <div className="flex items-center space-x-3 text-xs text-gray-500">
+                      {exchange && (
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 font-medium">
+                          {exchange}
+                        </span>
+                      )}
+                      {assetType && (
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400 font-medium">
+                          {assetType}
+                        </span>
+                      )}
+                      {sector && (
+                        <span className="truncate text-gray-400">
+                          {sector}
+                        </span>
+                      )}
+                    </div>
+                  </button>
+                );
+              }
+
+              // Standard display
               return (
                 <button
                   key={item.id || item.value || idx}
@@ -375,7 +448,7 @@ function DropdownPortal({ anchorRef, children, onClose, minWidth = 200 }) {
   );
 }
 
-// Specialized variant for institution search
+// Specialized variant for institution search with filtering
 export function InstitutionSearchInput({
   value,
   onChange,
@@ -385,23 +458,36 @@ export function InstitutionSearchInput({
   disabled = false,
   className = ''
 }) {
+  // Filter institutions based on current input value
+  const filteredInstitutions = useMemo(() => {
+    if (!value || value.trim() === '') {
+      return institutions.slice(0, 50); // Show first 50 when no filter
+    }
+    const searchTerm = value.toLowerCase().trim();
+    return institutions.filter(inst => {
+      const name = (inst.name || inst.value || '').toLowerCase();
+      return name.includes(searchTerm);
+    }).slice(0, 20); // Limit results to 20
+  }, [institutions, value]);
+
   return (
     <SearchableInput
       value={value}
       onChange={onChange}
       onSelect={onSelect}
       placeholder={placeholder}
-      options={institutions}
+      options={filteredInstitutions}
       showLogos={true}
       showPrices={false}
       allowCustom={true}
       disabled={disabled}
       className={className}
+      minWidth={300}
     />
   );
 }
 
-// Specialized variant for ticker/symbol search
+// Specialized variant for ticker/symbol search with enhanced display
 export function SecuritySearchInput({
   value,
   onChange,
@@ -422,10 +508,12 @@ export function SecuritySearchInput({
       isSearching={isSearching}
       showLogos={false}
       showPrices={true}
+      showEnhancedSecurityInfo={true}
       allowCustom={true}
       transform="uppercase"
       disabled={disabled}
       className={className}
+      minWidth={450}
     />
   );
 }

@@ -51,9 +51,12 @@ export default function useBulkSubmit({ state, dispatch, onSuccess }) {
         results.success.push({ ...account, ...result });
 
       } catch (error) {
-        console.error('Failed to add account:', error);
-        dispatch(actions.updateAccount(account.id, { status: 'error', error: error.message }));
-        results.failed.push({ ...account, error: error.message });
+        const errorMessage = typeof error === 'object'
+          ? (error?.message || error?.detail || JSON.stringify(error))
+          : String(error);
+        console.error('Failed to add account:', errorMessage);
+        dispatch(actions.updateAccount(account.id, { status: 'error', error: errorMessage }));
+        results.failed.push({ ...account, error: errorMessage });
       }
     }
 
@@ -164,10 +167,14 @@ export default function useBulkSubmit({ state, dispatch, onSuccess }) {
         }
 
       } catch (error) {
-        console.error(`Failed to add ${assetType} positions:`, error);
+        // Extract error message properly - handle both Error objects and plain objects
+        const errorMessage = typeof error === 'object'
+          ? (error?.message || error?.detail || JSON.stringify(error))
+          : String(error);
+        console.error(`Failed to add ${assetType} positions:`, errorMessage);
         for (const pos of positions) {
-          dispatch(actions.updatePositionStatus(assetType, pos.id, 'error', error.message));
-          results.failed.push({ ...pos, error: error.message });
+          dispatch(actions.updatePositionStatus(assetType, pos.id, 'error', errorMessage));
+          results.failed.push({ ...pos, error: errorMessage });
         }
       }
     }
@@ -242,9 +249,12 @@ export default function useBulkSubmit({ state, dispatch, onSuccess }) {
         results.success.push({ ...liability, ...result });
 
       } catch (error) {
-        console.error('Failed to add liability:', error);
-        dispatch(actions.updateLiabilityStatus(liability.id, 'error', error.message));
-        results.failed.push({ ...liability, error: error.message });
+        const errorMessage = typeof error === 'object'
+          ? (error?.message || error?.detail || JSON.stringify(error))
+          : String(error);
+        console.error('Failed to add liability:', errorMessage);
+        dispatch(actions.updateLiabilityStatus(liability.id, 'error', errorMessage));
+        results.failed.push({ ...liability, error: errorMessage });
       }
     }
 
