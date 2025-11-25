@@ -1,8 +1,8 @@
 // Searchable Input Component for QuickStart Modal
 // Used for ticker/symbol search and institution search
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import ReactDOM from 'react-dom';
-import { ChevronDown, Check, Plus, Loader2, X } from 'lucide-react';
+import { ChevronDown, Check, Plus, Loader2, X, Search, Keyboard, Building2, TrendingUp } from 'lucide-react';
 import { formatCurrency } from '@/utils/formatters';
 
 export default function SearchableInput({
@@ -15,10 +15,12 @@ export default function SearchableInput({
   isSearching = false,
   showLogos = false,
   showPrices = false,
+  showEnhancedSecurityInfo = false,
   allowCustom = true,
   transform,
   disabled = false,
   className = '',
+  minWidth = 200,
   onFocus,
   onBlur
 }) {
@@ -190,8 +192,22 @@ export default function SearchableInput({
         <DropdownPortal
           anchorRef={inputRef}
           onClose={() => setIsOpen(false)}
+          minWidth={minWidth}
         >
-          <div className="max-h-64 overflow-y-auto">
+          {/* Search header for securities */}
+          {showEnhancedSecurityInfo && displayItems.length > 0 && (
+            <div className="px-3 py-2 bg-gradient-to-r from-blue-900/50 to-indigo-900/50 border-b border-blue-800">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-semibold text-blue-300 flex items-center">
+                  <Search className="w-3 h-3 mr-1.5" />
+                  {displayItems.length} Result{displayItems.length !== 1 ? 's' : ''}
+                </span>
+                <span className="text-blue-400">Click to select</span>
+              </div>
+            </div>
+          )}
+
+          <div className="max-h-80 overflow-y-auto">
             {/* Custom value option */}
             {allowCustom && inputValue && !displayItems.some(item =>
               (item.name || item.ticker || item.symbol || item.value)?.toLowerCase() === inputValue.toLowerCase()
@@ -296,8 +312,8 @@ export default function SearchableInput({
   );
 }
 
-// Dropdown Portal Component
-function DropdownPortal({ anchorRef, children, onClose }) {
+// Dropdown Portal Component with minimum width support
+function DropdownPortal({ anchorRef, children, onClose, minWidth = 200 }) {
   const [position, setPosition] = useState({ top: 0, left: 0, width: 0 });
 
   useEffect(() => {
@@ -306,15 +322,25 @@ function DropdownPortal({ anchorRef, children, onClose }) {
     const updatePosition = () => {
       const rect = anchorRef.current.getBoundingClientRect();
       const viewportHeight = window.innerHeight;
+      const viewportWidth = window.innerWidth;
       const spaceBelow = viewportHeight - rect.bottom;
-      const dropdownHeight = 320;
+      const dropdownHeight = 400; // Increased for better visibility
       const shouldShowAbove = spaceBelow < dropdownHeight && rect.top > dropdownHeight;
+
+      // Calculate width - use minimum width or input width, whichever is larger
+      const dropdownWidth = Math.max(rect.width, minWidth);
+
+      // Adjust left position to keep dropdown in viewport
+      let leftPos = rect.left;
+      if (leftPos + dropdownWidth > viewportWidth - 10) {
+        leftPos = Math.max(10, viewportWidth - dropdownWidth - 10);
+      }
 
       setPosition({
         top: shouldShowAbove ? 'auto' : rect.bottom + 4,
         bottom: shouldShowAbove ? viewportHeight - rect.top + 4 : 'auto',
-        left: rect.left,
-        width: rect.width
+        left: leftPos,
+        width: dropdownWidth
       });
     };
 
@@ -326,7 +352,7 @@ function DropdownPortal({ anchorRef, children, onClose }) {
       window.removeEventListener('scroll', updatePosition, true);
       window.removeEventListener('resize', updatePosition);
     };
-  }, [anchorRef]);
+  }, [anchorRef, minWidth]);
 
   return ReactDOM.createPortal(
     <div
@@ -340,7 +366,7 @@ function DropdownPortal({ anchorRef, children, onClose }) {
         zIndex: 9999999,
         pointerEvents: 'auto'
       }}
-      className="bg-gray-800 border border-gray-700 rounded-lg shadow-xl animate-fadeIn"
+      className="bg-gray-900 border-2 border-blue-500/30 rounded-xl shadow-2xl overflow-hidden"
       onClick={(e) => e.stopPropagation()}
     >
       {children}
