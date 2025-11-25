@@ -7,6 +7,7 @@ import { QuickStartButton } from '@/components/QuickStartModal';
 import { QuickReconciliationButton } from '@/components/modals/QuickReconciliationModal';
 import { QuickEditDeleteButton } from '@/components/modals/QuickEditDeleteModal';
 import { QuickStatementValidationButton } from '@/components/modals/QuickStatementValidationModal';
+import { AddPositionsModalV2Button } from '@/components/AddPositionsModalV2Button';
 import { QuickStatementImportButton } from '@/components/modals/AddStatementImportModal';
 
 import { useGroupedPositions } from '@/store/hooks/useGroupedPositions';
@@ -618,6 +619,11 @@ const Navbar = () => {
                     <QuickStatementValidationButton />
                   </div>
 
+                  {/* Test Button for New Modal V2 */}
+                  <div className={PRO_WRAP_CLASSES}>
+                    <AddPositionsModalV2Button />
+                  </div>
+
                   {/* Import Statement */}
                   <div className={PRO_WRAP_CLASSES}>
                     <QuickStatementImportButton />
@@ -625,7 +631,7 @@ const Navbar = () => {
                 </div>
               </div>
 
-              {/* Right: “?” then Summary (as requested) */}
+              {/* Right: "?" then Summary (as requested) */}
               <div className="justify-self-end shrink-0 flex items-center gap-2">
                 {/* Orientation toggle to the LEFT of Summary */}
                 <button
