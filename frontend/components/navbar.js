@@ -9,6 +9,7 @@ import { QuickEditDeleteButton } from '@/components/modals/QuickEditDeleteModal'
 import { QuickStatementValidationButton } from '@/components/modals/QuickStatementValidationModal';
 import { AddPositionsModalV2Button } from '@/components/AddPositionsModalV2Button';
 import { QuickStatementImportButton } from '@/components/modals/AddStatementImportModal';
+import { QuickStartModalV2Button } from '@/components/modals/quickstart';
 
 import { useGroupedPositions } from '@/store/hooks/useGroupedPositions';
 import { useDataStore } from '@/store/DataStore';
@@ -627,6 +628,11 @@ const Navbar = () => {
                   {/* Import Statement */}
                   <div className={PRO_WRAP_CLASSES}>
                     <QuickStatementImportButton />
+                  </div>
+
+                  {/* QuickStart V2 Test Button */}
+                  <div className={PRO_WRAP_CLASSES}>
+                    <QuickStartModalV2Button />
                   </div>
                 </div>
               </div>
