@@ -433,13 +433,36 @@ const AddStatementImportModal = ({ isOpen, onClose }) => {
     refresh: refreshAccounts
   } = useAccounts();
 
+  // DEBUG: Log accounts data
+  useEffect(() => {
+    console.log('[AddStatementImportModal] Accounts Debug:', {
+      existingAccounts,
+      isLoadingAccounts,
+      accountsError,
+      lastFetched,
+      isOpen,
+      currentStep,
+      existingAccountsLength: existingAccounts?.length,
+      existingAccountsIsArray: Array.isArray(existingAccounts),
+      firstAccount: existingAccounts?.[0]
+    });
+  }, [existingAccounts, isLoadingAccounts, accountsError, lastFetched, isOpen, currentStep]);
+
   // Bootstrap fetch exactly once if we've never fetched accounts yet
   const bootstrapRef = useRef(false);
   useEffect(() => {
+    console.log('[AddStatementImportModal] Bootstrap check:', {
+      isOpen,
+      bootstrapRefCurrent: bootstrapRef.current,
+      isLoadingAccounts,
+      lastFetched
+    });
+
     if (!isOpen) return; // don't run when modal is closed
     if (bootstrapRef.current) return;
     // Only trigger if we have NEVER fetched accounts in this session
     if (!isLoadingAccounts && lastFetched == null) {
+      console.log('[AddStatementImportModal] Triggering refreshAccounts()');
       bootstrapRef.current = true;
       refreshAccounts();
     }
@@ -449,15 +472,37 @@ const AddStatementImportModal = ({ isOpen, onClose }) => {
   // Filter accounts to only brokerage, retirement, and crypto
   const filteredAccounts = useMemo(() => {
     const accounts = Array.isArray(existingAccounts) ? existingAccounts : [];
-    return accounts.filter(acc => {
+    console.log('[AddStatementImportModal] Filtering accounts:', {
+      totalAccounts: accounts.length,
+      accountTypes: accounts.map(a => ({ id: a.id, name: a.name, type: a.type }))
+    });
+
+    const filtered = accounts.filter(acc => {
       // Use 'type' field (not 'account_type') as returned by useAccounts hook
       const accountType = (acc?.type || '').toLowerCase();
-      return (
+      const isMatch = (
         accountType === 'brokerage' ||
         accountType === 'retirement' ||
         accountType === 'cryptocurrency'
       );
+
+      console.log('[AddStatementImportModal] Account filter:', {
+        id: acc.id,
+        name: acc.name,
+        type: acc.type,
+        accountType,
+        isMatch
+      });
+
+      return isMatch;
     });
+
+    console.log('[AddStatementImportModal] Filtered accounts:', {
+      filteredCount: filtered.length,
+      filteredAccounts: filtered.map(a => ({ id: a.id, name: a.name, type: a.type }))
+    });
+
+    return filtered;
   }, [existingAccounts]);
 
   // Handle file selection
@@ -618,6 +663,12 @@ const AddStatementImportModal = ({ isOpen, onClose }) => {
         );
 
       case 2:
+        console.log('[AddStatementImportModal] Rendering step 2 (account selection):', {
+          isLoadingAccounts,
+          filteredAccountsLength: filteredAccounts.length,
+          filteredAccounts: filteredAccounts.map(a => ({ id: a.id, name: a.name, type: a.type }))
+        });
+
         return (
           <div className="space-y-4">
             <p className="text-sm text-gray-400">
