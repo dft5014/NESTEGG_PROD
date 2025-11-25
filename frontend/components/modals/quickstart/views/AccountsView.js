@@ -2,7 +2,7 @@
 import React, { useCallback, useState } from 'react';
 import {
   ArrowLeft, Plus, Trash2, Check, Loader2,
-  Upload, Download, FileSpreadsheet, HelpCircle, X
+  Upload, Download, FileSpreadsheet, HelpCircle, X, ChevronRight
 } from 'lucide-react';
 import DataTable from '../components/DataTable';
 import StatsBar from '../components/StatsBar';
@@ -20,7 +20,17 @@ export default function AccountsView({
   isSubmitting
 }) {
   const accounts = state.accounts;
+  const existingAccounts = state.existingAccounts || [];
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isSavingAndContinuing, setIsSavingAndContinuing] = useState(false);
+
+  // Count ready accounts (moved up so it can be used in callbacks)
+  const readyCount = accounts.filter(a =>
+    a.accountName && a.institution && a.accountCategory && a.accountType && a.status !== 'added'
+  ).length;
+
+  // Count accounts that were just added in this session
+  const addedCount = accounts.filter(a => a.status === 'added').length;
 
   // Add new account row
   const handleAddAccount = useCallback(() => {
@@ -97,6 +107,28 @@ export default function AccountsView({
     await onSubmitAccounts();
   }, [onSubmitAccounts]);
 
+  // Save accounts and continue to positions
+  const handleSaveAndContinue = useCallback(async () => {
+    if (readyCount === 0) {
+      // No accounts to save, just navigate (if there are existing accounts)
+      if (existingAccounts.length > 0) {
+        goToView(VIEWS.positions);
+      }
+      return;
+    }
+
+    setIsSavingAndContinuing(true);
+    try {
+      const result = await onSubmitAccounts();
+      if (result?.success) {
+        // Navigate to positions after successful save
+        goToView(VIEWS.positions);
+      }
+    } finally {
+      setIsSavingAndContinuing(false);
+    }
+  }, [readyCount, existingAccounts.length, onSubmitAccounts, goToView]);
+
   // Download template via API
   const handleDownloadTemplate = useCallback(async () => {
     try {
@@ -106,11 +138,6 @@ export default function AccountsView({
       alert('Failed to download template. Please try again.');
     }
   }, []);
-
-  // Count ready accounts
-  const readyCount = accounts.filter(a =>
-    a.accountName && a.institution && a.accountCategory && a.accountType && a.status !== 'added'
-  ).length;
 
   const selectedCount = accounts.filter(acc => state.selectedIds.has(acc.id)).length;
 
@@ -187,12 +214,12 @@ export default function AccountsView({
               {isSubmitting ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Saving...</span>
+                  <span>Adding...</span>
                 </>
               ) : (
                 <>
-                  <Check className="w-4 h-4" />
-                  <span>Save {readyCount > 0 ? `(${readyCount})` : ''}</span>
+                  <Plus className="w-4 h-4" />
+                  <span>Add {readyCount} Account{readyCount !== 1 ? 's' : ''}</span>
                 </>
               )}
             </button>
@@ -268,8 +295,12 @@ export default function AccountsView({
         <div className="text-sm text-gray-400">
           {accounts.length > 0 && (
             <span>
-              {readyCount} of {accounts.length} account{accounts.length !== 1 ? 's' : ''} ready to save
+              {readyCount} of {accounts.length} account{accounts.length !== 1 ? 's' : ''} ready to add
+              {addedCount > 0 && ` • ${addedCount} added this session`}
             </span>
+          )}
+          {accounts.length === 0 && existingAccounts.length > 0 && (
+            <span>{existingAccounts.length} existing account{existingAccounts.length !== 1 ? 's' : ''} available for positions</span>
           )}
         </div>
         <div className="flex items-center space-x-3">
@@ -279,13 +310,29 @@ export default function AccountsView({
           >
             Back
           </button>
-          {readyCount > 0 && (
+          {/* Show Continue to Positions when there are accounts available */}
+          {(readyCount > 0 || existingAccounts.length > 0 || addedCount > 0) && (
             <button
-              onClick={() => goToView(VIEWS.positions)}
-              className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center space-x-2 transition-colors"
+              onClick={handleSaveAndContinue}
+              disabled={isSavingAndContinuing}
+              className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2 transition-colors"
             >
-              <span>Continue to Positions</span>
-              <FileSpreadsheet className="w-4 h-4" />
+              {isSavingAndContinuing ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Saving & continuing...</span>
+                </>
+              ) : (
+                <>
+                  <span>
+                    {readyCount > 0
+                      ? `Add ${readyCount} & Continue to Positions`
+                      : 'Continue to Positions'
+                    }
+                  </span>
+                  <ChevronRight className="w-4 h-4" />
+                </>
+              )}
             </button>
           )}
         </div>
