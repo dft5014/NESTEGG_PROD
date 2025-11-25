@@ -622,6 +622,8 @@ const Navbar = () => {
                   {/* Test Button for New Modal V2 */}
                   <div className={PRO_WRAP_CLASSES}>
                     <AddPositionsModalV2Button />
+                  </div>
+
                   {/* Import Statement */}
                   <div className={PRO_WRAP_CLASSES}>
                     <QuickStatementImportButton />
