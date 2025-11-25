@@ -226,21 +226,27 @@ export default function QuickStartModalV2({ isOpen, onClose, onSuccess }) {
   );
 }
 
-// Button component that can be used to open the modal
-export function QuickStartModalV2Button({ onOpen, className = '' }) {
+// Self-contained button + modal component (manages its own state)
+export function QuickStartModalV2Button({ className = '', onSuccess }) {
+  const [isOpen, setIsOpen] = React.useState(false);
+
   return (
-    <button
-      onClick={onOpen}
-      className={`
-        px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600
-        text-white font-medium rounded-lg
-        hover:from-indigo-700 hover:to-purple-700
-        transition-all duration-200 shadow-lg hover:shadow-xl
-        flex items-center space-x-2
-        ${className}
-      `}
-    >
-      <span>Quick Add</span>
-    </button>
+    <>
+      <button
+        onClick={() => setIsOpen(true)}
+        className={`group relative flex items-center text-white py-1 px-4 transition-all duration-300 ${className}`}
+      >
+        <div className="absolute inset-0 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+        <div className="relative flex items-center">
+          <span className="text-sm text-gray-200 group-hover:text-white font-medium">QuickStart V2</span>
+        </div>
+      </button>
+
+      <QuickStartModalV2
+        isOpen={isOpen}
+        onClose={() => setIsOpen(false)}
+        onSuccess={onSuccess}
+      />
+    </>
   );
 }
