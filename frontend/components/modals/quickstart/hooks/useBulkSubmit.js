@@ -51,9 +51,12 @@ export default function useBulkSubmit({ state, dispatch, onSuccess }) {
         results.success.push({ ...account, ...result });
 
       } catch (error) {
-        console.error('Failed to add account:', error);
-        dispatch(actions.updateAccount(account.id, { status: 'error', error: error.message }));
-        results.failed.push({ ...account, error: error.message });
+        const errorMessage = typeof error === 'object'
+          ? (error?.message || error?.detail || JSON.stringify(error))
+          : String(error);
+        console.error('Failed to add account:', errorMessage);
+        dispatch(actions.updateAccount(account.id, { status: 'error', error: errorMessage }));
+        results.failed.push({ ...account, error: errorMessage });
       }
     }
 
@@ -127,32 +130,84 @@ export default function useBulkSubmit({ state, dispatch, onSuccess }) {
       }
 
       try {
-        // Prepare payload - strip account_id from individual items since it's in the URL
-        const payload = positions.map(pos => {
-          const { account_id, ...rest } = pos.data;
-          return rest;
-        });
-
-        // Call appropriate bulk API - most take (accountId, data) except other assets
+        // Call appropriate bulk API with properly transformed payload
         let response;
         switch (assetType) {
-          case 'security':
-            response = await addSecurityPositionBulk(accountId, payload);
+          case 'security': {
+            // Transform to match API expected format
+            const securityPayload = positions.map(pos => ({
+              ticker: pos.data.ticker,
+              shares: parseFloat(pos.data.shares) || 0,
+              price: parseFloat(pos.data.price) || 0,
+              cost_basis: parseFloat(pos.data.cost_basis) || (parseFloat(pos.data.shares) * parseFloat(pos.data.price)) || 0,
+              purchase_date: pos.data.purchase_date || null,
+              notes: pos.data.notes || null
+            }));
+            response = await addSecurityPositionBulk(accountId, securityPayload);
             break;
-          case 'cash':
-            response = await addCashPositionBulk(accountId, payload);
+          }
+          case 'cash': {
+            // Transform to match API expected format
+            const cashPayload = positions.map(pos => ({
+              cash_type: pos.data.cash_type,
+              name: pos.data.cash_type,
+              amount: parseFloat(pos.data.amount) || 0,
+              interest_rate: pos.data.interest_rate ? parseFloat(pos.data.interest_rate) / 100 : null,
+              interest_period: pos.data.interest_period || null,
+              maturity_date: pos.data.maturity_date || null,
+              notes: pos.data.notes || null
+            }));
+            response = await addCashPositionBulk(accountId, cashPayload);
             break;
-          case 'crypto':
-            response = await addCryptoPositionBulk(accountId, payload);
+          }
+          case 'crypto': {
+            // Transform to match API expected format
+            const cryptoPayload = positions.map(pos => ({
+              coin_type: pos.data.name || pos.data.symbol,
+              coin_symbol: pos.data.symbol,
+              quantity: parseFloat(pos.data.quantity) || 0,
+              purchase_price: parseFloat(pos.data.purchase_price) || parseFloat(pos.data.current_price) || 0,
+              purchase_date: pos.data.purchase_date || null,
+              storage_type: pos.data.storage_type || 'Exchange',
+              notes: pos.data.notes || null,
+              tags: pos.data.tags || [],
+              is_favorite: pos.data.is_favorite || false
+            }));
+            response = await addCryptoPositionBulk(accountId, cryptoPayload);
             break;
-          case 'metal':
-            response = await addMetalPositionBulk(accountId, payload);
+          }
+          case 'metal': {
+            // Transform to match API expected format
+            const metalPayload = positions.map(pos => ({
+              metal_type: pos.data.metal_type,
+              coin_symbol: pos.data.symbol || '',
+              quantity: parseFloat(pos.data.quantity) || 0,
+              unit: pos.data.unit || 'oz',
+              purity: pos.data.purity || null,
+              purchase_price: parseFloat(pos.data.purchase_price) || parseFloat(pos.data.current_price_per_unit) || 0,
+              cost_basis: parseFloat(pos.data.cost_basis) ||
+                (parseFloat(pos.data.quantity) * (parseFloat(pos.data.purchase_price) || parseFloat(pos.data.current_price_per_unit))) || 0,
+              purchase_date: pos.data.purchase_date || null,
+              storage_location: pos.data.storage_location || null,
+              description: pos.data.description || `${pos.data.symbol || ''} - ${pos.data.name || pos.data.metal_type || ''}`
+            }));
+            response = await addMetalPositionBulk(accountId, metalPayload);
             break;
-          case 'other':
+          }
+          case 'other': {
             // Other assets expects account_id in each payload item
-            const otherPayload = positions.map(pos => pos.data);
+            const otherPayload = positions.map(pos => ({
+              account_id: pos.data.account_id,
+              asset_name: pos.data.asset_name,
+              description: pos.data.description || '',
+              current_value: parseFloat(pos.data.current_value) || 0,
+              cost_basis: parseFloat(pos.data.cost_basis) || 0,
+              purchase_date: pos.data.purchase_date || null,
+              category: pos.data.category || 'other'
+            }));
             response = await addOtherAssetBulk(otherPayload);
             break;
+          }
           default:
             throw new Error(`Unknown asset type: ${assetType}`);
         }
@@ -164,10 +219,14 @@ export default function useBulkSubmit({ state, dispatch, onSuccess }) {
         }
 
       } catch (error) {
-        console.error(`Failed to add ${assetType} positions:`, error);
+        // Extract error message properly - handle both Error objects and plain objects
+        const errorMessage = typeof error === 'object'
+          ? (error?.message || error?.detail || JSON.stringify(error))
+          : String(error);
+        console.error(`Failed to add ${assetType} positions:`, errorMessage);
         for (const pos of positions) {
-          dispatch(actions.updatePositionStatus(assetType, pos.id, 'error', error.message));
-          results.failed.push({ ...pos, error: error.message });
+          dispatch(actions.updatePositionStatus(assetType, pos.id, 'error', errorMessage));
+          results.failed.push({ ...pos, error: errorMessage });
         }
       }
     }
@@ -242,9 +301,12 @@ export default function useBulkSubmit({ state, dispatch, onSuccess }) {
         results.success.push({ ...liability, ...result });
 
       } catch (error) {
-        console.error('Failed to add liability:', error);
-        dispatch(actions.updateLiabilityStatus(liability.id, 'error', error.message));
-        results.failed.push({ ...liability, error: error.message });
+        const errorMessage = typeof error === 'object'
+          ? (error?.message || error?.detail || JSON.stringify(error))
+          : String(error);
+        console.error('Failed to add liability:', errorMessage);
+        dispatch(actions.updateLiabilityStatus(liability.id, 'error', errorMessage));
+        results.failed.push({ ...liability, error: errorMessage });
       }
     }
 

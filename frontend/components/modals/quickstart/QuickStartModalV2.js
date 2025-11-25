@@ -55,11 +55,19 @@ export default function QuickStartModalV2({ isOpen, onClose, onSuccess }) {
   const { submitAccounts, submitPositions, submitLiabilities, getReadyCounts, isSubmitting } = useBulkSubmit({
     state,
     dispatch,
-    onSuccess: (type, items) => {
+    onSuccess: async (type, items) => {
       // Mark relevant data as stale to trigger refresh
       if (type === 'accounts') {
         markStale('accounts');
         markStale('portfolioSummary');
+
+        // Reload existing accounts so they're available for positions
+        try {
+          const accounts = await fetchAllAccounts();
+          dispatch(actions.setExistingAccounts(accounts || []));
+        } catch (error) {
+          console.error('Failed to refresh accounts:', error);
+        }
       } else if (type === 'positions') {
         markStale('positions');
         markStale('portfolioSummary');
@@ -170,7 +178,6 @@ export default function QuickStartModalV2({ isOpen, onClose, onSuccess }) {
     onSubmitAccounts: submitAccounts,
     onSubmitPositions: submitPositions,
     onSubmitLiabilities: submitLiabilities,
-    onHydratePrices: hydrateAllPending,
     getReadyCounts,
     isSubmitting,
     goToView,

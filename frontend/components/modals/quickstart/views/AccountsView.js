@@ -2,7 +2,7 @@
 import React, { useCallback, useState } from 'react';
 import {
   ArrowLeft, Plus, Trash2, Check, Loader2,
-  Upload, Download, FileSpreadsheet, HelpCircle, X
+  Upload, Download, FileSpreadsheet, HelpCircle, X, ChevronRight
 } from 'lucide-react';
 import DataTable from '../components/DataTable';
 import StatsBar from '../components/StatsBar';
@@ -20,7 +20,17 @@ export default function AccountsView({
   isSubmitting
 }) {
   const accounts = state.accounts;
+  const existingAccounts = state.existingAccounts || [];
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isSavingAndContinuing, setIsSavingAndContinuing] = useState(false);
+
+  // Count ready accounts (moved up so it can be used in callbacks)
+  const readyCount = accounts.filter(a =>
+    a.accountName && a.institution && a.accountCategory && a.accountType && a.status !== 'added'
+  ).length;
+
+  // Count accounts that were just added in this session
+  const addedCount = accounts.filter(a => a.status === 'added').length;
 
   // Add new account row
   const handleAddAccount = useCallback(() => {
@@ -97,6 +107,28 @@ export default function AccountsView({
     await onSubmitAccounts();
   }, [onSubmitAccounts]);
 
+  // Save accounts and continue to positions
+  const handleSaveAndContinue = useCallback(async () => {
+    if (readyCount === 0) {
+      // No accounts to save, just navigate (if there are existing accounts)
+      if (existingAccounts.length > 0) {
+        goToView(VIEWS.positions);
+      }
+      return;
+    }
+
+    setIsSavingAndContinuing(true);
+    try {
+      const result = await onSubmitAccounts();
+      if (result?.success) {
+        // Navigate to positions after successful save
+        goToView(VIEWS.positions);
+      }
+    } finally {
+      setIsSavingAndContinuing(false);
+    }
+  }, [readyCount, existingAccounts.length, onSubmitAccounts, goToView]);
+
   // Download template via API
   const handleDownloadTemplate = useCallback(async () => {
     try {
@@ -106,11 +138,6 @@ export default function AccountsView({
       alert('Failed to download template. Please try again.');
     }
   }, []);
-
-  // Count ready accounts
-  const readyCount = accounts.filter(a =>
-    a.accountName && a.institution && a.accountCategory && a.accountType && a.status !== 'added'
-  ).length;
 
   const selectedCount = accounts.filter(acc => state.selectedIds.has(acc.id)).length;
 
@@ -187,12 +214,12 @@ export default function AccountsView({
               {isSubmitting ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Saving...</span>
+                  <span>Adding...</span>
                 </>
               ) : (
                 <>
-                  <Check className="w-4 h-4" />
-                  <span>Save {readyCount > 0 ? `(${readyCount})` : ''}</span>
+                  <Plus className="w-4 h-4" />
+                  <span>Add {readyCount} Account{readyCount !== 1 ? 's' : ''}</span>
                 </>
               )}
             </button>
@@ -232,8 +259,58 @@ export default function AccountsView({
 
       {/* Content */}
       <div className="flex-1 overflow-auto p-4">
+        {/* Prominent import banner when no accounts */}
+        {accounts.length === 0 && (
+          <div className="mb-6 bg-gradient-to-r from-blue-900/40 to-purple-900/40 rounded-xl border border-blue-700/50 p-5">
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <h3 className="text-lg font-semibold text-white flex items-center">
+                  <FileSpreadsheet className="w-5 h-5 mr-2 text-blue-400" />
+                  Have accounts in a spreadsheet?
+                </h3>
+                <p className="text-gray-300 text-sm mt-1.5 max-w-lg">
+                  Download our Excel template, fill in your accounts offline, and import them all at once.
+                  Great for adding many accounts quickly!
+                </p>
+                <div className="flex items-center space-x-3 mt-4">
+                  <button
+                    onClick={handleDownloadTemplate}
+                    disabled={isDownloading}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center space-x-2 transition-colors text-sm font-medium disabled:opacity-50"
+                  >
+                    {isDownloading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Downloading...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Download className="w-4 h-4" />
+                        <span>Download Template</span>
+                      </>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => {
+                      dispatch(actions.setImportTarget('accounts'));
+                      goToView(VIEWS.import);
+                    }}
+                    className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center space-x-2 transition-colors text-sm font-medium"
+                  >
+                    <Upload className="w-4 h-4" />
+                    <span>Import Excel</span>
+                  </button>
+                </div>
+              </div>
+              <div className="hidden md:flex items-center justify-center w-24 h-24 bg-blue-900/30 rounded-lg ml-6">
+                <FileSpreadsheet className="w-12 h-12 text-blue-400/60" />
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Add button */}
-        <div className="mb-4">
+        <div className="mb-4 flex items-center space-x-3">
           <button
             onClick={handleAddAccount}
             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center space-x-2 transition-colors"
@@ -241,6 +318,20 @@ export default function AccountsView({
             <Plus className="w-4 h-4" />
             <span>Add Account</span>
           </button>
+          {accounts.length > 0 && (
+            <span className="text-sm text-gray-400">
+              or{' '}
+              <button
+                onClick={() => {
+                  dispatch(actions.setImportTarget('accounts'));
+                  goToView(VIEWS.import);
+                }}
+                className="text-blue-400 hover:text-blue-300 underline"
+              >
+                import from Excel
+              </button>
+            </span>
+          )}
         </div>
 
         {/* Data table */}
@@ -268,8 +359,12 @@ export default function AccountsView({
         <div className="text-sm text-gray-400">
           {accounts.length > 0 && (
             <span>
-              {readyCount} of {accounts.length} account{accounts.length !== 1 ? 's' : ''} ready to save
+              {readyCount} of {accounts.length} account{accounts.length !== 1 ? 's' : ''} ready to add
+              {addedCount > 0 && ` • ${addedCount} added this session`}
             </span>
+          )}
+          {accounts.length === 0 && existingAccounts.length > 0 && (
+            <span>{existingAccounts.length} existing account{existingAccounts.length !== 1 ? 's' : ''} available for positions</span>
           )}
         </div>
         <div className="flex items-center space-x-3">
@@ -279,13 +374,29 @@ export default function AccountsView({
           >
             Back
           </button>
-          {readyCount > 0 && (
+          {/* Show Continue to Positions when there are accounts available */}
+          {(readyCount > 0 || existingAccounts.length > 0 || addedCount > 0) && (
             <button
-              onClick={() => goToView(VIEWS.positions)}
-              className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center space-x-2 transition-colors"
+              onClick={handleSaveAndContinue}
+              disabled={isSavingAndContinuing}
+              className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2 transition-colors"
             >
-              <span>Continue to Positions</span>
-              <FileSpreadsheet className="w-4 h-4" />
+              {isSavingAndContinuing ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Saving & continuing...</span>
+                </>
+              ) : (
+                <>
+                  <span>
+                    {readyCount > 0
+                      ? `Add ${readyCount} & Continue to Positions`
+                      : 'Continue to Positions'
+                    }
+                  </span>
+                  <ChevronRight className="w-4 h-4" />
+                </>
+              )}
             </button>
           )}
         </div>

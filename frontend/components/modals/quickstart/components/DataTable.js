@@ -35,6 +35,7 @@ export default function DataTable({
   showCheckboxes = true,
   showActions = true,
   showStatus = true,
+  showRowNumbers = true,
   emptyMessage = 'No items yet. Click the button above to add one.',
   className = ''
 }) {
@@ -372,6 +373,11 @@ export default function DataTable({
       {/* Table Header */}
       <div className="bg-gray-800 px-4 py-3 border-b border-gray-700">
         <div className="flex items-center gap-3">
+          {showRowNumbers && (
+            <div className="w-8 flex-shrink-0 text-xs font-semibold text-gray-400 uppercase tracking-wider text-center">
+              #
+            </div>
+          )}
           {showCheckboxes && (
             <div className="w-8 flex-shrink-0">
               <input
@@ -433,6 +439,15 @@ export default function DataTable({
                   hover:bg-gray-800/30 transition-colors
                 `}
               >
+                {/* Row Number */}
+                {showRowNumbers && (
+                  <div className="w-8 flex-shrink-0 text-center">
+                    <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-gray-800 text-xs font-medium text-gray-400 border border-gray-700">
+                      {rowIndex + 1}
+                    </span>
+                  </div>
+                )}
+
                 {/* Checkbox */}
                 {showCheckboxes && (
                   <div className="w-8 flex-shrink-0">

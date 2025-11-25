@@ -2,7 +2,7 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import {
   ArrowLeft, Plus, Trash2, Check, Loader2,
-  Upload, Download, X, RefreshCw, HelpCircle
+  Upload, Download, X, HelpCircle
 } from 'lucide-react';
 import DataTable, { CollapsibleSection } from '../components/DataTable';
 import StatsBar, { PositionTypeStats } from '../components/StatsBar';
@@ -21,7 +21,6 @@ export default function PositionsView({
   onSearch,
   onSelectSearchResult,
   onSubmitPositions,
-  onHydratePrices,
   isSubmitting,
   goToView,
   goBack
@@ -249,15 +248,6 @@ export default function PositionsView({
             </button>
 
             <button
-              onClick={onHydratePrices}
-              className="px-3 py-1.5 text-sm bg-gray-800 text-gray-300 rounded-lg hover:bg-gray-700 flex items-center space-x-1.5 transition-colors"
-              title="Fetch prices for all tickers"
-            >
-              <RefreshCw className="w-4 h-4" />
-              <span>Fetch Prices</span>
-            </button>
-
-            <button
               onClick={handleClearAll}
               disabled={stats.total === 0}
               className="px-3 py-1.5 text-sm bg-gray-800 text-gray-300 rounded-lg hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-1.5 transition-colors"
@@ -310,9 +300,9 @@ export default function PositionsView({
                 <p className="font-semibold mb-1">How to Add Positions</p>
                 <ul className="space-y-1 text-blue-400/80">
                   <li>Click an asset type button to add a position of that type</li>
-                  <li>Type a ticker symbol to search and auto-fill price</li>
+                  <li>Type a ticker symbol to search and auto-fill current price</li>
                   <li>Fill all required fields - status changes to Ready when complete</li>
-                  <li>Use "Fetch Prices" to update all prices at once</li>
+                  <li>Use the Import button to bulk import from Excel</li>
                   <li>Click "Save" to add all ready positions to your portfolio</li>
                 </ul>
               </div>
@@ -370,10 +360,61 @@ export default function PositionsView({
 
         {/* Position sections */}
         {stats.total === 0 ? (
-          <div className="flex flex-col items-center justify-center h-64 text-gray-400">
-            <Plus className="w-16 h-16 mb-4 opacity-20" />
-            <p className="text-lg">No positions yet</p>
-            <p className="text-sm">Click a button above to add positions</p>
+          <div className="space-y-6">
+            {/* Prominent import banner */}
+            <div className="bg-gradient-to-r from-purple-900/40 to-blue-900/40 rounded-xl border border-purple-700/50 p-5">
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <h3 className="text-lg font-semibold text-white flex items-center">
+                    <Upload className="w-5 h-5 mr-2 text-purple-400" />
+                    Bulk Import Positions from Excel
+                  </h3>
+                  <p className="text-gray-300 text-sm mt-1.5 max-w-lg">
+                    Download our template, fill in your positions offline, and import everything at once.
+                    Supports securities, cash, crypto, and precious metals.
+                  </p>
+                  <div className="flex items-center space-x-3 mt-4">
+                    <button
+                      onClick={handleDownloadTemplate}
+                      disabled={isDownloading}
+                      className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center space-x-2 transition-colors text-sm font-medium disabled:opacity-50"
+                    >
+                      {isDownloading ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <span>Downloading...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Download className="w-4 h-4" />
+                          <span>Download Template</span>
+                        </>
+                      )}
+                    </button>
+                    <button
+                      onClick={() => {
+                        dispatch(actions.setImportTarget('positions'));
+                        goToView(VIEWS.import);
+                      }}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center space-x-2 transition-colors text-sm font-medium"
+                    >
+                      <Upload className="w-4 h-4" />
+                      <span>Import Excel</span>
+                    </button>
+                  </div>
+                </div>
+                <div className="hidden md:flex items-center justify-center w-24 h-24 bg-purple-900/30 rounded-lg ml-6">
+                  <Upload className="w-12 h-12 text-purple-400/60" />
+                </div>
+              </div>
+            </div>
+
+            {/* Empty state */}
+            <div className="flex flex-col items-center justify-center py-12 text-gray-400">
+              <Plus className="w-16 h-16 mb-4 opacity-20" />
+              <p className="text-lg">No positions yet</p>
+              <p className="text-sm">Click a button above to add positions, or import from Excel</p>
+            </div>
           </div>
         ) : (
           <div className="space-y-4">
@@ -417,6 +458,19 @@ export default function PositionsView({
                       showStatus={true}
                       emptyMessage={`No ${config.name.toLowerCase()} positions`}
                     />
+                    {/* Add button within section */}
+                    <button
+                      onClick={() => handleAddPosition(assetType)}
+                      className={`
+                        mt-3 w-full px-3 py-2 rounded-lg flex items-center justify-center space-x-2
+                        bg-gray-800/50 border border-dashed border-gray-600 text-gray-400
+                        hover:bg-gray-800 hover:border-gray-500 hover:text-gray-300
+                        transition-all duration-200
+                      `}
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span className="text-sm">Add {config.name.replace(/s$/, '')}</span>
+                    </button>
                   </div>
                 </CollapsibleSection>
               );
