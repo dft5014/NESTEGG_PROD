@@ -1,22 +1,11 @@
 // Welcome View - Entry point for QuickStart Modal
-import React from 'react';
-import { motion } from 'framer-motion';
+import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Building, FileSpreadsheet, CreditCard, ChevronRight,
-  Wallet, TrendingUp, Plus, RefreshCw, Activity
+  Building, FileSpreadsheet, CreditCard, ChevronRight, ChevronDown,
+  Sparkles, TrendingUp, RefreshCw, Shield, Clock, Users
 } from 'lucide-react';
 import { VIEWS, ACCOUNT_CATEGORIES } from '../utils/constants';
-import { formatCurrency } from '@/utils/formatters';
-
-const cardVariants = {
-  initial: { opacity: 0, y: 20 },
-  animate: (i) => ({
-    opacity: 1,
-    y: 0,
-    transition: { delay: i * 0.1, duration: 0.3 }
-  }),
-  hover: { scale: 1.02, y: -2 }
-};
 
 export default function WelcomeView({
   state,
@@ -24,6 +13,7 @@ export default function WelcomeView({
   onClose
 }) {
   const existingAccounts = state.existingAccounts || [];
+  const [showAccountsDropdown, setShowAccountsDropdown] = useState(false);
 
   // Group existing accounts by category
   const accountsByCategory = existingAccounts.reduce((acc, account) => {
@@ -35,220 +25,258 @@ export default function WelcomeView({
 
   const hasExistingAccounts = existingAccounts.length > 0;
 
-  // Calculate portfolio summary
-  const portfolioSummary = {
-    totalAccounts: existingAccounts.length,
-    institutions: new Set(existingAccounts.map(a => a.institution)).size,
-    categories: Object.keys(accountsByCategory).length
-  };
-
   return (
     <div className="flex-1 overflow-auto p-6">
       {/* Header */}
-      <div className="text-center mb-8">
+      <div className="text-center mb-6">
         <motion.div
           initial={{ scale: 0.9, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
-          className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl mb-4 shadow-lg"
+          className="relative inline-block"
         >
-          <Plus className="w-8 h-8 text-white" />
+          <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full blur-xl opacity-30 animate-pulse"></div>
+          <div className="relative inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full shadow-lg shadow-blue-500/25">
+            <Sparkles className="w-8 h-8 text-white animate-pulse" />
+          </div>
         </motion.div>
-        <h2 className="text-2xl font-bold text-white mb-2">
-          {hasExistingAccounts ? 'Add to Your Portfolio' : 'Build Your Portfolio'}
+        <h2 className="text-2xl font-bold text-white mb-2 mt-4">
+          Quick Add to Your NestEgg Portfolio
         </h2>
-        <p className="text-gray-400 max-w-md mx-auto">
-          {hasExistingAccounts
-            ? 'Continue building your financial picture by adding more accounts, positions, or liabilities.'
-            : 'Start by adding your accounts, then add positions and liabilities to track your complete financial picture.'}
+        <p className="text-gray-300 max-w-md mx-auto">
+          Build your complete financial picture in minutes
         </p>
       </div>
 
-      {/* Existing Portfolio Summary */}
-      {hasExistingAccounts && (
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="mb-8 p-4 bg-gradient-to-r from-gray-900/80 to-gray-800/80 rounded-xl border border-gray-700"
-        >
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold text-gray-300 flex items-center">
-              <Activity className="w-4 h-4 mr-2 text-indigo-400" />
-              Your Portfolio
-            </h3>
-            <button
-              onClick={() => window.location.reload()}
-              className="text-xs text-gray-400 hover:text-white flex items-center transition-colors"
+      {/* Main Content - Two Column Layout */}
+      <div className="bg-gradient-to-br from-gray-900/70 to-gray-800 rounded-2xl shadow-sm border border-gray-800 p-6 mb-6">
+        <div className="grid md:grid-cols-2 gap-6">
+          {/* Left side - Action buttons */}
+          <div className="space-y-4">
+            <h4 className="text-sm font-semibold text-gray-300 uppercase tracking-wider mb-4">
+              What would you like to add?
+            </h4>
+
+            {/* Add Accounts Button */}
+            <motion.button
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.1 }}
+              onClick={() => goToView(VIEWS.accounts)}
+              className="w-full group relative bg-gradient-to-br from-gray-800 to-gray-700 p-4 rounded-xl cursor-pointer hover:shadow-lg transition-all duration-300 transform hover:-translate-y-0.5 border border-gray-700 text-left"
             >
-              <RefreshCw className="w-3 h-3 mr-1" />
-              Refresh
-            </button>
-          </div>
-          <div className="grid grid-cols-3 gap-4">
-            <div className="text-center p-3 bg-gray-800/50 rounded-lg">
-              <p className="text-2xl font-bold text-indigo-400">{portfolioSummary.totalAccounts}</p>
-              <p className="text-xs text-gray-400">Accounts</p>
-            </div>
-            <div className="text-center p-3 bg-gray-800/50 rounded-lg">
-              <p className="text-2xl font-bold text-purple-400">{portfolioSummary.institutions}</p>
-              <p className="text-xs text-gray-400">Institutions</p>
-            </div>
-            <div className="text-center p-3 bg-gray-800/50 rounded-lg">
-              <p className="text-2xl font-bold text-emerald-400">{portfolioSummary.categories}</p>
-              <p className="text-xs text-gray-400">Categories</p>
-            </div>
-          </div>
-
-          {/* Category breakdown */}
-          <div className="mt-4 flex flex-wrap gap-2">
-            {ACCOUNT_CATEGORIES.map(cat => {
-              const count = accountsByCategory[cat.id]?.length || 0;
-              if (count === 0) return null;
-              const Icon = cat.icon;
-              return (
-                <div key={cat.id} className="flex items-center px-2 py-1 bg-gray-800 rounded text-xs text-gray-300">
-                  <Icon className="w-3 h-3 mr-1.5 text-gray-400" />
-                  {cat.name}: {count}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <div className="relative">
+                    <div className="absolute inset-0 bg-emerald-600 rounded-lg opacity-0 group-hover:opacity-10 transition-opacity duration-300"></div>
+                    <Building className="w-10 h-10 text-emerald-400 relative z-10" />
+                  </div>
+                  <div className="ml-4">
+                    <h5 className="font-semibold text-white group-hover:text-emerald-400 transition-colors">
+                      Add Accounts
+                    </h5>
+                    <p className="text-sm text-gray-300">Investment, retirement, cash accounts</p>
+                  </div>
                 </div>
-              );
-            })}
-          </div>
-        </motion.div>
-      )}
+                <ChevronRight className="w-5 h-5 text-emerald-400 transform group-hover:translate-x-1 transition-transform" />
+              </div>
+            </motion.button>
 
-      {/* Action Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-        {/* Add Accounts Card */}
-        <motion.button
-          custom={0}
-          variants={cardVariants}
-          initial="initial"
-          animate="animate"
-          whileHover="hover"
-          onClick={() => goToView(VIEWS.accounts)}
-          className="group p-6 bg-gradient-to-br from-blue-600/20 to-blue-700/10 rounded-2xl border border-blue-500/30 hover:border-blue-400/50 transition-all duration-300 text-left"
-        >
-          <div className="flex items-center justify-between mb-4">
-            <div className="w-12 h-12 bg-blue-500/20 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
-              <Building className="w-6 h-6 text-blue-400" />
+            {/* Add Positions Button */}
+            <motion.button
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.2 }}
+              onClick={() => hasExistingAccounts && goToView(VIEWS.positions)}
+              disabled={!hasExistingAccounts}
+              className={`w-full group relative p-4 rounded-xl cursor-pointer transition-all duration-300 transform border text-left ${
+                !hasExistingAccounts
+                  ? 'bg-gray-800/50 border-gray-700 opacity-60 cursor-not-allowed'
+                  : 'bg-gradient-to-br from-purple-900/30 to-purple-800/30 border-purple-800/50 hover:shadow-lg hover:-translate-y-0.5'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <div className="relative">
+                    <div className={`absolute inset-0 rounded-lg transition-opacity duration-300 ${
+                      hasExistingAccounts ? 'bg-purple-600 opacity-0 group-hover:opacity-10' : ''
+                    }`}></div>
+                    <FileSpreadsheet className={`w-10 h-10 relative z-10 ${
+                      !hasExistingAccounts ? 'text-gray-400' : 'text-purple-400'
+                    }`} />
+                  </div>
+                  <div className="ml-4">
+                    <h5 className={`font-semibold transition-colors ${
+                      !hasExistingAccounts
+                        ? 'text-gray-400'
+                        : 'text-white group-hover:text-purple-400'
+                    }`}>
+                      Add Asset Positions
+                    </h5>
+                    <p className="text-sm text-gray-300">
+                      {!hasExistingAccounts
+                        ? 'Add accounts first to enable positions'
+                        : 'Stocks, bonds, crypto, and more'}
+                    </p>
+                  </div>
+                </div>
+                <ChevronRight className={`w-5 h-5 transform transition-transform ${
+                  !hasExistingAccounts
+                    ? 'text-gray-400'
+                    : 'text-purple-400 group-hover:translate-x-1'
+                }`} />
+              </div>
+            </motion.button>
+
+            {/* Add Liabilities Button */}
+            <motion.button
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.3 }}
+              onClick={() => goToView(VIEWS.liabilities)}
+              className="w-full group relative bg-gradient-to-br from-rose-900/30 to-rose-800/30 p-4 rounded-xl cursor-pointer hover:shadow-lg transition-all duration-300 transform hover:-translate-y-0.5 border border-rose-800/50 text-left"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <div className="relative">
+                    <div className="absolute inset-0 bg-rose-600 rounded-lg opacity-0 group-hover:opacity-10 transition-opacity duration-300"></div>
+                    <CreditCard className="w-10 h-10 text-rose-400 relative z-10" />
+                  </div>
+                  <div className="ml-4">
+                    <h5 className="font-semibold text-white group-hover:text-rose-400 transition-colors">
+                      Add Liabilities
+                    </h5>
+                    <p className="text-sm text-gray-300">Mortgages, loans, credit cards</p>
+                    <p className="text-xs text-gray-400 mt-0.5">No accounts required</p>
+                  </div>
+                </div>
+                <ChevronRight className="w-5 h-5 text-rose-400 transform group-hover:translate-x-1 transition-transform" />
+              </div>
+            </motion.button>
+          </div>
+
+          {/* Right side - Portfolio Summary */}
+          <div className="bg-gradient-to-br from-gray-800/50 to-gray-900/50 rounded-xl p-4 border border-gray-700">
+            <div className="flex items-center justify-between mb-4">
+              <h4 className="text-sm font-semibold text-gray-300 uppercase tracking-wider">
+                Current NestEgg Portfolio
+              </h4>
+              <button
+                onClick={() => window.location.reload()}
+                className="p-1.5 hover:bg-gray-700 rounded-lg transition-colors group"
+              >
+                <RefreshCw className="w-4 h-4 text-gray-400 group-hover:text-white" />
+              </button>
             </div>
-            <ChevronRight className="w-5 h-5 text-blue-400/50 group-hover:text-blue-400 group-hover:translate-x-1 transition-all" />
-          </div>
-          <h3 className="text-lg font-semibold text-white mb-1">Add Accounts</h3>
-          <p className="text-sm text-gray-400">
-            Brokerage, retirement, banking, and more
-          </p>
-          {existingAccounts.length > 0 && (
-            <p className="mt-3 text-xs text-blue-400">
-              {existingAccounts.length} account{existingAccounts.length !== 1 ? 's' : ''} added
-            </p>
-          )}
-        </motion.button>
 
-        {/* Add Positions Card */}
-        <motion.button
-          custom={1}
-          variants={cardVariants}
-          initial="initial"
-          animate="animate"
-          whileHover="hover"
-          onClick={() => goToView(VIEWS.positions)}
-          disabled={existingAccounts.length === 0}
-          className={`group p-6 rounded-2xl border transition-all duration-300 text-left ${
-            existingAccounts.length === 0
-              ? 'bg-gray-800/50 border-gray-700 opacity-60 cursor-not-allowed'
-              : 'bg-gradient-to-br from-purple-600/20 to-purple-700/10 border-purple-500/30 hover:border-purple-400/50'
-          }`}
-        >
-          <div className="flex items-center justify-between mb-4">
-            <div className={`w-12 h-12 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform ${
-              existingAccounts.length === 0 ? 'bg-gray-700/50' : 'bg-purple-500/20'
-            }`}>
-              <FileSpreadsheet className={`w-6 h-6 ${
-                existingAccounts.length === 0 ? 'text-gray-500' : 'text-purple-400'
-              }`} />
-            </div>
-            <ChevronRight className={`w-5 h-5 transition-all ${
-              existingAccounts.length === 0
-                ? 'text-gray-600'
-                : 'text-purple-400/50 group-hover:text-purple-400 group-hover:translate-x-1'
-            }`} />
-          </div>
-          <h3 className="text-lg font-semibold text-white mb-1">Add Positions</h3>
-          <p className="text-sm text-gray-400">
-            Stocks, crypto, cash, metals, and assets
-          </p>
-          {existingAccounts.length === 0 && (
-            <p className="mt-3 text-xs text-amber-400">
-              Add accounts first
-            </p>
-          )}
-        </motion.button>
+            {!hasExistingAccounts ? (
+              <div className="text-center py-8">
+                <div className="inline-flex items-center justify-center w-12 h-12 bg-gray-800 rounded-full mb-3">
+                  <Building className="w-6 h-6 text-gray-400" />
+                </div>
+                <p className="text-gray-400 text-sm">No accounts yet</p>
+                <p className="text-gray-400 text-xs mt-1">Start by adding your first account</p>
+              </div>
+            ) : (
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="text-center flex-1">
+                    <p className="text-3xl font-bold text-white">
+                      {existingAccounts.length}
+                    </p>
+                    <p className="text-xs text-gray-300 font-medium">Total Accounts</p>
+                  </div>
+                  <button
+                    onClick={() => setShowAccountsDropdown(!showAccountsDropdown)}
+                    className="flex items-center px-3 py-1.5 bg-gray-800 rounded-lg hover:bg-gray-700 transition-colors text-sm text-gray-300 hover:text-white border border-gray-700"
+                  >
+                    <span>View Details</span>
+                    <ChevronDown className={`w-4 h-4 ml-1.5 transition-transform ${
+                      showAccountsDropdown ? 'rotate-180' : ''
+                    }`} />
+                  </button>
+                </div>
 
-        {/* Add Liabilities Card */}
-        <motion.button
-          custom={2}
-          variants={cardVariants}
-          initial="initial"
-          animate="animate"
-          whileHover="hover"
-          onClick={() => goToView(VIEWS.liabilities)}
-          className="group p-6 bg-gradient-to-br from-rose-600/20 to-rose-700/10 rounded-2xl border border-rose-500/30 hover:border-rose-400/50 transition-all duration-300 text-left"
-        >
-          <div className="flex items-center justify-between mb-4">
-            <div className="w-12 h-12 bg-rose-500/20 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
-              <CreditCard className="w-6 h-6 text-rose-400" />
-            </div>
-            <ChevronRight className="w-5 h-5 text-rose-400/50 group-hover:text-rose-400 group-hover:translate-x-1 transition-all" />
-          </div>
-          <h3 className="text-lg font-semibold text-white mb-1">Add Liabilities</h3>
-          <p className="text-sm text-gray-400">
-            Credit cards, mortgages, loans
-          </p>
-        </motion.button>
-      </div>
+                <AnimatePresence>
+                  {showAccountsDropdown && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      className="space-y-2 mt-4 max-h-64 overflow-y-auto"
+                    >
+                      {ACCOUNT_CATEGORIES.map(category => {
+                        const categoryAccounts = accountsByCategory[category.id] || [];
+                        if (categoryAccounts.length === 0) return null;
+                        const Icon = category.icon;
 
-      {/* Tips Section */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.4 }}
-        className="bg-gradient-to-r from-indigo-900/20 to-purple-900/20 rounded-xl p-5 border border-indigo-500/20"
-      >
-        <h4 className="text-sm font-semibold text-indigo-300 mb-3 flex items-center">
-          <TrendingUp className="w-4 h-4 mr-2" />
-          Quick Tips
-        </h4>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs text-gray-400">
-          <div className="flex items-start">
-            <span className="w-5 h-5 rounded-full bg-indigo-500/20 flex items-center justify-center mr-2 mt-0.5 flex-shrink-0">
-              <span className="text-indigo-400 font-semibold">1</span>
-            </span>
-            <span>Start by adding your accounts - brokerage, retirement, banking, etc.</span>
-          </div>
-          <div className="flex items-start">
-            <span className="w-5 h-5 rounded-full bg-indigo-500/20 flex items-center justify-center mr-2 mt-0.5 flex-shrink-0">
-              <span className="text-indigo-400 font-semibold">2</span>
-            </span>
-            <span>Use Excel import to bulk add positions from your brokerage exports.</span>
-          </div>
-          <div className="flex items-start">
-            <span className="w-5 h-5 rounded-full bg-indigo-500/20 flex items-center justify-center mr-2 mt-0.5 flex-shrink-0">
-              <span className="text-indigo-400 font-semibold">3</span>
-            </span>
-            <span>Type ticker symbols to auto-fill current prices and company names.</span>
-          </div>
-          <div className="flex items-start">
-            <span className="w-5 h-5 rounded-full bg-indigo-500/20 flex items-center justify-center mr-2 mt-0.5 flex-shrink-0">
-              <span className="text-indigo-400 font-semibold">4</span>
-            </span>
-            <span>Your drafts are auto-saved locally. Come back anytime to finish.</span>
+                        return (
+                          <div key={category.id} className="bg-gray-800 rounded-lg p-3 border border-gray-700">
+                            <div className="flex items-center mb-2">
+                              <Icon className="w-4 h-4 text-gray-300 mr-2" />
+                              <span className="text-sm font-medium text-white">
+                                {category.name}
+                              </span>
+                              <span className="ml-auto text-xs text-gray-400">
+                                {categoryAccounts.length}
+                              </span>
+                            </div>
+                            <div className="space-y-1">
+                              {categoryAccounts.map(account => (
+                                <div key={account.id} className="flex items-center justify-between text-xs text-gray-300 pl-6">
+                                  <span className="truncate">
+                                    {account.name || account.account_name || 'Unnamed Account'}
+                                  </span>
+                                  <span className="text-gray-400">
+                                    {account.institution || 'Unknown'}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            )}
           </div>
         </div>
-      </motion.div>
+      </div>
+
+      {/* Feature Highlights */}
+      <div className="grid grid-cols-3 gap-4 mb-6">
+        <div className="text-center group">
+          <div className="relative inline-block">
+            <div className="absolute inset-0 bg-emerald-500 rounded-full blur-lg opacity-0 group-hover:opacity-20 transition-opacity duration-300"></div>
+            <div className="relative inline-flex items-center justify-center w-12 h-12 bg-emerald-900/30 rounded-full group-hover:scale-110 transition-transform">
+              <Shield className="w-6 h-6 text-emerald-400" />
+            </div>
+          </div>
+          <p className="text-sm text-gray-300 mt-2">Secure & Private</p>
+        </div>
+        <div className="text-center group">
+          <div className="relative inline-block">
+            <div className="absolute inset-0 bg-blue-500 rounded-full blur-lg opacity-0 group-hover:opacity-20 transition-opacity duration-300"></div>
+            <div className="relative inline-flex items-center justify-center w-12 h-12 bg-blue-900/30 rounded-full group-hover:scale-110 transition-transform">
+              <Clock className="w-6 h-6 text-blue-400" />
+            </div>
+          </div>
+          <p className="text-sm text-gray-300 mt-2">Quick Setup</p>
+        </div>
+        <div className="text-center group">
+          <div className="relative inline-block">
+            <div className="absolute inset-0 bg-purple-500 rounded-full blur-lg opacity-0 group-hover:opacity-20 transition-opacity duration-300"></div>
+            <div className="relative inline-flex items-center justify-center w-12 h-12 bg-purple-900/30 rounded-full group-hover:scale-110 transition-transform">
+              <Users className="w-6 h-6 text-purple-400" />
+            </div>
+          </div>
+          <p className="text-sm text-gray-300 mt-2">Your Data Only</p>
+        </div>
+      </div>
 
       {/* Footer Actions */}
-      <div className="mt-6 flex justify-end">
+      <div className="flex justify-end">
         <button
           onClick={onClose}
           className="px-4 py-2 text-gray-400 hover:text-white transition-colors"
