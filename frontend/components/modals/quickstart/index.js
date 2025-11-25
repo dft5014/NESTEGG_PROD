@@ -9,6 +9,7 @@ export { quickStartReducer, initialState, actions, ActionTypes } from './state/r
 
 // Utilities
 export * from './utils/constants';
+export * from './utils/excelUtils';
 
 // Components
 export { default as StatusBadge } from './components/StatusBadge';

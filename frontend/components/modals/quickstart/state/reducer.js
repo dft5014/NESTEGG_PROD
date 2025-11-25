@@ -397,16 +397,36 @@ export function quickStartReducer(state, action) {
         if (Array.isArray(items) && items.length > 0) {
           newPositions[assetType] = [
             ...newPositions[assetType],
-            ...items.map(data => ({
-              id: generateId(),
-              data: {
-                purchase_date: new Date().toISOString().split('T')[0],
-                ...data
-              },
-              status: 'draft',
-              isNew: true,
-              errors: {}
-            }))
+            ...items.map(item => {
+              // Handle both formats:
+              // 1. Pre-structured from Excel parser: { id, type, data: {...}, status: 'ready' }
+              // 2. Raw data objects: { ticker: 'AAPL', shares: 10, ... }
+              if (item.data && typeof item.data === 'object') {
+                // Pre-structured format from Excel parser
+                return {
+                  id: item.id || generateId(),
+                  data: {
+                    purchase_date: new Date().toISOString().split('T')[0],
+                    ...item.data
+                  },
+                  status: item.status || 'ready',
+                  isNew: item.isNew !== false,
+                  errors: item.errors || {}
+                };
+              } else {
+                // Raw data format
+                return {
+                  id: generateId(),
+                  data: {
+                    purchase_date: new Date().toISOString().split('T')[0],
+                    ...item
+                  },
+                  status: 'draft',
+                  isNew: true,
+                  errors: {}
+                };
+              }
+            })
           ];
         }
       });
