@@ -98,10 +98,10 @@ function computeChangeFor(rows, key) {
 }
 
 
-// Percent normalizer: ensure we always return a fraction (0..1)
+// Percent normalizer: convert to number, treat value as fraction directly
+// (e.g., 0.3 = 30%, 7.65 = 765%)
 const toFrac = (x) => {
-  const n = Number(x ?? 0);
-  return Math.abs(n) > 1 ? n / 100 : n;
+  return Number(x ?? 0);
 };
 
 // Prefer store-provided deltas when available (like we do on the navbar)

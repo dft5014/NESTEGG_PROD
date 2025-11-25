@@ -91,11 +91,11 @@ const ASSET_TYPES = {
     color: {
       main: 'green',
       bg: 'bg-green-600',
-      lightBg: 'bg-emerald-500/100/10',
+      lightBg: 'bg-emerald-500/10',
       border: 'border-emerald-500/30',
       text: 'text-emerald-400',
-      hover: 'hover:bg-emerald-500/100/20',
-      gradient: 'from-emerald-500/100 to-green-600'
+      hover: 'hover:bg-emerald-500/20',
+      gradient: 'from-emerald-500 to-green-600'
     },
     fields: ['asset_name', 'asset_type', 'cost', 'current_value', 'purchase_date', 'notes']
   },
@@ -409,7 +409,7 @@ const FilterDropdown = ({
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder={`Search ${title.toLowerCase()}...`}
-                className="w-full pl-9 pr-3 py-2 text-sm border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full pl-9 pr-3 py-2 text-sm bg-gray-800 text-white placeholder-gray-500 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
           </div>
@@ -419,7 +419,7 @@ const FilterDropdown = ({
               const isSelected = selected.has(option.value);
               const OptionIcon = option.icon;
               const color = colorConfig?.[option.value] || 'gray';
-              
+
               return (
                 <button
                   key={option.value}
@@ -427,8 +427,8 @@ const FilterDropdown = ({
                   className={`
                     w-full px-2 py-1.5 flex items-start rounded-lg
                     transition-all duration-200 text-sm group
-                    ${isSelected 
-                      ? `bg-${color}-50 hover:bg-${color}-100 border border-${color}-200` 
+                    ${isSelected
+                      ? 'bg-gray-800 hover:bg-gray-750 border border-gray-600'
                       : 'hover:bg-gray-800 border border-transparent'
                     }
                   `}
@@ -437,8 +437,8 @@ const FilterDropdown = ({
                     <div className={`
                       w-4 h-4 rounded border-2 mr-2 flex items-center justify-center mt-0.5 flex-shrink-0
                       transition-all duration-200 group-hover:scale-110
-                      ${isSelected 
-                        ? `bg-${color}-600 border-${color}-600 shadow-sm` 
+                      ${isSelected
+                        ? `bg-${color}-600 border-${color}-600 shadow-sm`
                         : 'border-gray-600 group-hover:border-gray-400'
                       }
                     `}>
@@ -447,7 +447,7 @@ const FilterDropdown = ({
 
                       <div className="flex items-start flex-1">
                         {OptionIcon && (
-                          <OptionIcon className={`w-4 h-4 mr-2 mt-0.5 flex-shrink-0 ${isSelected ? `text-${color}-600` : 'text-gray-500'}`} />
+                          <OptionIcon className={`w-4 h-4 mr-2 mt-0.5 flex-shrink-0 ${isSelected ? `text-${color}-400` : 'text-gray-500'}`} />
                         )}
                         <div className="flex flex-col items-start flex-1">
                           <span className={`font-medium text-left ${isSelected ? 'text-white' : 'text-gray-400'}`}>
@@ -464,7 +464,7 @@ const FilterDropdown = ({
                               <span className="text-[10px] text-gray-500">•</span>
                             )}
                             {option.categoryName && (
-                              <span className={`text-[10px] font-medium text-${option.categoryColor || 'gray'}-600`}>
+                              <span className={`text-[10px] font-medium text-${option.categoryColor || 'gray'}-400`}>
                                 {option.categoryName}
                               </span>
                             )}
@@ -478,8 +478,8 @@ const FilterDropdown = ({
                   {showCounts && option.count !== undefined && (
                     <span className={`
                       px-2 py-1 rounded-full text-xs font-bold
-                      ${isSelected 
-                        ? `bg-${color}-200 text-${color}-800` 
+                      ${isSelected
+                        ? `bg-${color}-600 text-white`
                         : 'bg-gray-800 text-gray-400'
                       }
                     `}>
@@ -695,7 +695,7 @@ const InstitutionSelect = ({ value, onChange, placeholder = 'Type to search.' })
           onFocus={() => setOpen(true)}
           onChange={(e) => { setInput(e.target.value); setOpen(true); }}
           placeholder={placeholder}
-          className="w-full px-3 py-2 bg-gray-900 border border-gray-600 rounded-lg hover:border-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all pr-10"
+          className="w-full px-3 py-2 bg-gray-900 text-white placeholder-gray-500 border border-gray-600 rounded-lg hover:border-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all pr-10"
           style={{ paddingLeft: selected?.logo ? '2.5rem' : undefined }}
         />
         {selected?.logo && (
@@ -3474,7 +3474,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         placeholder={`Search ${currentView}...`}
-                        className="pl-10 pr-4 py-2 w-64 text-sm border border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        className="pl-10 pr-4 py-2 w-64 text-sm bg-gray-800 text-white placeholder-gray-500 border border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       />
                       {searchQuery && (
                         <button
@@ -3705,7 +3705,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
                             {option.count > 0 && (
                               <span className={`
                                 ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold
-                                ${isSelected ? 'bg-gray-900/20' : 'bg-red-200'}
+                                ${isSelected ? 'bg-white/20 text-white' : 'bg-red-900/40 text-red-200'}
                               `}>
                                 {option.count}
                               </span>
@@ -3940,10 +3940,10 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
             <div className={`
               absolute bottom-6 left-1/2 -translate-x-1/2 px-6 py-3 rounded-lg shadow-lg
               flex items-center space-x-3 animate-in slide-in-from-bottom duration-300 z-40
-              ${message.type === 'error' 
-                ? 'bg-red-600 text-white' 
+              ${message.type === 'error'
+                ? 'bg-red-600 text-white'
                 : message.type === 'warning'
-                  ? 'bg-amber-500/100 text-white'
+                  ? 'bg-amber-600 text-white'
                   : message.type === 'success'
                     ? 'bg-green-600 text-white'
                     : 'bg-blue-600 text-white'

@@ -4,9 +4,11 @@ import { usePortfolioSummary } from '@/store/hooks/usePortfolioSummary';
 import { formatCurrency } from '@/utils/formatters';
 import { TrendingUp, TrendingDown, Sparkle } from 'lucide-react';
 
+// Convert decimal to percentage display value (e.g., 0.25 → 25, 7.65 → 765)
+// Always multiply by 100 - values from DataStore are decimals
 const normalizePct = (v) => {
   if (typeof v !== 'number' || !isFinite(v)) return null;
-  return Math.abs(v) <= 1 ? v * 100 : v;
+  return v * 100;
 };
 
 // Smooth animated counter for net worth

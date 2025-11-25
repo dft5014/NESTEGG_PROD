@@ -1712,7 +1712,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
             </div>
 
             {/* Compact Stats Bar */}
-            <div className="relative bg-gradient-to-r from-indigo-50/50 via-purple-50/50 to-pink-50/50 rounded-xl p-3 shadow-sm border border-white/80 backdrop-blur-sm">
+            <div className="relative bg-gradient-to-r from-indigo-900/30 via-purple-900/30 to-pink-900/30 rounded-xl p-3 shadow-sm border border-gray-700 backdrop-blur-sm">
                 <div className="grid grid-cols-4 gap-3">
                     <div className="text-center">
                         <div className="inline-flex items-center justify-center w-10 h-10 bg-gray-800 rounded-lg shadow-sm mb-1">
@@ -1750,7 +1750,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
             </div>
 
             {/* Action Buttons Row - Moved to top */}
-            <div className="flex items-center justify-between gap-3 bg-gradient-to-r from-gray-50 to-white p-3 rounded-xl border border-gray-700">
+            <div className="flex items-center justify-between gap-3 bg-gradient-to-r from-gray-800 to-gray-900 p-3 rounded-xl border border-gray-700">
                 <button
                     onClick={addNewAccount}
                     className="group relative flex-1 flex items-center justify-center px-4 py-2.5 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-lg hover:from-indigo-600 hover:to-purple-700 transition-all duration-300 transform hover:scale-[1.02] hover:shadow-lg"
@@ -1782,16 +1782,16 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                     </button>
                 )}
 
-                <div className="flex items-center bg-amber-50 px-3 py-1.5 rounded-lg border border-amber-200">
-                    <Zap className="w-4 h-4 text-amber-600 mr-1.5" />
-                    <span className="text-xs font-medium text-amber-700">Quick Mode</span>
+                <div className="flex items-center bg-amber-900/30 px-3 py-1.5 rounded-lg border border-amber-700/50">
+                    <Zap className="w-4 h-4 text-amber-400 mr-1.5" />
+                    <span className="text-xs font-medium text-amber-400">Quick Mode</span>
                 </div>
             </div>
 
             {/* Compact Table Section */}
             <div className="bg-gray-800 rounded-xl shadow-lg border border-gray-700">
                 {/* Compact Table Header */}
-                <div className="bg-gradient-to-r from-gray-50 to-gray-100/50 px-6 py-3 border-b border-gray-700">
+                <div className="bg-gradient-to-r from-gray-900 to-gray-800 px-6 py-3 border-b border-gray-700">
                     <div className="grid grid-cols-12 gap-4 text-xs font-semibold text-gray-300 uppercase tracking-wider">
                         <div className="col-span-3 flex items-center">
                             <button 
@@ -1826,7 +1826,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                 </div>
 
                 {/* Account Rows - Tighter spacing */}
-                <div className="p-3 space-y-2 bg-gradient-to-b from-gray-50/30 to-white relative overflow-visible" style={{ minHeight: '200px' }}>
+                <div className="p-3 space-y-2 bg-gray-900 relative overflow-visible" style={{ minHeight: '200px' }}>
                     {sortedAccounts.length === 0 ? (
                         <div className="text-center py-12">
                             <div className="inline-flex items-center justify-center w-16 h-16 bg-gray-800 rounded-full mb-3">
@@ -1944,7 +1944,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                                            </button>
                                            <button
                                                onClick={() => deleteAccount(account.tempId)}
-                                               className="p-1.5 text-gray-400 hover:text-rose-400 hover:bg-red-50 rounded-md transition-all transform hover:scale-110"
+                                               className="p-1.5 text-gray-400 hover:text-rose-400 hover:bg-rose-500/20 rounded-md transition-all transform hover:scale-110"
                                                title="Delete"
                                            >
                                                <Trash2 className="w-4 h-4" />
@@ -1961,7 +1961,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                                    {/* Category icon - smaller */}
                                    {selectedCategory && (
                                        <div className="absolute -right-2 -top-2 opacity-0 group-hover:opacity-100 transition-all duration-300 transform group-hover:scale-110">
-                                           <div className="w-8 h-8 rounded-lg border border-white shadow-lg bg-gradient-to-br from-white to-gray-50 flex items-center justify-center">
+                                           <div className="w-8 h-8 rounded-lg border border-gray-600 shadow-lg bg-gradient-to-br from-gray-700 to-gray-800 flex items-center justify-center">
                                                <selectedCategory.icon className="w-4 h-4 text-gray-300" />
                                            </div>
                                        </div>
@@ -1983,7 +1983,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
            </div>
 
            {/* Compact Keyboard shortcuts */}
-           <div className="bg-gradient-to-r from-indigo-50/50 to-purple-50/50 rounded-lg p-3 border border-indigo-100/50 flex items-center justify-between">
+           <div className="bg-gradient-to-r from-indigo-900/30 to-purple-900/30 rounded-lg p-3 border border-indigo-800/50 flex items-center justify-between">
                <div className="flex items-center">
                    <Keyboard className="w-4 h-4 text-emerald-400 mr-2" />
                    <p className="text-xs text-gray-300">
@@ -2140,7 +2140,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                 
                 {/* Keep existing positions section */}
                 {isPositions && importedPositionsData && importedPositionsData.length > 0 ? (
-                    <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-6 max-w-2xl mx-auto border border-purple-200">
+                    <div className="bg-gradient-to-br from-purple-900/30 to-purple-900/20 rounded-xl p-6 max-w-2xl mx-auto border border-purple-800/50">
                         <h4 className="font-semibold text-white mb-4 flex items-center justify-center">
                             <Activity className="w-5 h-5 mr-2 text-purple-400" />
                             Positions Import Summary
@@ -2227,7 +2227,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                 
                 {/* Keep existing accounts section */}
                 {!isPositions && !isLiabilities && importedAccounts.length > 0 ? (
-                    <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-6 max-w-2xl mx-auto border border-green-200">
+                    <div className="bg-gradient-to-br from-green-900/30 to-emerald-900/20 rounded-xl p-6 max-w-2xl mx-auto border border-green-800/50">
                         <h4 className="font-semibold text-white mb-4 flex items-center justify-center">
                             <Activity className="w-5 h-5 mr-2 text-emerald-400" />
                             Import Summary
@@ -2503,10 +2503,10 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                </div>
 
                {!isAccounts && (
-                   <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                   <div className="bg-purple-900/20 border border-purple-800/50 rounded-lg p-4">
                        <div className="flex items-center">
                            <AlertCircle className="w-5 h-5 text-purple-400 mr-3 flex-shrink-0" />
-                           <p className="text-sm text-purple-900">
+                           <p className="text-sm text-purple-300">
                                Make sure you've imported your accounts first. The positions template will include your account names.
                            </p>
                        </div>
@@ -2614,7 +2614,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
             onDragOver={handleDragOver}
             onDrop={handleDrop}
             className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors ${
-                isDragging ? 'border-purple-400 bg-purple-50' : 'border-gray-700'
+                isDragging ? 'border-purple-400 bg-purple-900/20' : 'border-gray-700'
             }`}
             >
             <div className="mb-4">
@@ -2661,7 +2661,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                             if (fileInputRef.current) fileInputRef.current.value = '';
                             fileInputRef.current?.click();
                         }}
-                        className="text-sm text-blue-400 hover:text-blue-700 underline"
+                        className="text-sm text-blue-400 hover:text-blue-300 underline"
                         >
                         Replace file
                         </button>
@@ -2674,7 +2674,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                         setUploadProgress(0);
                         if (fileInputRef.current) fileInputRef.current.value = '';
                         }}
-                        className="text-sm text-gray-300 hover:text-gray-800 underline"
+                        className="text-sm text-gray-400 hover:text-gray-200 underline"
                     >
                         Remove file
                     </button>
