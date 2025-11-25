@@ -14,7 +14,8 @@ import debounce from 'lodash.debounce';
 import {
   Plus, X, Check, DollarSign, BarChart3, Coins, Gem, Home,
   Trash2, CheckCircle, AlertCircle, Loader2, Upload, Download,
-  ArrowRight, ChevronDown, Search, Building2, Layers, Wallet
+  ArrowRight, ChevronDown, ChevronUp, Search, Building2, Layers, Wallet,
+  Copy, Info, Keyboard, FileSpreadsheet, ClipboardList, HelpCircle
 } from 'lucide-react';
 
 // ============================================================================
@@ -115,13 +116,23 @@ const ASSET_TYPES = {
 const initialState = {
   positions: [],
   accounts: [],
-  expandedTypes: {},
+  expandedTypes: {
+    security: true,
+    cash: false,
+    crypto: false,
+    metal: false,
+    other: false
+  },
   selectedIds: new Set(),
   searchResults: {},
   isSearching: {},
   isDirty: false,
   showImportModal: false,
-  importData: null
+  importData: null,
+  showHelp: false,
+  showKeyboardShortcuts: false,
+  showQueue: false,
+  searchTerm: ''
 };
 
 function positionsReducer(state, action) {
@@ -245,6 +256,38 @@ function positionsReducer(state, action) {
 
     case 'SET_IMPORT_DATA':
       return { ...state, importData: action.payload };
+
+    case 'TOGGLE_HELP':
+      return { ...state, showHelp: !state.showHelp };
+
+    case 'TOGGLE_KEYBOARD_SHORTCUTS':
+      return { ...state, showKeyboardShortcuts: !state.showKeyboardShortcuts };
+
+    case 'TOGGLE_QUEUE':
+      return { ...state, showQueue: !state.showQueue };
+
+    case 'SET_SEARCH_TERM':
+      return { ...state, searchTerm: action.payload };
+
+    case 'DUPLICATE_POSITION':
+      const posToDupe = state.positions.find(p => p.id === action.payload);
+      if (!posToDupe) return state;
+      const duplicated = {
+        ...posToDupe,
+        id: `${Date.now()}-${Math.random()}`,
+        data: { ...posToDupe.data },
+        status: 'draft'
+      };
+      const dupeIndex = state.positions.findIndex(p => p.id === action.payload);
+      return {
+        ...state,
+        positions: [
+          ...state.positions.slice(0, dupeIndex + 1),
+          duplicated,
+          ...state.positions.slice(dupeIndex + 1)
+        ],
+        isDirty: true
+      };
 
     default:
       return state;
@@ -499,6 +542,72 @@ export default function AddPositionsModalV2({ isOpen, onClose, onSuccess, seedPo
       }
     };
   }, [isOpen, state.positions]);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (e) => {
+      // Ctrl+K: Toggle help
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault();
+        dispatch({ type: 'TOGGLE_KEYBOARD_SHORTCUTS' });
+      }
+
+      // Escape: Close modals/help
+      if (e.key === 'Escape') {
+        if (state.showHelp) dispatch({ type: 'TOGGLE_HELP' });
+        else if (state.showKeyboardShortcuts) dispatch({ type: 'TOGGLE_KEYBOARD_SHORTCUTS' });
+        else if (state.showQueue) dispatch({ type: 'TOGGLE_QUEUE' });
+      }
+
+      // Ctrl+H: Toggle help panel
+      if ((e.ctrlKey || e.metaKey) && e.key === 'h') {
+        e.preventDefault();
+        dispatch({ type: 'TOGGLE_HELP' });
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, state.showHelp, state.showKeyboardShortcuts, state.showQueue]);
+
+  // Download Excel template
+  const downloadTemplate = useCallback(() => {
+    const headers = ['asset_type', 'ticker', 'symbol', 'shares', 'quantity', 'price', 'current_price', 'purchase_price', 'cost_basis', 'purchase_date', 'account_name', 'cash_type', 'amount', 'metal_type', 'asset_name', 'current_value'];
+    const sampleRows = [
+      ['security', 'AAPL', '', '10', '', '180.50', '', '', '175.00', '2024-01-15', 'My Brokerage', '', '', '', '', ''],
+      ['crypto', '', 'BTC', '', '0.5', '', '65000', '', '60000', '2024-02-01', 'Coinbase', '', '', '', '', ''],
+      ['cash', '', '', '', '', '', '', '', '', '', 'Chase Checking', 'Checking', '5000', '', '', ''],
+      ['metal', '', '', '', '10', '', '', '2400', '', '2024-03-01', 'Gold Vault', '', '', 'Gold', '', ''],
+      ['other', '', '', '', '', '', '', '', '', '', '', '', '', '', 'My House', '500000']
+    ];
+
+    const csv = [headers.join(','), ...sampleRows.map(row => row.join(','))].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'nestegg-positions-template.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, []);
+
+  // Clear all with confirmation
+  const handleClearAll = useCallback(() => {
+    if (state.positions.length === 0) return;
+
+    const confirmed = window.confirm(
+      `Are you sure you want to clear all ${state.positions.length} position(s)?\n\nThis will delete your draft but won't affect saved positions.`
+    );
+
+    if (confirmed) {
+      dispatch({ type: 'CLEAR_ALL' });
+      localStorage.removeItem('positions_draft_v2');
+    }
+  }, [state.positions.length]);
 
   // Add new position
   const addPosition = useCallback((assetType) => {
@@ -821,26 +930,56 @@ export default function AddPositionsModalV2({ isOpen, onClose, onSuccess, seedPo
 
         {/* Actions */}
         <td className="px-3 py-2">
-          <button
-            onClick={() => deletePosition(position.id)}
-            className="p-1 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 rounded"
-            title="Delete"
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
+          <div className="flex items-center space-x-1">
+            <button
+              onClick={() => dispatch({ type: 'DUPLICATE_POSITION', payload: position.id })}
+              className="p-1 text-blue-400 hover:text-blue-300 hover:bg-blue-500/10 rounded"
+              title="Duplicate"
+            >
+              <Copy className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => deletePosition(position.id)}
+              className="p-1 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 rounded"
+              title="Delete"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          </div>
         </td>
       </tr>
     );
   }, [state.accounts, state.selectedIds, updatePosition, deletePosition]);
 
-  // Group positions by type
-  const positionsByType = useMemo(() => {
-    return state.positions.reduce((acc, pos) => {
+  // Filter and group positions
+  const filteredPositionsByType = useMemo(() => {
+    let filtered = state.positions;
+
+    // Apply search filter
+    if (state.searchTerm) {
+      const term = state.searchTerm.toLowerCase();
+      filtered = filtered.filter(pos => {
+        const searchFields = [
+          pos.data.ticker,
+          pos.data.symbol,
+          pos.data.name,
+          pos.data.asset_name,
+          pos.data.metal_type,
+          pos.data.cash_type,
+          ASSET_TYPES[pos.assetType]?.name
+        ].filter(Boolean).map(f => String(f).toLowerCase());
+
+        return searchFields.some(field => field.includes(term));
+      });
+    }
+
+    // Group by type
+    return filtered.reduce((acc, pos) => {
       if (!acc[pos.assetType]) acc[pos.assetType] = [];
       acc[pos.assetType].push(pos);
       return acc;
     }, {});
-  }, [state.positions]);
+  }, [state.positions, state.searchTerm]);
 
   return (
     <FixedModal
@@ -851,68 +990,196 @@ export default function AddPositionsModalV2({ isOpen, onClose, onSuccess, seedPo
     >
       <div className="h-[85vh] flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between mb-4 pb-4 border-b border-gray-700">
-          <div className="flex items-center space-x-4">
-            <div className="text-sm">
-              <span className="text-gray-400">Total:</span>
-              <span className="ml-2 font-bold text-white">{stats.total}</span>
+        <div className="space-y-3 mb-4 pb-4 border-b border-gray-700">
+          {/* Top row: Stats and actions */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <div className="text-sm">
+                <span className="text-gray-400">Total:</span>
+                <span className="ml-2 font-bold text-white">{stats.total}</span>
+              </div>
+              <div className="text-sm">
+                <span className="text-gray-400">Ready:</span>
+                <span className="ml-2 font-bold text-emerald-400">{stats.byStatus.ready}</span>
+              </div>
+              <div className="text-sm">
+                <span className="text-gray-400">Draft:</span>
+                <span className="ml-2 font-bold text-amber-400">{stats.byStatus.draft}</span>
+              </div>
+              <div className="text-sm">
+                <span className="text-gray-400">Value:</span>
+                <span className="ml-2 font-bold text-white">{formatCurrency(stats.totalValue)}</span>
+              </div>
             </div>
-            <div className="text-sm">
-              <span className="text-gray-400">Ready:</span>
-              <span className="ml-2 font-bold text-emerald-400">{stats.byStatus.ready}</span>
-            </div>
-            <div className="text-sm">
-              <span className="text-gray-400">Draft:</span>
-              <span className="ml-2 font-bold text-amber-400">{stats.byStatus.draft}</span>
-            </div>
-            <div className="text-sm">
-              <span className="text-gray-400">Value:</span>
-              <span className="ml-2 font-bold text-white">{formatCurrency(stats.totalValue)}</span>
-            </div>
-          </div>
 
-          <div className="flex items-center space-x-2">
-            <button
-              onClick={() => dispatch({ type: 'SHOW_IMPORT_MODAL' })}
-              className="px-3 py-1.5 text-sm bg-gray-700 text-white rounded hover:bg-gray-600 flex items-center space-x-1"
-              title="Import from Excel/CSV"
-            >
-              <Upload className="w-4 h-4" />
-              <span>Import</span>
-            </button>
-
-            {state.selectedIds.size > 0 && (
+            <div className="flex items-center space-x-2">
               <button
-                onClick={() => dispatch({ type: 'DELETE_SELECTED', payload: Array.from(state.selectedIds) })}
-                className="px-3 py-1.5 text-sm bg-rose-600 text-white rounded hover:bg-rose-700 flex items-center space-x-1"
+                onClick={() => dispatch({ type: 'TOGGLE_HELP' })}
+                className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded transition-colors"
+                title="Help (Ctrl+H)"
               >
-                <Trash2 className="w-4 h-4" />
-                <span>Delete {state.selectedIds.size}</span>
+                <HelpCircle className="w-5 h-5" />
               </button>
-            )}
 
-            <button
-              onClick={() => submitPositions('ready')}
-              disabled={isSubmitting || stats.byStatus.ready === 0}
-              className="px-4 py-1.5 text-sm bg-emerald-600 text-white rounded hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
-            >
-              <CheckCircle className="w-4 h-4" />
-              <span>Submit Ready ({stats.byStatus.ready})</span>
-            </button>
+              <button
+                onClick={() => dispatch({ type: 'TOGGLE_KEYBOARD_SHORTCUTS' })}
+                className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded transition-colors"
+                title="Keyboard Shortcuts (Ctrl+K)"
+              >
+                <Keyboard className="w-5 h-5" />
+              </button>
 
-            <button
-              onClick={() => submitPositions('all')}
-              disabled={isSubmitting || stats.total === 0}
-              className="px-4 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
-            >
-              {isSubmitting ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Check className="w-4 h-4" />
+              <button
+                onClick={downloadTemplate}
+                className="px-3 py-1.5 text-sm bg-gray-700 text-white rounded hover:bg-gray-600 flex items-center space-x-1"
+                title="Download Excel Template"
+              >
+                <Download className="w-4 h-4" />
+                <span>Template</span>
+              </button>
+
+              <button
+                onClick={() => dispatch({ type: 'SHOW_IMPORT_MODAL' })}
+                className="px-3 py-1.5 text-sm bg-gray-700 text-white rounded hover:bg-gray-600 flex items-center space-x-1"
+                title="Import from Excel/CSV"
+              >
+                <Upload className="w-4 h-4" />
+                <span>Import</span>
+              </button>
+
+              {stats.byStatus.added > 0 && (
+                <button
+                  onClick={() => dispatch({ type: 'TOGGLE_QUEUE' })}
+                  className="px-3 py-1.5 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700 flex items-center space-x-1"
+                  title="View Added Positions"
+                >
+                  <ClipboardList className="w-4 h-4" />
+                  <span>View {stats.byStatus.added} Added</span>
+                </button>
               )}
-              <span>Submit All</span>
-            </button>
+
+              <button
+                onClick={handleClearAll}
+                disabled={stats.total === 0}
+                className="px-3 py-1.5 text-sm bg-gray-700 text-white rounded hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-1"
+                title="Clear All"
+              >
+                <X className="w-4 h-4" />
+                <span>Clear All</span>
+              </button>
+
+              {state.selectedIds.size > 0 && (
+                <button
+                  onClick={() => dispatch({ type: 'DELETE_SELECTED', payload: Array.from(state.selectedIds) })}
+                  className="px-3 py-1.5 text-sm bg-rose-600 text-white rounded hover:bg-rose-700 flex items-center space-x-1"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span>Delete {state.selectedIds.size}</span>
+                </button>
+              )}
+
+              <button
+                onClick={() => submitPositions('ready')}
+                disabled={isSubmitting || stats.byStatus.ready === 0}
+                className="px-4 py-1.5 text-sm bg-emerald-600 text-white rounded hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+              >
+                <CheckCircle className="w-4 h-4" />
+                <span>Submit Ready ({stats.byStatus.ready})</span>
+              </button>
+
+              <button
+                onClick={() => submitPositions('all')}
+                disabled={isSubmitting || stats.total === 0}
+                className="px-4 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+              >
+                {isSubmitting ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Check className="w-4 h-4" />
+                )}
+                <span>Submit All</span>
+              </button>
+            </div>
           </div>
+
+          {/* Bottom row: Search */}
+          {stats.total > 0 && (
+            <div className="flex items-center space-x-3">
+              <div className="relative flex-1 max-w-md">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                <input
+                  type="text"
+                  placeholder="Search positions by ticker, symbol, name..."
+                  value={state.searchTerm}
+                  onChange={(e) => dispatch({ type: 'SET_SEARCH_TERM', payload: e.target.value })}
+                  className="w-full pl-10 pr-4 py-2 text-sm bg-gray-800 border border-gray-700 rounded text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Help Panel */}
+          {state.showHelp && (
+            <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3 animate-in slide-in-from-top duration-300">
+              <div className="flex items-start space-x-2">
+                <Info className="w-4 h-4 text-blue-400 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-xs font-semibold text-blue-300 mb-1.5">📘 How to Use Quick Position Entry</p>
+                  <div className="space-y-1 text-[10px] text-blue-400/90">
+                    <div className="flex items-start space-x-1.5">
+                      <span className="text-blue-300 font-medium mt-0.5">1.</span>
+                      <span>Click an asset type button (Securities, Cash, Crypto, etc.) to add positions</span>
+                    </div>
+                    <div className="flex items-start space-x-1.5">
+                      <span className="text-blue-300 font-medium mt-0.5">2.</span>
+                      <span>Fill required fields - status changes from <span className="text-amber-400">Draft</span> → <span className="text-emerald-400">Ready</span> when complete</span>
+                    </div>
+                    <div className="flex items-start space-x-1.5">
+                      <span className="text-blue-300 font-medium mt-0.5">3.</span>
+                      <span>Type ticker/symbol and select from dropdown to auto-fill name and price</span>
+                    </div>
+                    <div className="flex items-start space-x-1.5">
+                      <span className="text-blue-300 font-medium mt-0.5">4.</span>
+                      <span>Use "Download Template" → fill Excel → "Import" for bulk entry</span>
+                    </div>
+                    <div className="flex items-start space-x-1.5">
+                      <span className="text-blue-300 font-medium mt-0.5">5.</span>
+                      <span>Submit ready positions or submit all at once</span>
+                    </div>
+                  </div>
+                </div>
+                <button
+                  onClick={() => dispatch({ type: 'TOGGLE_HELP' })}
+                  className="p-1 hover:bg-blue-500/20 rounded transition-colors"
+                >
+                  <X className="w-3 h-3 text-blue-400" />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Keyboard Shortcuts Panel */}
+          {state.showKeyboardShortcuts && (
+            <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3 animate-in slide-in-from-top duration-300">
+              <div className="flex items-start space-x-2">
+                <Keyboard className="w-4 h-4 text-blue-400 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-xs font-semibold text-blue-300 mb-1.5">⌨️ Keyboard Shortcuts</p>
+                  <div className="grid grid-cols-3 gap-x-4 gap-y-1 text-[10px] text-blue-400">
+                    <div><kbd className="px-1 py-0.5 bg-gray-900 rounded text-blue-300 font-mono text-[9px]">Ctrl+K</kbd> Toggle shortcuts</div>
+                    <div><kbd className="px-1 py-0.5 bg-gray-900 rounded text-blue-300 font-mono text-[9px]">Ctrl+H</kbd> Toggle help</div>
+                    <div><kbd className="px-1 py-0.5 bg-gray-900 rounded text-blue-300 font-mono text-[9px]">Esc</kbd> Close panels</div>
+                  </div>
+                </div>
+                <button
+                  onClick={() => dispatch({ type: 'TOGGLE_KEYBOARD_SHORTCUTS' })}
+                  className="p-1 hover:bg-blue-500/20 rounded transition-colors"
+                >
+                  <X className="w-3 h-3 text-blue-400" />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Add buttons */}
@@ -920,30 +1187,45 @@ export default function AddPositionsModalV2({ isOpen, onClose, onSuccess, seedPo
           {Object.entries(ASSET_TYPES).map(([key, config]) => {
             const Icon = config.icon;
             const count = stats.byType[key]?.count || 0;
+            const isExpanded = state.expandedTypes[key];
+            const ChevronIcon = isExpanded ? ChevronUp : ChevronDown;
+
             return (
-              <button
-                key={key}
-                onClick={() => addPosition(key)}
-                className={`px-3 py-2 rounded-lg border-2 flex items-center space-x-2 transition-all hover:scale-105 ${
-                  count > 0
-                    ? 'bg-blue-600 border-blue-500 text-white'
-                    : 'bg-gray-800 border-gray-600 text-gray-300 hover:border-gray-500'
-                }`}
-              >
-                <Icon className="w-4 h-4" />
-                <span className="text-sm font-medium">{config.name}</span>
+              <div key={key} className="flex items-center gap-1">
+                <button
+                  onClick={() => addPosition(key)}
+                  className={`px-3 py-2 rounded-lg border-2 flex items-center space-x-2 transition-all hover:scale-105 ${
+                    count > 0
+                      ? 'bg-blue-600 border-blue-500 text-white'
+                      : 'bg-gray-800 border-gray-600 text-gray-300 hover:border-gray-500'
+                  }`}
+                >
+                  <Icon className="w-4 h-4" />
+                  <span className="text-sm font-medium">{config.name}</span>
+                  {count > 0 && (
+                    <span className="px-2 py-0.5 bg-white/20 rounded-full text-xs font-bold">
+                      {count}
+                    </span>
+                  )}
+                  <Plus className="w-3 h-3" />
+                </button>
+
                 {count > 0 && (
-                  <span className="px-2 py-0.5 bg-white/20 rounded-full text-xs font-bold">
-                    {count}
-                  </span>
+                  <button
+                    onClick={() => dispatch({ type: 'TOGGLE_EXPANDED', payload: key })}
+                    className="p-2 rounded-lg bg-gray-800 border-2 border-gray-600 text-gray-300 hover:border-gray-500 transition-all"
+                    title={isExpanded ? "Collapse" : "Expand"}
+                  >
+                    <ChevronIcon className="w-4 h-4" />
+                  </button>
                 )}
-              </button>
+              </div>
             );
           })}
         </div>
 
         {/* Positions table */}
-        <div className="flex-1 overflow-auto">
+        <div className="flex-1 overflow-auto space-y-4">
           {state.positions.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-64 text-gray-400">
               <Plus className="w-16 h-16 mb-4 opacity-20" />
@@ -951,30 +1233,102 @@ export default function AddPositionsModalV2({ isOpen, onClose, onSuccess, seedPo
               <p className="text-sm">Click a button above to add positions</p>
             </div>
           ) : (
-            <table className="w-full text-sm">
-              <thead className="sticky top-0 bg-gray-800 border-b-2 border-gray-700">
-                <tr>
-                  <th className="px-3 py-2 text-left">
-                    <input
-                      type="checkbox"
-                      checked={state.selectedIds.size === state.positions.length && state.positions.length > 0}
-                      onChange={(e) => dispatch({ type: e.target.checked ? 'SELECT_ALL' : 'DESELECT_ALL' })}
-                      className="rounded border-gray-600 bg-gray-800 text-blue-600"
-                    />
-                  </th>
-                  <th className="px-3 py-2 text-left text-xs text-gray-400">Type</th>
-                  <th className="px-3 py-2 text-left text-xs text-gray-400">Fields...</th>
-                  <th className="px-3 py-2 text-left text-xs text-gray-400">Status</th>
-                  <th className="px-3 py-2 text-left text-xs text-gray-400">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {state.positions.map(renderPositionRow)}
-              </tbody>
-            </table>
+            <>
+              {Object.entries(ASSET_TYPES).map(([assetType, config]) => {
+                const typePositions = filteredPositionsByType[assetType] || [];
+                if (typePositions.length === 0) return null;
+
+                const Icon = config.icon;
+                const isExpanded = state.expandedTypes[assetType];
+
+                return (
+                  <div key={assetType} className="bg-gray-900 rounded-lg border border-gray-700">
+                    {/* Section Header */}
+                    <div
+                      className="flex items-center justify-between px-4 py-3 border-b border-gray-700 cursor-pointer hover:bg-gray-800/50"
+                      onClick={() => dispatch({ type: 'TOGGLE_EXPANDED', payload: assetType })}
+                    >
+                      <div className="flex items-center space-x-3">
+                        <Icon className="w-5 h-5 text-blue-400" />
+                        <h3 className="font-semibold text-white">{config.name}</h3>
+                        <span className="px-2 py-0.5 bg-blue-500/20 text-blue-300 rounded-full text-xs font-bold">
+                          {typePositions.length}
+                        </span>
+                      </div>
+                      {isExpanded ? <ChevronUp className="w-5 h-5 text-gray-400" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
+                    </div>
+
+                    {/* Section Content */}
+                    {isExpanded && (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead className="bg-gray-800">
+                            <tr>
+                              <th className="px-3 py-2 text-left">
+                                <input
+                                  type="checkbox"
+                                  checked={typePositions.every(p => state.selectedIds.has(p.id))}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      typePositions.forEach(p => {
+                                        if (!state.selectedIds.has(p.id)) {
+                                          dispatch({ type: 'TOGGLE_SELECT', payload: p.id });
+                                        }
+                                      });
+                                    } else {
+                                      typePositions.forEach(p => {
+                                        if (state.selectedIds.has(p.id)) {
+                                          dispatch({ type: 'TOGGLE_SELECT', payload: p.id });
+                                        }
+                                      });
+                                    }
+                                  }}
+                                  className="rounded border-gray-600 bg-gray-800 text-blue-600"
+                                />
+                              </th>
+                              <th className="px-3 py-2 text-left text-xs text-gray-400">Type</th>
+                              {config.fields.map(field => (
+                                <th key={field.key} className="px-3 py-2 text-left text-xs text-gray-400">
+                                  {field.label}
+                                  {field.required && <span className="text-rose-400 ml-0.5">*</span>}
+                                </th>
+                              ))}
+                              <th className="px-3 py-2 text-left text-xs text-gray-400">Status</th>
+                              <th className="px-3 py-2 text-left text-xs text-gray-400">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {typePositions.map(renderPositionRow)}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+
+              {/* No results message when search is active */}
+              {state.searchTerm && Object.keys(filteredPositionsByType).length === 0 && (
+                <div className="flex flex-col items-center justify-center h-64 text-gray-400">
+                  <Search className="w-16 h-16 mb-4 opacity-20" />
+                  <p className="text-lg">No positions found</p>
+                  <p className="text-sm">Try a different search term</p>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
+
+      {/* Queue Modal - View added positions */}
+      {state.showQueue && (
+        <QueueModal
+          isOpen={state.showQueue}
+          onClose={() => dispatch({ type: 'TOGGLE_QUEUE' })}
+          positions={state.positions.filter(p => p.status === 'added')}
+          accounts={state.accounts}
+        />
+      )}
 
       {/* Import Modal */}
       {state.showImportModal && (
@@ -1002,12 +1356,85 @@ function StatusBadge({ status }) {
     error: { color: 'text-rose-400 bg-rose-500/10 border-rose-500/30', label: 'Error' }
   };
 
-  const { color, label } = config[status] || config.draft;
+  const { color, label} = config[status] || config.draft;
 
   return (
     <span className={`inline-flex items-center px-2 py-0.5 text-xs rounded border ${color}`}>
       {label}
     </span>
+  );
+}
+
+// Queue Modal - View successfully added positions
+function QueueModal({ isOpen, onClose, positions, accounts }) {
+  return (
+    <FixedModal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Successfully Added Positions"
+      size="max-w-4xl"
+    >
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-gray-400">
+            {positions.length} position(s) have been added to your portfolio
+          </p>
+        </div>
+
+        {positions.length === 0 ? (
+          <div className="text-center py-12 text-gray-400">
+            <ClipboardList className="w-16 h-16 mx-auto mb-4 opacity-20" />
+            <p>No positions added yet</p>
+          </div>
+        ) : (
+          <div className="max-h-96 overflow-auto border border-gray-700 rounded">
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 bg-gray-800">
+                <tr>
+                  <th className="px-3 py-2 text-left text-xs text-gray-400">Type</th>
+                  <th className="px-3 py-2 text-left text-xs text-gray-400">Ticker/Symbol</th>
+                  <th className="px-3 py-2 text-left text-xs text-gray-400">Shares/Qty</th>
+                  <th className="px-3 py-2 text-left text-xs text-gray-400">Price</th>
+                  <th className="px-3 py-2 text-left text-xs text-gray-400">Account</th>
+                  <th className="px-3 py-2 text-left text-xs text-gray-400">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {positions.map((pos, idx) => (
+                  <tr key={idx} className="border-b border-gray-800">
+                    <td className="px-3 py-2 text-gray-400">{ASSET_TYPES[pos.assetType]?.name}</td>
+                    <td className="px-3 py-2 text-white">
+                      {pos.data.ticker || pos.data.symbol || pos.data.asset_name || '-'}
+                    </td>
+                    <td className="px-3 py-2 text-gray-300">
+                      {pos.data.shares || pos.data.quantity || pos.data.amount || '-'}
+                    </td>
+                    <td className="px-3 py-2 text-gray-300">
+                      {pos.data.price || pos.data.current_price || pos.data.purchase_price || '-'}
+                    </td>
+                    <td className="px-3 py-2 text-gray-400">
+                      {accounts.find(a => a.id === pos.data.account_id)?.account_name || 'N/A'}
+                    </td>
+                    <td className="px-3 py-2">
+                      <StatusBadge status={pos.status} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        <div className="flex justify-end">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 bg-gray-700 text-white rounded hover:bg-gray-600"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </FixedModal>
   );
 }
 
