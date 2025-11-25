@@ -149,6 +149,12 @@ export const addSecurityPosition = async (accountId, positionData) => {
 export const addSecurityPositionBulk = async (accountId, positionData) => {
   const payload = Array.isArray(positionData) ? positionData : [positionData];
 
+  console.log('[addSecurityPositionBulk] Sending request:', {
+    accountId,
+    payloadCount: payload.length,
+    firstItem: payload[0]
+  });
+
   const res = await fetchWithAuth(`/positions/${accountId}/bulk`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -157,10 +163,25 @@ export const addSecurityPositionBulk = async (accountId, positionData) => {
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err?.detail || 'Failed to add security position (bulk)');
+    console.error('[addSecurityPositionBulk] Error response:', err);
+
+    // Handle different error formats
+    let errorMessage = 'Failed to add security position (bulk)';
+    if (err?.detail) {
+      if (typeof err.detail === 'string') {
+        errorMessage = err.detail;
+      } else if (Array.isArray(err.detail)) {
+        errorMessage = JSON.stringify(err.detail, null, 2);
+      } else if (typeof err.detail === 'object') {
+        errorMessage = JSON.stringify(err.detail, null, 2);
+      }
+    }
+
+    throw new Error(errorMessage);
   }
 
   const data = await res.json();
+  console.log('[addSecurityPositionBulk] Success response:', data);
 
   // If caller sent a single row, return legacy shape
   if (!Array.isArray(positionData)) {

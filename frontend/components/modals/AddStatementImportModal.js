@@ -610,7 +610,15 @@ const AddStatementImportModal = ({ isOpen, onClose }) => {
       });
 
       // Import in bulk
+      console.log('[AddStatementImportModal] Calling addSecurityPositionBulk with:', {
+        accountId: selectedAccount,
+        positionCount: allPositions.length,
+        samplePositions: allPositions.slice(0, 3)
+      });
+
       const result = await addSecurityPositionBulk(selectedAccount, allPositions);
+
+      console.log('[AddStatementImportModal] Import result:', result);
 
       setImportResults({
         success: true,
@@ -628,11 +636,21 @@ const AddStatementImportModal = ({ isOpen, onClose }) => {
       }, 2000);
 
     } catch (error) {
-      console.error('Import error:', error);
-      toast.error('Import failed. Please try again.');
+      console.error('[AddStatementImportModal] Import error (full):', error);
+      console.error('[AddStatementImportModal] Error details:', {
+        message: error.message,
+        stack: error.stack,
+        name: error.name,
+        response: error.response,
+        cause: error.cause
+      });
+
+      const errorMessage = error.message || 'Import failed. Please try again.';
+      toast.error(errorMessage);
+
       setImportResults({
         success: false,
-        error: error.message
+        error: errorMessage
       });
     } finally {
       setIsProcessing(false);
