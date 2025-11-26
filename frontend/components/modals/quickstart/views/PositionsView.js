@@ -2,7 +2,7 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import {
   ArrowLeft, Plus, Trash2, Check, Loader2,
-  Upload, Download, X, HelpCircle, Keyboard
+  Upload, Download, X, HelpCircle, Keyboard, Filter
 } from 'lucide-react';
 import DataTable, { CollapsibleSection } from '../components/DataTable';
 import StatsBar, { PositionTypeStats } from '../components/StatsBar';
@@ -31,6 +31,7 @@ export default function PositionsView({
   const recentAccountIds = state.recentAccountIds || [];
   const [isDownloading, setIsDownloading] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
+  const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'draft', 'ready', 'added'
 
   // Add new position
   const handleAddPosition = useCallback((assetType) => {
@@ -179,6 +180,29 @@ export default function PositionsView({
     return { total, ready, value };
   }, [positions]);
 
+  // Filter positions by status
+  const filteredPositions = useMemo(() => {
+    if (statusFilter === 'all') return positions;
+
+    const filtered = {};
+    Object.entries(positions).forEach(([assetType, typePositions]) => {
+      filtered[assetType] = typePositions.filter(pos => pos.status === statusFilter);
+    });
+    return filtered;
+  }, [positions, statusFilter]);
+
+  // Calculate counts for each filter
+  const statusCounts = useMemo(() => {
+    const counts = { all: 0, draft: 0, ready: 0, added: 0 };
+    Object.values(positions).forEach(typePositions => {
+      typePositions.forEach(pos => {
+        counts.all++;
+        counts[pos.status]++;
+      });
+    });
+    return counts;
+  }, [positions]);
+
   const selectedCount = state.selectedIds.size;
 
   // Keyboard shortcuts
@@ -323,6 +347,42 @@ export default function PositionsView({
           <StatsBar data={positions} type="positions" />
         )}
 
+        {/* Status filter */}
+        {stats.total > 0 && (
+          <div className="flex items-center space-x-2">
+            <Filter className="w-4 h-4 text-gray-400" />
+            <span className="text-xs text-gray-500">Filter:</span>
+            <div className="flex items-center space-x-1">
+              {[
+                { key: 'all', label: 'All', color: 'gray' },
+                { key: 'draft', label: 'Draft', color: 'yellow' },
+                { key: 'ready', label: 'Ready', color: 'emerald' },
+                { key: 'added', label: 'Added', color: 'blue' }
+              ].map(filter => {
+                const count = statusCounts[filter.key];
+                const isActive = statusFilter === filter.key;
+                const colorClasses = {
+                  gray: isActive ? 'bg-gray-600 text-white' : 'text-gray-400 hover:bg-gray-700',
+                  yellow: isActive ? 'bg-yellow-600 text-white' : 'text-yellow-400 hover:bg-yellow-900/30',
+                  emerald: isActive ? 'bg-emerald-600 text-white' : 'text-emerald-400 hover:bg-emerald-900/30',
+                  blue: isActive ? 'bg-blue-600 text-white' : 'text-blue-400 hover:bg-blue-900/30'
+                };
+
+                return (
+                  <button
+                    key={filter.key}
+                    onClick={() => setStatusFilter(filter.key)}
+                    className={`px-2 py-1 text-xs rounded transition-colors ${colorClasses[filter.color]}`}
+                  >
+                    {filter.label}
+                    {count > 0 && <span className="ml-1 opacity-70">({count})</span>}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Keyboard shortcuts panel */}
         <KeyboardShortcutsPanel
           isOpen={showShortcuts}
@@ -460,13 +520,28 @@ export default function PositionsView({
           </div>
         ) : (
           <div className="space-y-4">
+            {/* Show message when filter has no results */}
+            {statusFilter !== 'all' && Object.values(filteredPositions).every(arr => arr.length === 0) && (
+              <div className="text-center py-8 text-gray-400">
+                <Filter className="w-8 h-8 mx-auto mb-2 opacity-40" />
+                <p>No {statusFilter} positions</p>
+                <button
+                  onClick={() => setStatusFilter('all')}
+                  className="mt-2 text-sm text-blue-400 hover:text-blue-300"
+                >
+                  Show all positions
+                </button>
+              </div>
+            )}
+
             {Object.entries(ASSET_TYPES).map(([assetType, config]) => {
-              const typePositions = positions[assetType] || [];
+              const typePositions = filteredPositions[assetType] || [];
               if (typePositions.length === 0) return null;
 
               const Icon = config.icon;
               const typeValue = getTypeValue(assetType);
               const isExpanded = positionSections[assetType];
+              const unfilteredCount = positions[assetType]?.length || 0;
 
               return (
                 <CollapsibleSection
@@ -474,6 +549,7 @@ export default function PositionsView({
                   title={config.name}
                   icon={Icon}
                   count={typePositions.length}
+                  totalCount={statusFilter !== 'all' ? unfilteredCount : undefined}
                   value={typeValue}
                   isExpanded={isExpanded}
                   onToggle={() => handleToggleSection(assetType)}

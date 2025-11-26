@@ -529,6 +529,7 @@ export function CollapsibleSection({
   title,
   icon: Icon,
   count = 0,
+  totalCount,  // Optional: for showing filtered count (e.g., "3 of 10")
   value = 0,
   isExpanded,
   onToggle,
@@ -555,7 +556,7 @@ export function CollapsibleSection({
           <span className="font-semibold text-white">{title}</span>
           {count > 0 && (
             <span className={`px-2 py-0.5 text-xs font-bold rounded-full ${colorClasses[color]}`}>
-              {count}
+              {totalCount ? `${count}/${totalCount}` : count}
             </span>
           )}
         </div>
