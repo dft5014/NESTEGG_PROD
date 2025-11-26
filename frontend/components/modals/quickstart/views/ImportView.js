@@ -191,13 +191,49 @@ export default function ImportView({
     }
   }, [importTarget, goToView]);
 
-  // Calculate totals for preview
+  // Calculate totals for preview with enhanced stats
   const positionTotals = useMemo(() => {
-    const totals = { total: 0, security: 0, cash: 0, crypto: 0, metal: 0 };
+    const totals = {
+      total: 0,
+      security: 0,
+      cash: 0,
+      crypto: 0,
+      metal: 0,
+      mapped: 0,
+      unmapped: 0,
+      estimatedValue: 0,
+      byType: {}
+    };
+
     Object.entries(parsedPositions).forEach(([type, items]) => {
       totals[type] = items.length;
       totals.total += items.length;
+
+      items.forEach(item => {
+        // Count mapped vs unmapped
+        if (item.data?.account_id) {
+          totals.mapped++;
+        } else {
+          totals.unmapped++;
+        }
+
+        // Estimate value
+        const data = item.data || {};
+        if (type === 'security') {
+          const value = (parseFloat(data.cost_basis) || 0);
+          totals.estimatedValue += value;
+        } else if (type === 'cash') {
+          totals.estimatedValue += parseFloat(data.amount) || 0;
+        } else if (type === 'crypto') {
+          const value = (parseFloat(data.quantity) || 0) * (parseFloat(data.purchase_price) || 0);
+          totals.estimatedValue += value;
+        } else if (type === 'metal') {
+          const value = (parseFloat(data.quantity) || 0) * (parseFloat(data.purchase_price) || 0);
+          totals.estimatedValue += value;
+        }
+      });
     });
+
     return totals;
   }, [parsedPositions]);
 
@@ -506,11 +542,55 @@ export default function ImportView({
           </div>
         )}
 
-        {/* Error */}
+        {/* Error Panel */}
         {parseError && (
-          <div className="mt-4 flex items-center justify-center space-x-2 text-rose-400">
-            <AlertCircle className="w-4 h-4" />
-            <span className="text-sm">{parseError}</span>
+          <div className="mt-6 bg-rose-900/20 border border-rose-500/30 rounded-xl p-5 text-left">
+            <div className="flex items-start space-x-3">
+              <div className="flex-shrink-0 w-10 h-10 bg-rose-500/20 rounded-full flex items-center justify-center">
+                <AlertCircle className="w-5 h-5 text-rose-400" />
+              </div>
+              <div className="flex-1">
+                <h4 className="text-rose-300 font-semibold mb-1">Import Failed</h4>
+                <p className="text-rose-200/80 text-sm mb-3">{parseError}</p>
+
+                <div className="bg-gray-900/50 rounded-lg p-3 mb-4">
+                  <p className="text-xs text-gray-400 font-medium mb-2">Common causes:</p>
+                  <ul className="text-xs text-gray-400 space-y-1.5">
+                    <li className="flex items-start">
+                      <span className="text-gray-500 mr-2">•</span>
+                      <span>File is not from the official NestEgg template</span>
+                    </li>
+                    <li className="flex items-start">
+                      <span className="text-gray-500 mr-2">•</span>
+                      <span>Required columns are missing or renamed</span>
+                    </li>
+                    <li className="flex items-start">
+                      <span className="text-gray-500 mr-2">•</span>
+                      <span>File is corrupted or in an unsupported format</span>
+                    </li>
+                    <li className="flex items-start">
+                      <span className="text-gray-500 mr-2">•</span>
+                      <span>Data contains invalid characters or formatting</span>
+                    </li>
+                  </ul>
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={resetImport}
+                    className="px-3 py-1.5 bg-rose-600/30 hover:bg-rose-600/50 text-rose-200 text-sm rounded-lg transition-colors"
+                  >
+                    Try Another File
+                  </button>
+                  <button
+                    onClick={() => setStep('template')}
+                    className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm rounded-lg transition-colors"
+                  >
+                    Download Template
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </div>
@@ -609,10 +689,11 @@ export default function ImportView({
           </div>
         )}
 
-        {/* Stats for positions */}
+        {/* Stats for positions - Enhanced */}
         {!isAccounts && (
-          <div className="flex-shrink-0 mx-4 mt-4 bg-gray-800 rounded-lg p-4">
-            <div className="grid grid-cols-5 gap-4 text-center">
+          <div className="flex-shrink-0 mx-4 mt-4 bg-gray-800 rounded-xl p-4">
+            {/* By asset type */}
+            <div className="grid grid-cols-5 gap-4 text-center mb-4">
               <div>
                 <p className="text-2xl font-bold text-white">{positionTotals.total}</p>
                 <p className="text-xs text-gray-400">Total</p>
@@ -632,6 +713,21 @@ export default function ImportView({
               <div>
                 <p className="text-2xl font-bold text-yellow-400">{positionTotals.metal}</p>
                 <p className="text-xs text-gray-400">Metals</p>
+              </div>
+            </div>
+            {/* Summary stats */}
+            <div className="border-t border-gray-700 pt-3 grid grid-cols-3 gap-4 text-center">
+              <div className="bg-emerald-500/10 rounded-lg p-2">
+                <p className="text-lg font-semibold text-emerald-400">{positionTotals.mapped}</p>
+                <p className="text-xs text-gray-400">Matched to Accounts</p>
+              </div>
+              <div className={`${positionTotals.unmapped > 0 ? 'bg-amber-500/10' : 'bg-gray-900/50'} rounded-lg p-2`}>
+                <p className={`text-lg font-semibold ${positionTotals.unmapped > 0 ? 'text-amber-400' : 'text-gray-500'}`}>{positionTotals.unmapped}</p>
+                <p className="text-xs text-gray-400">Need Account Match</p>
+              </div>
+              <div className="bg-purple-500/10 rounded-lg p-2">
+                <p className="text-lg font-semibold text-purple-400">{formatCurrency(positionTotals.estimatedValue)}</p>
+                <p className="text-xs text-gray-400">Est. Cost Basis</p>
               </div>
             </div>
           </div>
