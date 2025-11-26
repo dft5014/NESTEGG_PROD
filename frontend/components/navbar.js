@@ -7,7 +7,6 @@ import { QuickStartButton } from '@/components/QuickStartModal';
 import { QuickReconciliationButton } from '@/components/modals/QuickReconciliationModal';
 import { QuickEditDeleteButton } from '@/components/modals/QuickEditDeleteModal';
 import { QuickStatementValidationButton } from '@/components/modals/QuickStatementValidationModal';
-import { AddPositionsModalV2Button } from '@/components/AddPositionsModalV2Button';
 import { QuickStatementImportButton } from '@/components/modals/AddStatementImportModal';
 import { QuickStartModalV2Button } from '@/components/modals/quickstart';
 
@@ -618,11 +617,6 @@ const Navbar = () => {
                   {/* Validate / Statement Reconciliation */}
                   <div ref={validateRef} className={PRO_WRAP_CLASSES}>
                     <QuickStatementValidationButton />
-                  </div>
-
-                  {/* Test Button for New Modal V2 */}
-                  <div className={PRO_WRAP_CLASSES}>
-                    <AddPositionsModalV2Button />
                   </div>
 
                   {/* Import Statement */}
