@@ -1,10 +1,11 @@
 // Liabilities View - Add and manage liabilities
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
-  ArrowLeft, Plus, Trash2, Check, Loader2, X, HelpCircle
+  ArrowLeft, Plus, Trash2, Check, Loader2, X, HelpCircle, Keyboard
 } from 'lucide-react';
 import DataTable from '../components/DataTable';
 import StatsBar from '../components/StatsBar';
+import { KeyboardShortcutsPanel, useKeyboardShortcuts } from '../components/KeyboardShortcuts';
 import { LIABILITY_FIELDS, LIABILITY_TYPES } from '../utils/constants';
 import { formatCurrency } from '@/utils/formatters';
 
@@ -19,6 +20,7 @@ export default function LiabilitiesView({
   goBack
 }) {
   const liabilities = state.liabilities;
+  const [showShortcuts, setShowShortcuts] = useState(false);
 
   // Add new liability row
   const handleAddLiability = useCallback(() => {
@@ -136,6 +138,21 @@ export default function LiabilitiesView({
 
   const selectedCount = liabilities.filter(lib => state.selectedIds.has(lib.id)).length;
 
+  // Keyboard shortcuts
+  useKeyboardShortcuts({
+    enabled: true,
+    viewType: 'liabilities',
+    onAddNew: handleAddLiability,
+    onToggleHelp: () => dispatch(actions.toggleHelp()),
+    onSubmit: () => stats.ready > 0 && handleSubmit(),
+    onEscape: () => {
+      if (state.showHelp) dispatch(actions.toggleHelp());
+      if (selectedCount > 0) dispatch(actions.deselectAll());
+    },
+    showShortcuts,
+    setShowShortcuts
+  });
+
   // Group by type for summary
   const liabilitiesByType = useMemo(() => {
     return liabilities.reduce((acc, lib) => {
@@ -165,8 +182,17 @@ export default function LiabilitiesView({
 
           <div className="flex items-center space-x-2">
             <button
+              onClick={() => setShowShortcuts(s => !s)}
+              className={`p-2 rounded-lg transition-colors ${showShortcuts ? 'text-indigo-400 bg-indigo-500/20' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}
+              title="Keyboard shortcuts (?)"
+            >
+              <Keyboard className="w-4 h-4" />
+            </button>
+
+            <button
               onClick={() => dispatch(actions.toggleHelp())}
-              className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
+              className={`p-2 rounded-lg transition-colors ${state.showHelp ? 'text-blue-400 bg-blue-500/20' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}
+              title="Help (H)"
             >
               <HelpCircle className="w-4 h-4" />
             </button>
@@ -234,6 +260,13 @@ export default function LiabilitiesView({
             })}
           </div>
         )}
+
+        {/* Keyboard shortcuts panel */}
+        <KeyboardShortcutsPanel
+          isOpen={showShortcuts}
+          onClose={() => setShowShortcuts(false)}
+          viewType="liabilities"
+        />
 
         {/* Help panel */}
         {state.showHelp && (

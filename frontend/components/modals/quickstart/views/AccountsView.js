@@ -2,10 +2,11 @@
 import React, { useCallback, useState } from 'react';
 import {
   ArrowLeft, Plus, Trash2, Check, Loader2,
-  Upload, Download, FileSpreadsheet, HelpCircle, X, ChevronRight
+  Upload, Download, FileSpreadsheet, HelpCircle, X, ChevronRight, Keyboard
 } from 'lucide-react';
 import DataTable from '../components/DataTable';
 import StatsBar from '../components/StatsBar';
+import { KeyboardShortcutsPanel, useKeyboardShortcuts } from '../components/KeyboardShortcuts';
 import { VIEWS, ACCOUNT_FIELDS, ACCOUNT_CATEGORIES, ACCOUNT_TYPES_BY_CATEGORY } from '../utils/constants';
 import { downloadTemplate } from '../utils/excelUtils';
 
@@ -23,6 +24,7 @@ export default function AccountsView({
   const existingAccounts = state.existingAccounts || [];
   const [isDownloading, setIsDownloading] = useState(false);
   const [isSavingAndContinuing, setIsSavingAndContinuing] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
 
   // Count ready accounts (moved up so it can be used in callbacks)
   const readyCount = accounts.filter(a =>
@@ -141,6 +143,21 @@ export default function AccountsView({
 
   const selectedCount = accounts.filter(acc => state.selectedIds.has(acc.id)).length;
 
+  // Keyboard shortcuts
+  useKeyboardShortcuts({
+    enabled: true,
+    viewType: 'accounts',
+    onAddNew: handleAddAccount,
+    onToggleHelp: () => dispatch(actions.toggleHelp()),
+    onSubmit: () => readyCount > 0 && handleSubmit(),
+    onEscape: () => {
+      if (state.showHelp) dispatch(actions.toggleHelp());
+      if (selectedCount > 0) dispatch(actions.deselectAll());
+    },
+    showShortcuts,
+    setShowShortcuts
+  });
+
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       {/* Header */}
@@ -158,6 +175,22 @@ export default function AccountsView({
           </div>
 
           <div className="flex items-center space-x-2">
+            <button
+              onClick={() => setShowShortcuts(s => !s)}
+              className={`p-2 rounded-lg transition-colors ${showShortcuts ? 'text-indigo-400 bg-indigo-500/20' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}
+              title="Keyboard shortcuts (?)"
+            >
+              <Keyboard className="w-4 h-4" />
+            </button>
+
+            <button
+              onClick={() => dispatch(actions.toggleHelp())}
+              className={`p-2 rounded-lg transition-colors ${state.showHelp ? 'text-blue-400 bg-blue-500/20' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}
+              title="Help (H)"
+            >
+              <HelpCircle className="w-4 h-4" />
+            </button>
+
             <button
               onClick={handleDownloadTemplate}
               disabled={isDownloading}
@@ -230,6 +263,13 @@ export default function AccountsView({
         {accounts.length > 0 && (
           <StatsBar data={accounts} type="accounts" />
         )}
+
+        {/* Keyboard shortcuts panel */}
+        <KeyboardShortcutsPanel
+          isOpen={showShortcuts}
+          onClose={() => setShowShortcuts(false)}
+          viewType="accounts"
+        />
 
         {/* Help panel */}
         {state.showHelp && (

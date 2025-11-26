@@ -2,10 +2,11 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import {
   ArrowLeft, Plus, Trash2, Check, Loader2,
-  Upload, Download, X, HelpCircle
+  Upload, Download, X, HelpCircle, Keyboard
 } from 'lucide-react';
 import DataTable, { CollapsibleSection } from '../components/DataTable';
 import StatsBar, { PositionTypeStats } from '../components/StatsBar';
+import { KeyboardShortcutsPanel, useKeyboardShortcuts } from '../components/KeyboardShortcuts';
 import { VIEWS, ASSET_TYPES } from '../utils/constants';
 import { formatCurrency } from '@/utils/formatters';
 import { downloadTemplate } from '../utils/excelUtils';
@@ -29,6 +30,7 @@ export default function PositionsView({
   const positionSections = state.positionSections;
   const recentAccountIds = state.recentAccountIds || [];
   const [isDownloading, setIsDownloading] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
 
   // Add new position
   const handleAddPosition = useCallback((assetType) => {
@@ -179,6 +181,22 @@ export default function PositionsView({
 
   const selectedCount = state.selectedIds.size;
 
+  // Keyboard shortcuts
+  useKeyboardShortcuts({
+    enabled: true,
+    viewType: 'positions',
+    onAddNew: () => handleAddPosition('security'),
+    onAddCash: () => handleAddPosition('cash'),
+    onToggleHelp: () => dispatch(actions.toggleHelp()),
+    onSubmit: () => stats.ready > 0 && handleSubmit('ready'),
+    onEscape: () => {
+      if (state.showHelp) dispatch(actions.toggleHelp());
+      if (selectedCount > 0) dispatch(actions.deselectAll());
+    },
+    showShortcuts,
+    setShowShortcuts
+  });
+
   // Calculate value for each type
   const getTypeValue = (assetType) => {
     const typePositions = positions[assetType] || [];
@@ -216,9 +234,17 @@ export default function PositionsView({
 
           <div className="flex items-center space-x-2">
             <button
+              onClick={() => setShowShortcuts(s => !s)}
+              className={`p-2 rounded-lg transition-colors ${showShortcuts ? 'text-indigo-400 bg-indigo-500/20' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}
+              title="Keyboard shortcuts (?)"
+            >
+              <Keyboard className="w-4 h-4" />
+            </button>
+
+            <button
               onClick={() => dispatch(actions.toggleHelp())}
-              className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
-              title="Help"
+              className={`p-2 rounded-lg transition-colors ${state.showHelp ? 'text-blue-400 bg-blue-500/20' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}
+              title="Help (H)"
             >
               <HelpCircle className="w-4 h-4" />
             </button>
@@ -296,6 +322,13 @@ export default function PositionsView({
         {stats.total > 0 && (
           <StatsBar data={positions} type="positions" />
         )}
+
+        {/* Keyboard shortcuts panel */}
+        <KeyboardShortcutsPanel
+          isOpen={showShortcuts}
+          onClose={() => setShowShortcuts(false)}
+          viewType="positions"
+        />
 
         {/* Help panel */}
         {state.showHelp && (
