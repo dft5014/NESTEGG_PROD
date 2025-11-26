@@ -689,7 +689,8 @@ export function quickStartReducer(state, action) {
         importFile: null,
         importProgress: 0,
         importData: null,
-        importTarget: null
+        importTarget: null,
+        importMethod: null
       };
 
     // ====== Persistence ======

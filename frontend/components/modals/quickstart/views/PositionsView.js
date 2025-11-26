@@ -2,10 +2,12 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import {
   ArrowLeft, Plus, Trash2, Check, Loader2,
-  Upload, Download, X, HelpCircle
+  Upload, Download, X, HelpCircle, Keyboard, Filter
 } from 'lucide-react';
 import DataTable, { CollapsibleSection } from '../components/DataTable';
 import StatsBar, { PositionTypeStats } from '../components/StatsBar';
+import { KeyboardShortcutsPanel, useKeyboardShortcuts } from '../components/KeyboardShortcuts';
+import { InlineMessageList, useInlineMessages } from '../components/InlineMessage';
 import { VIEWS, ASSET_TYPES } from '../utils/constants';
 import { formatCurrency } from '@/utils/formatters';
 import { downloadTemplate } from '../utils/excelUtils';
@@ -29,6 +31,11 @@ export default function PositionsView({
   const positionSections = state.positionSections;
   const recentAccountIds = state.recentAccountIds || [];
   const [isDownloading, setIsDownloading] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
+  const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'draft', 'ready', 'added'
+
+  // Inline messages
+  const { messages, removeMessage, showSuccess, showError } = useInlineMessages();
 
   // Add new position
   const handleAddPosition = useCallback((assetType) => {
@@ -105,8 +112,22 @@ export default function PositionsView({
 
   // Submit positions
   const handleSubmit = useCallback(async (mode = 'ready') => {
-    await onSubmitPositions(mode);
-  }, [onSubmitPositions]);
+    try {
+      const result = await onSubmitPositions(mode);
+      if (result?.success) {
+        const count = result.addedCount || 0;
+        showSuccess(
+          `${count} position${count !== 1 ? 's' : ''} added successfully`,
+          'Your portfolio has been updated'
+        );
+      }
+    } catch (error) {
+      showError(
+        'Failed to save positions',
+        error.message || 'Please try again'
+      );
+    }
+  }, [onSubmitPositions, showSuccess, showError]);
 
   // Download template via API
   const handleDownloadTemplate = useCallback(async () => {
@@ -177,7 +198,46 @@ export default function PositionsView({
     return { total, ready, value };
   }, [positions]);
 
+  // Filter positions by status
+  const filteredPositions = useMemo(() => {
+    if (statusFilter === 'all') return positions;
+
+    const filtered = {};
+    Object.entries(positions).forEach(([assetType, typePositions]) => {
+      filtered[assetType] = typePositions.filter(pos => pos.status === statusFilter);
+    });
+    return filtered;
+  }, [positions, statusFilter]);
+
+  // Calculate counts for each filter
+  const statusCounts = useMemo(() => {
+    const counts = { all: 0, draft: 0, ready: 0, added: 0 };
+    Object.values(positions).forEach(typePositions => {
+      typePositions.forEach(pos => {
+        counts.all++;
+        counts[pos.status]++;
+      });
+    });
+    return counts;
+  }, [positions]);
+
   const selectedCount = state.selectedIds.size;
+
+  // Keyboard shortcuts
+  useKeyboardShortcuts({
+    enabled: true,
+    viewType: 'positions',
+    onAddNew: () => handleAddPosition('security'),
+    onAddCash: () => handleAddPosition('cash'),
+    onToggleHelp: () => dispatch(actions.toggleHelp()),
+    onSubmit: () => stats.ready > 0 && handleSubmit('ready'),
+    onEscape: () => {
+      if (state.showHelp) dispatch(actions.toggleHelp());
+      if (selectedCount > 0) dispatch(actions.deselectAll());
+    },
+    showShortcuts,
+    setShowShortcuts
+  });
 
   // Calculate value for each type
   const getTypeValue = (assetType) => {
@@ -216,9 +276,17 @@ export default function PositionsView({
 
           <div className="flex items-center space-x-2">
             <button
+              onClick={() => setShowShortcuts(s => !s)}
+              className={`p-2 rounded-lg transition-colors ${showShortcuts ? 'text-indigo-400 bg-indigo-500/20' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}
+              title="Keyboard shortcuts (?)"
+            >
+              <Keyboard className="w-4 h-4" />
+            </button>
+
+            <button
               onClick={() => dispatch(actions.toggleHelp())}
-              className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
-              title="Help"
+              className={`p-2 rounded-lg transition-colors ${state.showHelp ? 'text-blue-400 bg-blue-500/20' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}
+              title="Help (H)"
             >
               <HelpCircle className="w-4 h-4" />
             </button>
@@ -244,6 +312,7 @@ export default function PositionsView({
             <button
               onClick={() => {
                 dispatch(actions.setImportTarget('positions'));
+                dispatch(actions.setImportMethod('excel'));
                 goToView(VIEWS.import);
               }}
               className="px-3 py-1.5 text-sm bg-gray-800 text-gray-300 rounded-lg hover:bg-gray-700 flex items-center space-x-1.5 transition-colors"
@@ -296,6 +365,49 @@ export default function PositionsView({
           <StatsBar data={positions} type="positions" />
         )}
 
+        {/* Status filter */}
+        {stats.total > 0 && (
+          <div className="flex items-center space-x-2">
+            <Filter className="w-4 h-4 text-gray-400" />
+            <span className="text-xs text-gray-500">Filter:</span>
+            <div className="flex items-center space-x-1">
+              {[
+                { key: 'all', label: 'All', color: 'gray' },
+                { key: 'draft', label: 'Draft', color: 'yellow' },
+                { key: 'ready', label: 'Ready', color: 'emerald' },
+                { key: 'added', label: 'Added', color: 'blue' }
+              ].map(filter => {
+                const count = statusCounts[filter.key];
+                const isActive = statusFilter === filter.key;
+                const colorClasses = {
+                  gray: isActive ? 'bg-gray-600 text-white' : 'text-gray-400 hover:bg-gray-700',
+                  yellow: isActive ? 'bg-yellow-600 text-white' : 'text-yellow-400 hover:bg-yellow-900/30',
+                  emerald: isActive ? 'bg-emerald-600 text-white' : 'text-emerald-400 hover:bg-emerald-900/30',
+                  blue: isActive ? 'bg-blue-600 text-white' : 'text-blue-400 hover:bg-blue-900/30'
+                };
+
+                return (
+                  <button
+                    key={filter.key}
+                    onClick={() => setStatusFilter(filter.key)}
+                    className={`px-2 py-1 text-xs rounded transition-colors ${colorClasses[filter.color]}`}
+                  >
+                    {filter.label}
+                    {count > 0 && <span className="ml-1 opacity-70">({count})</span>}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Keyboard shortcuts panel */}
+        <KeyboardShortcutsPanel
+          isOpen={showShortcuts}
+          onClose={() => setShowShortcuts(false)}
+          viewType="positions"
+        />
+
         {/* Help panel */}
         {state.showHelp && (
           <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3">
@@ -324,6 +436,63 @@ export default function PositionsView({
 
       {/* Content */}
       <div className="flex-1 overflow-auto p-4 space-y-4">
+        {/* Inline messages */}
+        <InlineMessageList messages={messages} onDismiss={removeMessage} />
+
+        {/* Import banner - always visible, more compact when positions exist */}
+        <div className={`bg-gradient-to-r from-purple-900/40 to-blue-900/40 rounded-xl border border-purple-700/50 ${stats.total === 0 ? 'p-5' : 'p-3'}`}>
+          <div className="flex items-center justify-between">
+            <div className="flex-1 flex items-center space-x-4">
+              {stats.total === 0 ? (
+                <>
+                  <div className="hidden md:flex items-center justify-center w-12 h-12 bg-purple-900/30 rounded-lg flex-shrink-0">
+                    <Upload className="w-6 h-6 text-purple-400/60" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-semibold text-white flex items-center">
+                      <Upload className="w-4 h-4 mr-2 text-purple-400 md:hidden" />
+                      Bulk Import from Excel
+                    </h3>
+                    <p className="text-gray-400 text-sm mt-0.5">
+                      Download template, fill in offline, import all at once
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <div className="flex items-center space-x-2">
+                  <Upload className="w-4 h-4 text-purple-400" />
+                  <span className="text-sm text-gray-300">Have more positions in a spreadsheet?</span>
+                </div>
+              )}
+            </div>
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={handleDownloadTemplate}
+                disabled={isDownloading}
+                className={`${stats.total === 0 ? 'px-4 py-2' : 'px-3 py-1.5'} bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center space-x-2 transition-colors text-sm font-medium disabled:opacity-50`}
+              >
+                {isDownloading ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Download className="w-4 h-4" />
+                )}
+                <span className={stats.total === 0 ? '' : 'hidden sm:inline'}>Template</span>
+              </button>
+              <button
+                onClick={() => {
+                  dispatch(actions.setImportTarget('positions'));
+                  dispatch(actions.setImportMethod('excel'));
+                  goToView(VIEWS.import);
+                }}
+                className={`${stats.total === 0 ? 'px-4 py-2' : 'px-3 py-1.5'} bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center space-x-2 transition-colors text-sm font-medium`}
+              >
+                <Upload className="w-4 h-4" />
+                <span className={stats.total === 0 ? '' : 'hidden sm:inline'}>Import</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
         {/* Add buttons */}
         <div className="flex flex-wrap gap-2">
           {Object.entries(ASSET_TYPES).map(([key, config]) => {
@@ -365,71 +534,35 @@ export default function PositionsView({
 
         {/* Position sections */}
         {stats.total === 0 ? (
-          <div className="space-y-6">
-            {/* Prominent import banner */}
-            <div className="bg-gradient-to-r from-purple-900/40 to-blue-900/40 rounded-xl border border-purple-700/50 p-5">
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <h3 className="text-lg font-semibold text-white flex items-center">
-                    <Upload className="w-5 h-5 mr-2 text-purple-400" />
-                    Bulk Import Positions from Excel
-                  </h3>
-                  <p className="text-gray-300 text-sm mt-1.5 max-w-lg">
-                    Download our template, fill in your positions offline, and import everything at once.
-                    Supports securities, cash, crypto, and precious metals.
-                  </p>
-                  <div className="flex items-center space-x-3 mt-4">
-                    <button
-                      onClick={handleDownloadTemplate}
-                      disabled={isDownloading}
-                      className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center space-x-2 transition-colors text-sm font-medium disabled:opacity-50"
-                    >
-                      {isDownloading ? (
-                        <>
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                          <span>Downloading...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Download className="w-4 h-4" />
-                          <span>Download Template</span>
-                        </>
-                      )}
-                    </button>
-                    <button
-                      onClick={() => {
-                        dispatch(actions.setImportTarget('positions'));
-                        goToView(VIEWS.import);
-                      }}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center space-x-2 transition-colors text-sm font-medium"
-                    >
-                      <Upload className="w-4 h-4" />
-                      <span>Import Excel</span>
-                    </button>
-                  </div>
-                </div>
-                <div className="hidden md:flex items-center justify-center w-24 h-24 bg-purple-900/30 rounded-lg ml-6">
-                  <Upload className="w-12 h-12 text-purple-400/60" />
-                </div>
-              </div>
-            </div>
-
-            {/* Empty state */}
-            <div className="flex flex-col items-center justify-center py-12 text-gray-400">
-              <Plus className="w-16 h-16 mb-4 opacity-20" />
-              <p className="text-lg">No positions yet</p>
-              <p className="text-sm">Click a button above to add positions, or import from Excel</p>
-            </div>
+          <div className="flex flex-col items-center justify-center py-12 text-gray-400">
+            <Plus className="w-16 h-16 mb-4 opacity-20" />
+            <p className="text-lg">No positions yet</p>
+            <p className="text-sm">Click a button above to add positions, or import from Excel</p>
           </div>
         ) : (
           <div className="space-y-4">
+            {/* Show message when filter has no results */}
+            {statusFilter !== 'all' && Object.values(filteredPositions).every(arr => arr.length === 0) && (
+              <div className="text-center py-8 text-gray-400">
+                <Filter className="w-8 h-8 mx-auto mb-2 opacity-40" />
+                <p>No {statusFilter} positions</p>
+                <button
+                  onClick={() => setStatusFilter('all')}
+                  className="mt-2 text-sm text-blue-400 hover:text-blue-300"
+                >
+                  Show all positions
+                </button>
+              </div>
+            )}
+
             {Object.entries(ASSET_TYPES).map(([assetType, config]) => {
-              const typePositions = positions[assetType] || [];
+              const typePositions = filteredPositions[assetType] || [];
               if (typePositions.length === 0) return null;
 
               const Icon = config.icon;
               const typeValue = getTypeValue(assetType);
               const isExpanded = positionSections[assetType];
+              const unfilteredCount = positions[assetType]?.length || 0;
 
               return (
                 <CollapsibleSection
@@ -437,6 +570,7 @@ export default function PositionsView({
                   title={config.name}
                   icon={Icon}
                   count={typePositions.length}
+                  totalCount={statusFilter !== 'all' ? unfilteredCount : undefined}
                   value={typeValue}
                   isExpanded={isExpanded}
                   onToggle={() => handleToggleSection(assetType)}

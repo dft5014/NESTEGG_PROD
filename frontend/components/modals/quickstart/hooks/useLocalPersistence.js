@@ -1,14 +1,16 @@
 // Local Persistence Hook for QuickStart Modal
 // Handles auto-saving and restoring drafts to localStorage
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import { actions } from '../state/reducer';
 
 const STORAGE_KEY = 'nestegg_quickstart_draft_v2';
 const SAVE_DEBOUNCE_MS = 1000;
+const DRAFT_EXPIRATION_HOURS = 8; // Drafts expire after 8 hours
 
 export default function useLocalPersistence({ state, dispatch, enabled = true }) {
   const saveTimeoutRef = useRef(null);
-  const hasRestoredRef = useRef(false);
+  const [hasPendingDraft, setHasPendingDraft] = useState(false);
+  const [draftInfo, setDraftInfo] = useState(null);
 
   // Save draft to localStorage (debounced)
   const saveDraft = useCallback(() => {
@@ -46,33 +48,55 @@ export default function useLocalPersistence({ state, dispatch, enabled = true })
     }
   }, [enabled, state.accounts, state.positions, state.liabilities, state.positionSections]);
 
-  // Restore draft from localStorage
-  const restoreDraft = useCallback(() => {
-    if (!enabled || hasRestoredRef.current) return false;
+  // Check for draft and return info (without restoring)
+  const checkForDraft = useCallback(() => {
+    if (!enabled) return null;
 
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
-      if (!saved) return false;
+      if (!saved) return null;
 
       const data = JSON.parse(saved);
 
-      // Check if draft is not too old (24 hours)
+      // Check if draft is not too old
       const savedAt = new Date(data.savedAt);
       const hoursSinceSave = (Date.now() - savedAt.getTime()) / (1000 * 60 * 60);
-      if (hoursSinceSave > 24) {
+      if (hoursSinceSave > DRAFT_EXPIRATION_HOURS) {
         localStorage.removeItem(STORAGE_KEY);
-        return false;
+        return null;
       }
 
       // Verify there's actual data
-      const hasData = data.accounts?.length > 0 ||
-        Object.values(data.positions || {}).some(arr => arr?.length > 0) ||
-        data.liabilities?.length > 0;
+      const accountCount = data.accounts?.length || 0;
+      const positionCount = Object.values(data.positions || {}).reduce((sum, arr) => sum + (arr?.length || 0), 0);
+      const liabilityCount = data.liabilities?.length || 0;
 
-      if (!hasData) {
+      if (accountCount === 0 && positionCount === 0 && liabilityCount === 0) {
         localStorage.removeItem(STORAGE_KEY);
-        return false;
+        return null;
       }
+
+      return {
+        accountCount,
+        positionCount,
+        liabilityCount,
+        savedAt,
+        data
+      };
+    } catch (e) {
+      console.error('Failed to check draft:', e);
+      localStorage.removeItem(STORAGE_KEY);
+      return null;
+    }
+  }, [enabled]);
+
+  // Restore draft from localStorage (user-initiated)
+  const restoreDraft = useCallback(() => {
+    const info = checkForDraft();
+    if (!info) return false;
+
+    try {
+      const { data } = info;
 
       // Restore the data
       dispatch(actions.restoreDraft({
@@ -94,7 +118,8 @@ export default function useLocalPersistence({ state, dispatch, enabled = true })
         }
       }));
 
-      hasRestoredRef.current = true;
+      setHasPendingDraft(false);
+      setDraftInfo(null);
       console.log('Draft restored from localStorage');
 
       return true;
@@ -103,33 +128,30 @@ export default function useLocalPersistence({ state, dispatch, enabled = true })
       localStorage.removeItem(STORAGE_KEY);
       return false;
     }
-  }, [enabled, dispatch]);
+  }, [checkForDraft, dispatch]);
+
+  // Dismiss draft (don't restore, just clear the notification)
+  const dismissDraft = useCallback(() => {
+    setHasPendingDraft(false);
+    setDraftInfo(null);
+  }, []);
 
   // Clear draft from localStorage
   const clearDraft = useCallback(() => {
     try {
       localStorage.removeItem(STORAGE_KEY);
-      hasRestoredRef.current = false;
+      setHasPendingDraft(false);
+      setDraftInfo(null);
       console.log('Draft cleared from localStorage');
     } catch (e) {
       console.error('Failed to clear draft:', e);
     }
   }, []);
 
-  // Check if there's a draft to restore
+  // Check if there's a draft to restore (sync version for quick checks)
   const hasDraft = useCallback(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (!saved) return false;
-
-      const data = JSON.parse(saved);
-      return data.accounts?.length > 0 ||
-        Object.values(data.positions || {}).some(arr => arr?.length > 0) ||
-        data.liabilities?.length > 0;
-    } catch {
-      return false;
-    }
-  }, []);
+    return checkForDraft() !== null;
+  }, [checkForDraft]);
 
   // Auto-save when state changes (debounced)
   useEffect(() => {
@@ -148,17 +170,24 @@ export default function useLocalPersistence({ state, dispatch, enabled = true })
     };
   }, [enabled, state.isDirty, saveDraft]);
 
-  // Restore draft on mount
+  // Check for draft on mount (don't auto-restore, just notify)
   useEffect(() => {
-    if (enabled && !hasRestoredRef.current) {
-      restoreDraft();
+    if (enabled) {
+      const info = checkForDraft();
+      if (info) {
+        setHasPendingDraft(true);
+        setDraftInfo(info);
+      }
     }
-  }, [enabled, restoreDraft]);
+  }, [enabled]); // Only run once on mount - checkForDraft is stable
 
   return {
     saveDraft,
     restoreDraft,
+    dismissDraft,
     clearDraft,
-    hasDraft
+    hasDraft,
+    hasPendingDraft,
+    draftInfo
   };
 }

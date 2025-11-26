@@ -2,10 +2,12 @@
 import React, { useCallback, useState } from 'react';
 import {
   ArrowLeft, Plus, Trash2, Check, Loader2,
-  Upload, Download, FileSpreadsheet, HelpCircle, X, ChevronRight
+  Upload, Download, FileSpreadsheet, HelpCircle, X, ChevronRight, Keyboard
 } from 'lucide-react';
 import DataTable from '../components/DataTable';
 import StatsBar from '../components/StatsBar';
+import { KeyboardShortcutsPanel, useKeyboardShortcuts } from '../components/KeyboardShortcuts';
+import { InlineMessageList, useInlineMessages } from '../components/InlineMessage';
 import { VIEWS, ACCOUNT_FIELDS, ACCOUNT_CATEGORIES, ACCOUNT_TYPES_BY_CATEGORY } from '../utils/constants';
 import { downloadTemplate } from '../utils/excelUtils';
 
@@ -23,6 +25,10 @@ export default function AccountsView({
   const existingAccounts = state.existingAccounts || [];
   const [isDownloading, setIsDownloading] = useState(false);
   const [isSavingAndContinuing, setIsSavingAndContinuing] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
+
+  // Inline messages
+  const { messages, removeMessage, showSuccess, showError } = useInlineMessages();
 
   // Count ready accounts (moved up so it can be used in callbacks)
   const readyCount = accounts.filter(a =>
@@ -104,8 +110,22 @@ export default function AccountsView({
 
   // Submit accounts
   const handleSubmit = useCallback(async () => {
-    await onSubmitAccounts();
-  }, [onSubmitAccounts]);
+    try {
+      const result = await onSubmitAccounts();
+      if (result?.success) {
+        const count = result.addedCount || 0;
+        showSuccess(
+          `${count} account${count !== 1 ? 's' : ''} added successfully`,
+          'You can now add positions to these accounts'
+        );
+      }
+    } catch (error) {
+      showError(
+        'Failed to save accounts',
+        error.message || 'Please try again'
+      );
+    }
+  }, [onSubmitAccounts, showSuccess, showError]);
 
   // Save accounts and continue to positions
   const handleSaveAndContinue = useCallback(async () => {
@@ -141,6 +161,21 @@ export default function AccountsView({
 
   const selectedCount = accounts.filter(acc => state.selectedIds.has(acc.id)).length;
 
+  // Keyboard shortcuts
+  useKeyboardShortcuts({
+    enabled: true,
+    viewType: 'accounts',
+    onAddNew: handleAddAccount,
+    onToggleHelp: () => dispatch(actions.toggleHelp()),
+    onSubmit: () => readyCount > 0 && handleSubmit(),
+    onEscape: () => {
+      if (state.showHelp) dispatch(actions.toggleHelp());
+      if (selectedCount > 0) dispatch(actions.deselectAll());
+    },
+    showShortcuts,
+    setShowShortcuts
+  });
+
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       {/* Header */}
@@ -158,6 +193,22 @@ export default function AccountsView({
           </div>
 
           <div className="flex items-center space-x-2">
+            <button
+              onClick={() => setShowShortcuts(s => !s)}
+              className={`p-2 rounded-lg transition-colors ${showShortcuts ? 'text-indigo-400 bg-indigo-500/20' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}
+              title="Keyboard shortcuts (?)"
+            >
+              <Keyboard className="w-4 h-4" />
+            </button>
+
+            <button
+              onClick={() => dispatch(actions.toggleHelp())}
+              className={`p-2 rounded-lg transition-colors ${state.showHelp ? 'text-blue-400 bg-blue-500/20' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}
+              title="Help (H)"
+            >
+              <HelpCircle className="w-4 h-4" />
+            </button>
+
             <button
               onClick={handleDownloadTemplate}
               disabled={isDownloading}
@@ -231,6 +282,13 @@ export default function AccountsView({
           <StatsBar data={accounts} type="accounts" />
         )}
 
+        {/* Keyboard shortcuts panel */}
+        <KeyboardShortcutsPanel
+          isOpen={showShortcuts}
+          onClose={() => setShowShortcuts(false)}
+          viewType="accounts"
+        />
+
         {/* Help panel */}
         {state.showHelp && (
           <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3">
@@ -259,6 +317,9 @@ export default function AccountsView({
 
       {/* Content */}
       <div className="flex-1 overflow-auto p-4">
+        {/* Inline messages */}
+        <InlineMessageList messages={messages} onDismiss={removeMessage} />
+
         {/* Prominent import banner when no accounts */}
         {accounts.length === 0 && (
           <div className="mb-6 bg-gradient-to-r from-blue-900/40 to-purple-900/40 rounded-xl border border-blue-700/50 p-5">
@@ -293,6 +354,7 @@ export default function AccountsView({
                   <button
                     onClick={() => {
                       dispatch(actions.setImportTarget('accounts'));
+                      dispatch(actions.setImportMethod('excel'));
                       goToView(VIEWS.import);
                     }}
                     className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center space-x-2 transition-colors text-sm font-medium"
@@ -324,6 +386,7 @@ export default function AccountsView({
               <button
                 onClick={() => {
                   dispatch(actions.setImportTarget('accounts'));
+                  dispatch(actions.setImportMethod('excel'));
                   goToView(VIEWS.import);
                 }}
                 className="text-blue-400 hover:text-blue-300 underline"

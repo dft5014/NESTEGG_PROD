@@ -31,6 +31,65 @@ const viewVariants = {
   exit: { opacity: 0, x: -20 }
 };
 
+// Draft restore banner component
+function DraftRestoreBanner({ draftInfo, onRestore, onDismiss }) {
+  if (!draftInfo) return null;
+
+  const { accountCount, positionCount, liabilityCount, savedAt } = draftInfo;
+  const timeAgo = getTimeAgo(savedAt);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -10 }}
+      className="mb-4 p-4 bg-gradient-to-r from-amber-900/30 to-orange-900/30 rounded-lg border border-amber-600/40"
+    >
+      <div className="flex items-center justify-between">
+        <div className="flex-1">
+          <p className="text-amber-200 font-medium">You have an unsaved draft</p>
+          <p className="text-sm text-gray-400 mt-1">
+            Saved {timeAgo}: {' '}
+            {[
+              accountCount > 0 && `${accountCount} account${accountCount !== 1 ? 's' : ''}`,
+              positionCount > 0 && `${positionCount} position${positionCount !== 1 ? 's' : ''}`,
+              liabilityCount > 0 && `${liabilityCount} liabilit${liabilityCount !== 1 ? 'ies' : 'y'}`
+            ].filter(Boolean).join(', ')}
+          </p>
+        </div>
+        <div className="flex items-center space-x-2">
+          <button
+            onClick={onDismiss}
+            className="px-3 py-1.5 text-sm text-gray-400 hover:text-white transition-colors"
+          >
+            Start Fresh
+          </button>
+          <button
+            onClick={onRestore}
+            className="px-4 py-1.5 text-sm bg-amber-600 hover:bg-amber-500 text-white rounded-lg transition-colors"
+          >
+            Restore Draft
+          </button>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+// Helper to format time ago
+function getTimeAgo(date) {
+  const now = new Date();
+  const savedDate = new Date(date);
+  const diffMs = now - savedDate;
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+
+  if (diffMins < 1) return 'just now';
+  if (diffMins < 60) return `${diffMins} minute${diffMins !== 1 ? 's' : ''} ago`;
+  if (diffHours < 24) return `${diffHours} hour${diffHours !== 1 ? 's' : ''} ago`;
+  return savedDate.toLocaleDateString();
+}
+
 export default function QuickStartModalV2({ isOpen, onClose, onSuccess }) {
   const [state, dispatch] = useReducer(quickStartReducer, initialState);
   const { markStale } = useDataStore();
@@ -82,7 +141,14 @@ export default function QuickStartModalV2({ isOpen, onClose, onSuccess }) {
     }
   });
 
-  const { restoreDraft, clearDraft, hasDraft } = useLocalPersistence({
+  const {
+    restoreDraft,
+    dismissDraft,
+    clearDraft,
+    hasDraft,
+    hasPendingDraft,
+    draftInfo
+  } = useLocalPersistence({
     state,
     dispatch,
     enabled: isOpen
@@ -105,12 +171,8 @@ export default function QuickStartModalV2({ isOpen, onClose, onSuccess }) {
     loadExistingAccounts();
   }, [isOpen]);
 
-  // Restore draft on open
-  useEffect(() => {
-    if (isOpen) {
-      restoreDraft();
-    }
-  }, [isOpen, restoreDraft]);
+  // Note: We no longer auto-restore drafts. Instead, we show a banner
+  // that lets the user choose to restore or start fresh.
 
   // Handle close with dirty check
   const handleClose = useCallback(() => {
@@ -215,6 +277,17 @@ export default function QuickStartModalV2({ isOpen, onClose, onSuccess }) {
       disableBackdropClose={state.isDirty}
     >
       <div className="h-[80vh] flex flex-col overflow-hidden">
+        {/* Draft restore banner - only show on welcome view */}
+        <AnimatePresence>
+          {hasPendingDraft && state.currentView === VIEWS.welcome && (
+            <DraftRestoreBanner
+              draftInfo={draftInfo}
+              onRestore={restoreDraft}
+              onDismiss={clearDraft}  // Clear draft entirely when starting fresh
+            />
+          )}
+        </AnimatePresence>
+
         <AnimatePresence mode="wait">
           <motion.div
             key={state.currentView}

@@ -25,9 +25,12 @@ export default function ImportView({
   goBack,
   importTarget // 'accounts' or 'positions' - which type we're importing for
 }) {
-  // Import workflow state
-  const [step, setStep] = useState('choice'); // 'choice' | 'template' | 'upload' | 'preview'
-  const [importMethod, setImportMethod] = useState(null); // 'ui' | 'excel'
+  // Check if user explicitly chose Excel import (from clicking "Import Excel" button)
+  const directToExcel = state.importMethod === 'excel';
+
+  // Import workflow state - start at 'upload' if user explicitly chose Excel
+  const [step, setStep] = useState(directToExcel ? 'upload' : 'choice'); // 'choice' | 'template' | 'upload' | 'preview'
+  const [importMethod, setImportMethod] = useState(directToExcel ? 'excel' : null); // 'ui' | 'excel'
   const [selectedTemplate, setSelectedTemplate] = useState(importTarget || null);
 
   // File handling state
