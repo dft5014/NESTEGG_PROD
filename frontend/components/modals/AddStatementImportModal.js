@@ -13,7 +13,6 @@ import { useAccounts } from '@/store/hooks/useAccounts';
 import {
   addSecurityPositionBulk,
   fetchPositions,
-  fetchUnifiedPositions,
   updatePosition
 } from '@/utils/apimethods/positionMethods';
 import { formatCurrency } from '@/utils/formatters';
@@ -34,7 +33,7 @@ const MATCH_TOLERANCE_PERCENT = 0.01; // 1% tolerance for "matches"
 /**
  * Categorize imported positions by comparing to existing positions in the account
  * @param {Array} importedRows - Parsed rows from statement with mapped fields
- * @param {Array} existingPositions - Unified/grouped positions from the account (already aggregated by ticker)
+ * @param {Array} existingPositions - Raw positions (tax lots) from the specific account
  * @param {Object} columnMappings - Field mappings from import
  * @returns {Object} - { new: [], differs: [], matches: [] }
  */
@@ -46,21 +45,34 @@ const categorizeImportedPositions = (importedRows, existingPositions, columnMapp
   };
 
   // Build a lookup map of existing positions by ticker (uppercase)
-  // Using unified positions which are already aggregated by ticker
+  // IMPORTANT: Aggregate individual tax lots by ticker to get total shares per symbol
   const existingByTicker = {};
   (existingPositions || []).forEach(pos => {
-    // Unified positions use 'identifier' as the ticker/symbol
-    const ticker = (pos.identifier || pos.ticker || pos.symbol || '').toUpperCase().trim();
+    // fetchPositions returns 'ticker' field for each lot
+    const ticker = (pos.ticker || pos.symbol || pos.identifier || '').toUpperCase().trim();
     if (ticker) {
-      // Unified positions are already aggregated - use total_quantity directly
-      existingByTicker[ticker] = {
-        ticker,
-        totalShares: parseFloat(pos.total_quantity || pos.quantity || pos.shares || 0),
-        position: pos,  // Store the unified position object
-        name: pos.name || pos.security_name || ticker
-      };
+      if (!existingByTicker[ticker]) {
+        existingByTicker[ticker] = {
+          ticker,
+          totalShares: 0,
+          lots: [],  // Store individual lots for reference
+          name: pos.name || pos.security_name || ticker
+        };
+      }
+      // Sum up shares from each lot
+      const lotShares = parseFloat(pos.shares || pos.quantity || 0);
+      existingByTicker[ticker].totalShares += lotShares;
+      existingByTicker[ticker].lots.push(pos);
     }
   });
+
+  console.log('[categorizeImportedPositions] Aggregated existing positions:',
+    Object.entries(existingByTicker).map(([ticker, data]) => ({
+      ticker,
+      totalShares: data.totalShares,
+      lotCount: data.lots.length
+    }))
+  );
 
   // Process each imported row
   importedRows.forEach((row, index) => {
@@ -107,7 +119,8 @@ const categorizeImportedPositions = (importedRows, existingPositions, columnMapp
           ...importedItem,
           category: 'matches',
           existingQuantity: existing.totalShares,
-          existingPosition: existing.position,  // Unified position (already aggregated)
+          existingLots: existing.lots,  // Individual tax lots for reference
+          lotCount: existing.lots.length,
           quantityDiff: 0,
           actionLabel: 'Already accurate'
         });
@@ -117,7 +130,8 @@ const categorizeImportedPositions = (importedRows, existingPositions, columnMapp
           ...importedItem,
           category: 'differs',
           existingQuantity: existing.totalShares,
-          existingPosition: existing.position,  // Unified position (already aggregated)
+          existingLots: existing.lots,  // Individual tax lots for reference
+          lotCount: existing.lots.length,
           quantityDiff: importedQty - existing.totalShares,
           actionLabel: importedQty > existing.totalShares ? 'Add shares' : 'Reduce shares'
         });
@@ -234,6 +248,9 @@ const CategorySection = ({
                         <span className="text-gray-600">→</span>
                         <span className="text-gray-500">NestEgg:</span>
                         <span className="text-gray-300">{item.existingQuantity?.toLocaleString() || '0'}</span>
+                        {item.lotCount > 1 && (
+                          <span className="text-gray-500">({item.lotCount} lots)</span>
+                        )}
                         {item.quantityDiff !== 0 && (
                           <span className={item.quantityDiff > 0 ? 'text-green-400' : 'text-red-400'}>
                             ({item.quantityDiff > 0 ? '+' : ''}{item.quantityDiff.toLocaleString()})
@@ -989,17 +1006,17 @@ const AddStatementImportModal = ({ isOpen, onClose }) => {
 
     setIsLoadingInsights(true);
     try {
-      // Fetch unified/grouped positions for the selected account
-      // This returns already-aggregated positions by ticker (not individual tax lots)
-      const positions = await fetchUnifiedPositions(null, selectedAccount);
+      // Fetch individual tax lots for this specific account
+      // The matching logic will aggregate them by ticker for comparison
+      const positions = await fetchPositions(selectedAccount);
       setExistingPositions(positions);
 
-      console.log('[AddStatementImportModal] Fetched unified positions:', {
+      console.log('[AddStatementImportModal] Fetched account positions (tax lots):', {
         count: positions.length,
-        sample: positions.slice(0, 3).map(p => ({
-          identifier: p.identifier,
-          total_quantity: p.total_quantity,
-          name: p.name
+        sample: positions.slice(0, 5).map(p => ({
+          ticker: p.ticker,
+          shares: p.shares,
+          id: p.id
         }))
       });
 
