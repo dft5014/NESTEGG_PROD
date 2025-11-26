@@ -7,6 +7,7 @@ import {
 import DataTable, { CollapsibleSection } from '../components/DataTable';
 import StatsBar, { PositionTypeStats } from '../components/StatsBar';
 import { KeyboardShortcutsPanel, useKeyboardShortcuts } from '../components/KeyboardShortcuts';
+import { InlineMessageList, useInlineMessages } from '../components/InlineMessage';
 import { VIEWS, ASSET_TYPES } from '../utils/constants';
 import { formatCurrency } from '@/utils/formatters';
 import { downloadTemplate } from '../utils/excelUtils';
@@ -32,6 +33,9 @@ export default function PositionsView({
   const [isDownloading, setIsDownloading] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'draft', 'ready', 'added'
+
+  // Inline messages
+  const { messages, removeMessage, showSuccess, showError } = useInlineMessages();
 
   // Add new position
   const handleAddPosition = useCallback((assetType) => {
@@ -108,8 +112,22 @@ export default function PositionsView({
 
   // Submit positions
   const handleSubmit = useCallback(async (mode = 'ready') => {
-    await onSubmitPositions(mode);
-  }, [onSubmitPositions]);
+    try {
+      const result = await onSubmitPositions(mode);
+      if (result?.success) {
+        const count = result.addedCount || 0;
+        showSuccess(
+          `${count} position${count !== 1 ? 's' : ''} added successfully`,
+          'Your portfolio has been updated'
+        );
+      }
+    } catch (error) {
+      showError(
+        'Failed to save positions',
+        error.message || 'Please try again'
+      );
+    }
+  }, [onSubmitPositions, showSuccess, showError]);
 
   // Download template via API
   const handleDownloadTemplate = useCallback(async () => {
@@ -418,6 +436,9 @@ export default function PositionsView({
 
       {/* Content */}
       <div className="flex-1 overflow-auto p-4 space-y-4">
+        {/* Inline messages */}
+        <InlineMessageList messages={messages} onDismiss={removeMessage} />
+
         {/* Import banner - always visible, more compact when positions exist */}
         <div className={`bg-gradient-to-r from-purple-900/40 to-blue-900/40 rounded-xl border border-purple-700/50 ${stats.total === 0 ? 'p-5' : 'p-3'}`}>
           <div className="flex items-center justify-between">

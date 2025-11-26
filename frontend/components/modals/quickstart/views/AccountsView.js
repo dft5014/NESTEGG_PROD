@@ -7,6 +7,7 @@ import {
 import DataTable from '../components/DataTable';
 import StatsBar from '../components/StatsBar';
 import { KeyboardShortcutsPanel, useKeyboardShortcuts } from '../components/KeyboardShortcuts';
+import { InlineMessageList, useInlineMessages } from '../components/InlineMessage';
 import { VIEWS, ACCOUNT_FIELDS, ACCOUNT_CATEGORIES, ACCOUNT_TYPES_BY_CATEGORY } from '../utils/constants';
 import { downloadTemplate } from '../utils/excelUtils';
 
@@ -25,6 +26,9 @@ export default function AccountsView({
   const [isDownloading, setIsDownloading] = useState(false);
   const [isSavingAndContinuing, setIsSavingAndContinuing] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
+
+  // Inline messages
+  const { messages, removeMessage, showSuccess, showError } = useInlineMessages();
 
   // Count ready accounts (moved up so it can be used in callbacks)
   const readyCount = accounts.filter(a =>
@@ -106,8 +110,22 @@ export default function AccountsView({
 
   // Submit accounts
   const handleSubmit = useCallback(async () => {
-    await onSubmitAccounts();
-  }, [onSubmitAccounts]);
+    try {
+      const result = await onSubmitAccounts();
+      if (result?.success) {
+        const count = result.addedCount || 0;
+        showSuccess(
+          `${count} account${count !== 1 ? 's' : ''} added successfully`,
+          'You can now add positions to these accounts'
+        );
+      }
+    } catch (error) {
+      showError(
+        'Failed to save accounts',
+        error.message || 'Please try again'
+      );
+    }
+  }, [onSubmitAccounts, showSuccess, showError]);
 
   // Save accounts and continue to positions
   const handleSaveAndContinue = useCallback(async () => {
@@ -299,6 +317,9 @@ export default function AccountsView({
 
       {/* Content */}
       <div className="flex-1 overflow-auto p-4">
+        {/* Inline messages */}
+        <InlineMessageList messages={messages} onDismiss={removeMessage} />
+
         {/* Prominent import banner when no accounts */}
         {accounts.length === 0 && (
           <div className="mb-6 bg-gradient-to-r from-blue-900/40 to-purple-900/40 rounded-xl border border-blue-700/50 p-5">

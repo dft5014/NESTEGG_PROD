@@ -6,6 +6,7 @@ import {
 import DataTable from '../components/DataTable';
 import StatsBar from '../components/StatsBar';
 import { KeyboardShortcutsPanel, useKeyboardShortcuts } from '../components/KeyboardShortcuts';
+import { InlineMessageList, useInlineMessages } from '../components/InlineMessage';
 import { LIABILITY_FIELDS, LIABILITY_TYPES } from '../utils/constants';
 import { formatCurrency } from '@/utils/formatters';
 
@@ -21,6 +22,9 @@ export default function LiabilitiesView({
 }) {
   const liabilities = state.liabilities;
   const [showShortcuts, setShowShortcuts] = useState(false);
+
+  // Inline messages
+  const { messages, removeMessage, showSuccess, showError } = useInlineMessages();
 
   // Add new liability row
   const handleAddLiability = useCallback(() => {
@@ -89,8 +93,22 @@ export default function LiabilitiesView({
 
   // Submit liabilities
   const handleSubmit = useCallback(async () => {
-    await onSubmitLiabilities();
-  }, [onSubmitLiabilities]);
+    try {
+      const result = await onSubmitLiabilities();
+      if (result?.success) {
+        const count = result.addedCount || 0;
+        showSuccess(
+          `${count} liabilit${count !== 1 ? 'ies' : 'y'} added successfully`,
+          'Your net worth has been updated'
+        );
+      }
+    } catch (error) {
+      showError(
+        'Failed to save liabilities',
+        error.message || 'Please try again'
+      );
+    }
+  }, [onSubmitLiabilities, showSuccess, showError]);
 
   // Get filtered fields based on liability type
   const getFieldsForLiability = useCallback((liability) => {
@@ -296,6 +314,9 @@ export default function LiabilitiesView({
 
       {/* Content */}
       <div className="flex-1 overflow-auto p-4">
+        {/* Inline messages */}
+        <InlineMessageList messages={messages} onDismiss={removeMessage} />
+
         {/* Add button */}
         <div className="mb-4">
           <button
