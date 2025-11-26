@@ -244,6 +244,7 @@ export default function PositionsView({
             <button
               onClick={() => {
                 dispatch(actions.setImportTarget('positions'));
+                dispatch(actions.setImportMethod('excel'));
                 goToView(VIEWS.import);
               }}
               className="px-3 py-1.5 text-sm bg-gray-800 text-gray-300 rounded-lg hover:bg-gray-700 flex items-center space-x-1.5 transition-colors"
@@ -399,6 +400,7 @@ export default function PositionsView({
                     <button
                       onClick={() => {
                         dispatch(actions.setImportTarget('positions'));
+                        dispatch(actions.setImportMethod('excel'));
                         goToView(VIEWS.import);
                       }}
                       className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center space-x-2 transition-colors text-sm font-medium"

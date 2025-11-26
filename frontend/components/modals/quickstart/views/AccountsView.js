@@ -293,6 +293,7 @@ export default function AccountsView({
                   <button
                     onClick={() => {
                       dispatch(actions.setImportTarget('accounts'));
+                      dispatch(actions.setImportMethod('excel'));
                       goToView(VIEWS.import);
                     }}
                     className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center space-x-2 transition-colors text-sm font-medium"
@@ -324,6 +325,7 @@ export default function AccountsView({
               <button
                 onClick={() => {
                   dispatch(actions.setImportTarget('accounts'));
+                  dispatch(actions.setImportMethod('excel'));
                   goToView(VIEWS.import);
                 }}
                 className="text-blue-400 hover:text-blue-300 underline"
