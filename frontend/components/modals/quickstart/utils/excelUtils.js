@@ -418,6 +418,63 @@ export const parseAccountsExcel = async (file, accountCategories) => {
     });
   }
 
+  // Build account type label → value map for translation
+  // This handles cases where Excel has "Pension" but we need "pension"
+  const accountTypeLabels = new Map();
+  const ACCOUNT_TYPES = {
+    investment: [
+      { value: 'brokerage', label: 'Taxable Brokerage' },
+      { value: 'trust', label: 'Trust' },
+      { value: 'custodial', label: 'Custodial (UTMA/UGMA)' },
+      { value: 'other_investment', label: 'Other Investment' }
+    ],
+    retirement: [
+      { value: '401k', label: '401(k)' },
+      { value: '403b', label: '403(b)' },
+      { value: 'ira', label: 'Traditional IRA' },
+      { value: 'roth_ira', label: 'Roth IRA' },
+      { value: 'sep_ira', label: 'SEP IRA' },
+      { value: 'simple_ira', label: 'SIMPLE IRA' },
+      { value: 'pension', label: 'Pension' },
+      { value: 'hsa', label: 'HSA' },
+      { value: 'other_retirement', label: 'Other Retirement' }
+    ],
+    cash: [
+      { value: 'checking', label: 'Checking' },
+      { value: 'savings', label: 'Savings' },
+      { value: 'money_market', label: 'Money Market' },
+      { value: 'cd', label: 'CD' },
+      { value: 'other_cash', label: 'Other Cash' }
+    ],
+    crypto: [
+      { value: 'exchange', label: 'Exchange' },
+      { value: 'wallet', label: 'Wallet' },
+      { value: 'defi', label: 'DeFi' },
+      { value: 'other_crypto', label: 'Other Crypto' }
+    ],
+    alternative: [
+      { value: 'real_estate', label: 'Real Estate' },
+      { value: 'precious_metals', label: 'Precious Metals' },
+      { value: 'collectibles', label: 'Collectibles' },
+      { value: 'private_equity', label: 'Private Equity' },
+      { value: 'other_alternative', label: 'Other Alternative' }
+    ]
+  };
+
+  // Build the lookup map
+  Object.values(ACCOUNT_TYPES).flat().forEach((t) => {
+    accountTypeLabels.set(t.label.toLowerCase(), t.value);
+    accountTypeLabels.set(t.value.toLowerCase(), t.value); // Also map value to itself
+  });
+
+  // Translate account type labels → values
+  parsed.forEach((a) => {
+    const lowered = String(a.accountType || '').toLowerCase();
+    if (accountTypeLabels.has(lowered)) {
+      a.accountType = accountTypeLabels.get(lowered);
+    }
+  });
+
   return parsed;
 };
 

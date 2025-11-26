@@ -15,6 +15,7 @@ import {
   buildAccountNameToIdMap,
   isValidExcelFile
 } from '../utils/excelUtils';
+import { formatCurrency } from '@/utils/formatters';
 
 export default function ImportView({
   state,

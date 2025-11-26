@@ -312,6 +312,7 @@ export default function SearchableInput({
                   type="button"
                   onClick={() => handleSelect(item)}
                   onMouseEnter={() => setHighlightedIndex(idx)}
+                  onMouseDown={(e) => e.preventDefault()}
                   className={`
                     w-full px-3 py-2 flex items-center transition-colors
                     ${isSelected ? 'bg-blue-500/10' : ''}
