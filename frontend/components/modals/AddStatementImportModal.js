@@ -13,6 +13,7 @@ import { useAccounts } from '@/store/hooks/useAccounts';
 import {
   addSecurityPositionBulk,
   fetchPositions,
+  fetchUnifiedPositions,
   updatePosition
 } from '@/utils/apimethods/positionMethods';
 import { formatCurrency } from '@/utils/formatters';
@@ -33,7 +34,7 @@ const MATCH_TOLERANCE_PERCENT = 0.01; // 1% tolerance for "matches"
 /**
  * Categorize imported positions by comparing to existing positions in the account
  * @param {Array} importedRows - Parsed rows from statement with mapped fields
- * @param {Array} existingPositions - Current positions in the selected account
+ * @param {Array} existingPositions - Unified/grouped positions from the account (already aggregated by ticker)
  * @param {Object} columnMappings - Field mappings from import
  * @returns {Object} - { new: [], differs: [], matches: [] }
  */
@@ -45,21 +46,19 @@ const categorizeImportedPositions = (importedRows, existingPositions, columnMapp
   };
 
   // Build a lookup map of existing positions by ticker (uppercase)
+  // Using unified positions which are already aggregated by ticker
   const existingByTicker = {};
   (existingPositions || []).forEach(pos => {
-    const ticker = (pos.ticker || pos.symbol || pos.identifier || '').toUpperCase().trim();
+    // Unified positions use 'identifier' as the ticker/symbol
+    const ticker = (pos.identifier || pos.ticker || pos.symbol || '').toUpperCase().trim();
     if (ticker) {
-      // If multiple lots of same ticker, aggregate them
-      if (!existingByTicker[ticker]) {
-        existingByTicker[ticker] = {
-          ticker,
-          totalShares: 0,
-          positions: [],
-          name: pos.name || pos.security_name || ticker
-        };
-      }
-      existingByTicker[ticker].totalShares += parseFloat(pos.shares || pos.quantity || 0);
-      existingByTicker[ticker].positions.push(pos);
+      // Unified positions are already aggregated - use total_quantity directly
+      existingByTicker[ticker] = {
+        ticker,
+        totalShares: parseFloat(pos.total_quantity || pos.quantity || pos.shares || 0),
+        position: pos,  // Store the unified position object
+        name: pos.name || pos.security_name || ticker
+      };
     }
   });
 
@@ -108,7 +107,7 @@ const categorizeImportedPositions = (importedRows, existingPositions, columnMapp
           ...importedItem,
           category: 'matches',
           existingQuantity: existing.totalShares,
-          existingPositions: existing.positions,
+          existingPosition: existing.position,  // Unified position (already aggregated)
           quantityDiff: 0,
           actionLabel: 'Already accurate'
         });
@@ -118,7 +117,7 @@ const categorizeImportedPositions = (importedRows, existingPositions, columnMapp
           ...importedItem,
           category: 'differs',
           existingQuantity: existing.totalShares,
-          existingPositions: existing.positions,
+          existingPosition: existing.position,  // Unified position (already aggregated)
           quantityDiff: importedQty - existing.totalShares,
           actionLabel: importedQty > existing.totalShares ? 'Add shares' : 'Reduce shares'
         });
@@ -990,9 +989,19 @@ const AddStatementImportModal = ({ isOpen, onClose }) => {
 
     setIsLoadingInsights(true);
     try {
-      // Fetch existing positions for the selected account
-      const positions = await fetchPositions(selectedAccount);
+      // Fetch unified/grouped positions for the selected account
+      // This returns already-aggregated positions by ticker (not individual tax lots)
+      const positions = await fetchUnifiedPositions(null, selectedAccount);
       setExistingPositions(positions);
+
+      console.log('[AddStatementImportModal] Fetched unified positions:', {
+        count: positions.length,
+        sample: positions.slice(0, 3).map(p => ({
+          identifier: p.identifier,
+          total_quantity: p.total_quantity,
+          name: p.name
+        }))
+      });
 
       // Aggregate all imported rows from all files
       const allImportedRows = parsedData.flatMap(fileData => fileData.data);
@@ -1078,8 +1087,8 @@ const AddStatementImportModal = ({ isOpen, onClose }) => {
       }
 
       // Process DIFFERS positions (update existing)
-      // Note: For simplicity, we add the difference as a new lot rather than modifying existing lots
-      // This preserves tax lot history. A more sophisticated approach would update specific lots.
+      // For adding shares: create a new lot with the difference
+      // For reducing shares: this requires manual lot selection (not automated)
       if (selectedDiffers.size > 0) {
         const differsToProcess = categorizedData.differs
           .filter(item => selectedDiffers.has(item.index));
@@ -1087,7 +1096,7 @@ const AddStatementImportModal = ({ isOpen, onClose }) => {
         for (const item of differsToProcess) {
           try {
             if (item.quantityDiff > 0) {
-              // Need to add more shares - create a new lot
+              // Need to add more shares - create a new lot with the difference
               const newLot = {
                 ticker: item.ticker,
                 shares: item.quantityDiff,
@@ -1097,18 +1106,12 @@ const AddStatementImportModal = ({ isOpen, onClose }) => {
               };
               await addSecurityPositionBulk(selectedAccount, [newLot]);
               updatedCount++;
-            } else if (item.quantityDiff < 0 && item.existingPositions?.length > 0) {
-              // Need to reduce shares - update the first existing lot
-              // Note: This is a simplified approach. A proper implementation would
-              // allow the user to select which lots to reduce.
-              const existingLot = item.existingPositions[0];
-              const newShares = Math.max(0, (existingLot.shares || existingLot.quantity || 0) + item.quantityDiff);
-
-              if (newShares > 0) {
-                await updatePosition(existingLot.id, { shares: newShares }, 'security');
-              }
-              // If newShares is 0, we'd ideally delete the position, but that's a separate workflow
-              updatedCount++;
+            } else if (item.quantityDiff < 0) {
+              // Need to reduce shares - this requires selecting which lots to sell
+              // For now, we skip this and inform the user
+              console.warn(`[AddStatementImportModal] Skipping ${item.ticker}: reducing shares requires manual lot selection`);
+              errors.push(`${item.ticker}: Reducing shares requires manual edit (sold ${Math.abs(item.quantityDiff).toLocaleString()} shares)`);
+              // Don't count as failed - it's a known limitation
             }
           } catch (error) {
             console.error(`[AddStatementImportModal] Error updating ${item.ticker}:`, error);
