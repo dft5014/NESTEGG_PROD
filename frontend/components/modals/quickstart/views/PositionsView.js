@@ -115,10 +115,29 @@ export default function PositionsView({
     try {
       const result = await onSubmitPositions(mode);
       if (result?.success) {
-        const count = result.addedCount || 0;
-        showSuccess(
-          `${count} position${count !== 1 ? 's' : ''} added successfully`,
-          'Your portfolio has been updated'
+        const count = result.successCount || 0;
+        if (result.failedCount > 0) {
+          // Partial success - some failed
+          const failedErrors = result.results?.failed?.map(f => f.error).filter(Boolean);
+          const uniqueErrors = [...new Set(failedErrors)].slice(0, 3);
+          showError(
+            `${result.failedCount} position${result.failedCount !== 1 ? 's' : ''} failed to save`,
+            uniqueErrors.length > 0 ? uniqueErrors.join('; ') : 'Check the errors above'
+          );
+        }
+        if (count > 0) {
+          showSuccess(
+            `${count} position${count !== 1 ? 's' : ''} added successfully`,
+            'Your portfolio has been updated'
+          );
+        }
+      } else if (result?.failedCount > 0) {
+        // All failed
+        const failedErrors = result.results?.failed?.map(f => f.error).filter(Boolean);
+        const uniqueErrors = [...new Set(failedErrors)].slice(0, 3);
+        showError(
+          `All ${result.failedCount} position${result.failedCount !== 1 ? 's' : ''} failed to save`,
+          uniqueErrors.length > 0 ? uniqueErrors.join('; ') : 'Please check your data and try again'
         );
       }
     } catch (error) {

@@ -348,6 +348,14 @@ export default function SuccessView({
         >
           <button
             onClick={() => {
+              // Clear successfully added items based on type
+              if (successData.type === 'accounts') {
+                dispatch(actions.clearAddedAccounts());
+              } else if (successData.type === 'positions') {
+                dispatch(actions.clearAddedPositions());
+              } else if (successData.type === 'liabilities') {
+                dispatch(actions.clearAddedLiabilities());
+              }
               dispatch(actions.clearSuccessData());
               goToView(VIEWS.welcome);
             }}

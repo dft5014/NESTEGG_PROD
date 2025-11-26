@@ -2,6 +2,21 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { searchSecurities } from '@/utils/apimethods/positionMethods';
 
+// Metal type to symbol mapping (case-insensitive lookup)
+const METAL_SYMBOLS = {
+  'gold': 'GC=F',
+  'silver': 'SI=F',
+  'platinum': 'PL=F',
+  'palladium': 'PA=F',
+  'copper': 'HG=F'
+};
+
+// Helper to get metal symbol with case-insensitive lookup
+const getMetalSymbol = (metalType) => {
+  if (!metalType) return null;
+  return METAL_SYMBOLS[metalType.toLowerCase()];
+};
+
 export default function useSecuritySearch({
   dispatch,
   positions = {},
@@ -66,6 +81,10 @@ export default function useSecuritySearch({
       updates.symbol = result.symbol;
       updates.name = result.name;
       updates.current_price = result.price;
+    } else if (assetType === 'metal') {
+      updates.symbol = result.ticker || result.symbol;
+      updates.name = result.name;
+      updates.current_price_per_unit = result.price;
     }
 
     dispatch?.({
@@ -96,6 +115,7 @@ export default function useSecuritySearch({
       } else if (assetType === 'crypto') {
         filteredResults = filteredResults.filter(r => r.asset_type === 'crypto');
       }
+      // For metals, we don't filter - the symbol itself (GC=F, SI=F) should match
 
       const match = filteredResults.find(r =>
         (r.ticker || r.symbol)?.toLowerCase() === query.toLowerCase()
@@ -109,6 +129,8 @@ export default function useSecuritySearch({
         } else if (assetType === 'crypto') {
           updates.current_price = match.price;
           updates.name = match.name;
+        } else if (assetType === 'metal') {
+          updates.current_price_per_unit = match.price;
         }
 
         dispatch?.({
@@ -128,7 +150,8 @@ export default function useSecuritySearch({
     const toHydrate = [];
 
     Object.entries(positions).forEach(([assetType, typePositions]) => {
-      if (assetType !== 'security' && assetType !== 'crypto') return;
+      if (!Array.isArray(typePositions)) return;
+      if (assetType !== 'security' && assetType !== 'crypto' && assetType !== 'metal') return;
 
       typePositions.forEach(pos => {
         if (pos.status === 'added' || pos.status === 'submitting') return;
@@ -137,6 +160,12 @@ export default function useSecuritySearch({
           toHydrate.push({ assetType, id: pos.id, query: pos.data.ticker });
         } else if (assetType === 'crypto' && pos.data.symbol && !pos.data.current_price) {
           toHydrate.push({ assetType, id: pos.id, query: pos.data.symbol });
+        } else if (assetType === 'metal') {
+          // For metals, use symbol if available, otherwise lookup by metal_type
+          const query = pos.data.symbol || getMetalSymbol(pos.data.metal_type);
+          if (query && !pos.data.current_price_per_unit) {
+            toHydrate.push({ assetType, id: pos.id, query });
+          }
         }
       });
     });

@@ -3973,7 +3973,7 @@ async def add_crypto_positions_bulk(
                  to_date(v.purchase_date, 'YYYY-MM-DD'),
                  v.storage_type,
                  v.notes,
-                 COALESCE(v.tags, '[]'::jsonb),
+                 COALESCE((SELECT array_agg(x::text) FROM jsonb_array_elements_text(COALESCE(v.tags, '[]')) AS x), ARRAY[]::text[]),
                  COALESCE(v.is_favorite, false)
               FROM v
               RETURNING id

@@ -195,15 +195,14 @@ export default function useBulkSubmit({ state, dispatch, onSuccess }) {
             break;
           }
           case 'other': {
-            // Other assets expects account_id in each payload item
+            // Other assets - map frontend fields to backend expected fields
             const otherPayload = positions.map(pos => ({
-              account_id: pos.data.account_id,
               asset_name: pos.data.asset_name,
-              description: pos.data.description || '',
+              asset_type: pos.data.category || pos.data.asset_type || 'other',
               current_value: parseFloat(pos.data.current_value) || 0,
-              cost_basis: parseFloat(pos.data.cost_basis) || 0,
+              cost: parseFloat(pos.data.cost_basis) || parseFloat(pos.data.cost) || 0,
               purchase_date: pos.data.purchase_date || null,
-              category: pos.data.category || 'other'
+              notes: pos.data.description || pos.data.notes || ''
             }));
             response = await addOtherAssetBulk(otherPayload);
             break;

@@ -171,6 +171,36 @@ export default function QuickStartModalV2({ isOpen, onClose, onSuccess }) {
     loadExistingAccounts();
   }, [isOpen]);
 
+  // Auto-hydrate prices when entering positions view (e.g., after import)
+  const hasTriggeredHydrationRef = React.useRef(false);
+  useEffect(() => {
+    if (!isOpen || state.currentView !== VIEWS.positions) {
+      hasTriggeredHydrationRef.current = false;
+      return;
+    }
+
+    // Check if there are positions needing hydration
+    const needsHydration = Object.entries(state.positions).some(([assetType, typePositions]) => {
+      if (!Array.isArray(typePositions)) return false;
+      return typePositions.some(pos => {
+        if (pos.status === 'added' || pos.status === 'submitting') return false;
+        if (assetType === 'security' && pos.data.ticker && !pos.data.price) return true;
+        if (assetType === 'crypto' && pos.data.symbol && !pos.data.current_price) return true;
+        if (assetType === 'metal' && pos.data.metal_type && !pos.data.current_price_per_unit) return true;
+        return false;
+      });
+    });
+
+    if (needsHydration && !hasTriggeredHydrationRef.current) {
+      hasTriggeredHydrationRef.current = true;
+      // Delay slightly to let the UI render first
+      const timer = setTimeout(() => {
+        hydrateAllPending();
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen, state.currentView, state.positions, hydrateAllPending]);
+
   // Note: We no longer auto-restore drafts. Instead, we show a banner
   // that lets the user choose to restore or start fresh.
 

@@ -20,6 +20,7 @@ export const ActionTypes = {
   DUPLICATE_ACCOUNT: 'DUPLICATE_ACCOUNT',
   SET_ACCOUNTS: 'SET_ACCOUNTS',
   CLEAR_ACCOUNTS: 'CLEAR_ACCOUNTS',
+  CLEAR_ADDED_ACCOUNTS: 'CLEAR_ADDED_ACCOUNTS',
 
   // Positions
   ADD_POSITION: 'ADD_POSITION',
@@ -28,6 +29,7 @@ export const ActionTypes = {
   DUPLICATE_POSITION: 'DUPLICATE_POSITION',
   SET_POSITIONS: 'SET_POSITIONS',
   CLEAR_POSITIONS: 'CLEAR_POSITIONS',
+  CLEAR_ADDED_POSITIONS: 'CLEAR_ADDED_POSITIONS',
   UPDATE_POSITION_STATUS: 'UPDATE_POSITION_STATUS',
   TOGGLE_POSITION_SECTION: 'TOGGLE_POSITION_SECTION',
   BULK_IMPORT_POSITIONS: 'BULK_IMPORT_POSITIONS',
@@ -39,6 +41,7 @@ export const ActionTypes = {
   DUPLICATE_LIABILITY: 'DUPLICATE_LIABILITY',
   SET_LIABILITIES: 'SET_LIABILITIES',
   CLEAR_LIABILITIES: 'CLEAR_LIABILITIES',
+  CLEAR_ADDED_LIABILITIES: 'CLEAR_ADDED_LIABILITIES',
   UPDATE_LIABILITY_STATUS: 'UPDATE_LIABILITY_STATUS',
 
   // Selection
@@ -281,6 +284,15 @@ export function quickStartReducer(state, action) {
         isDirty: true
       };
 
+    case ActionTypes.CLEAR_ADDED_ACCOUNTS:
+      return {
+        ...state,
+        accounts: state.accounts.filter(acc => acc.status !== 'added'),
+        selectedIds: new Set([...state.selectedIds].filter(id =>
+          !state.accounts.some(acc => acc.id === id && acc.status === 'added')
+        ))
+      };
+
     // ====== Position Entry ======
     case ActionTypes.ADD_POSITION: {
       const { assetType, data = {} } = action.payload;
@@ -389,6 +401,24 @@ export function quickStartReducer(state, action) {
         selectedIds: new Set(),
         isDirty: true
       };
+
+    case ActionTypes.CLEAR_ADDED_POSITIONS: {
+      const addedIds = new Set();
+      Object.values(state.positions).flat().forEach(pos => {
+        if (pos.status === 'added') addedIds.add(pos.id);
+      });
+      return {
+        ...state,
+        positions: {
+          security: state.positions.security.filter(pos => pos.status !== 'added'),
+          cash: state.positions.cash.filter(pos => pos.status !== 'added'),
+          crypto: state.positions.crypto.filter(pos => pos.status !== 'added'),
+          metal: state.positions.metal.filter(pos => pos.status !== 'added'),
+          other: state.positions.other.filter(pos => pos.status !== 'added')
+        },
+        selectedIds: new Set([...state.selectedIds].filter(id => !addedIds.has(id)))
+      };
+    }
 
     case ActionTypes.UPDATE_POSITION_STATUS: {
       const { assetType, id, status, error } = action.payload;
@@ -548,6 +578,15 @@ export function quickStartReducer(state, action) {
         ...state,
         liabilities: [],
         isDirty: true
+      };
+
+    case ActionTypes.CLEAR_ADDED_LIABILITIES:
+      return {
+        ...state,
+        liabilities: state.liabilities.filter(lib => lib.status !== 'added'),
+        selectedIds: new Set([...state.selectedIds].filter(id =>
+          !state.liabilities.some(lib => lib.id === id && lib.status === 'added')
+        ))
       };
 
     case ActionTypes.UPDATE_LIABILITY_STATUS:
@@ -784,6 +823,7 @@ export const actions = {
   duplicateAccount: (id) => ({ type: ActionTypes.DUPLICATE_ACCOUNT, payload: id }),
   setAccounts: (accounts) => ({ type: ActionTypes.SET_ACCOUNTS, payload: accounts }),
   clearAccounts: () => ({ type: ActionTypes.CLEAR_ACCOUNTS }),
+  clearAddedAccounts: () => ({ type: ActionTypes.CLEAR_ADDED_ACCOUNTS }),
 
   // Positions
   addPosition: (assetType, data = {}) => ({ type: ActionTypes.ADD_POSITION, payload: { assetType, data } }),
@@ -792,6 +832,7 @@ export const actions = {
   duplicatePosition: (assetType, id) => ({ type: ActionTypes.DUPLICATE_POSITION, payload: { assetType, id } }),
   setPositions: (positions) => ({ type: ActionTypes.SET_POSITIONS, payload: positions }),
   clearPositions: () => ({ type: ActionTypes.CLEAR_POSITIONS }),
+  clearAddedPositions: () => ({ type: ActionTypes.CLEAR_ADDED_POSITIONS }),
   updatePositionStatus: (assetType, id, status, error) => ({ type: ActionTypes.UPDATE_POSITION_STATUS, payload: { assetType, id, status, error } }),
   togglePositionSection: (assetType) => ({ type: ActionTypes.TOGGLE_POSITION_SECTION, payload: assetType }),
   bulkImportPositions: (data) => ({ type: ActionTypes.BULK_IMPORT_POSITIONS, payload: data }),
@@ -803,6 +844,7 @@ export const actions = {
   duplicateLiability: (id) => ({ type: ActionTypes.DUPLICATE_LIABILITY, payload: id }),
   setLiabilities: (liabilities) => ({ type: ActionTypes.SET_LIABILITIES, payload: liabilities }),
   clearLiabilities: () => ({ type: ActionTypes.CLEAR_LIABILITIES }),
+  clearAddedLiabilities: () => ({ type: ActionTypes.CLEAR_ADDED_LIABILITIES }),
   updateLiabilityStatus: (id, status, error) => ({ type: ActionTypes.UPDATE_LIABILITY_STATUS, payload: { id, status, error } }),
 
   // Selection
