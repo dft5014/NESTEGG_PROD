@@ -1188,7 +1188,7 @@ const QuickStatementValidationModal = ({ isOpen, onClose }) => {
 // BUTTON EXPORT
 // ============================================================================
 
-export function QuickStatementValidationButton({ className = '', label = 'Validate' }) {
+export function QuickStatementValidationButton({ className = '', label = 'Reconcile' }) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -1196,15 +1196,11 @@ export function QuickStatementValidationButton({ className = '', label = 'Valida
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className={
-          className ||
-          "flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-purple-600 to-purple-500 " +
-          "text-white font-semibold shadow-md transition-all duration-200 " +
-          "hover:scale-105 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-purple-400"
-        }
+        className={`flex items-center gap-2 ${className}`}
+        title="Validate accounts against statements"
       >
         <Target className="w-4 h-4" />
-        {label}
+        <span>{label}</span>
       </button>
 
       <QuickStatementValidationModal isOpen={open} onClose={() => setOpen(false)} />

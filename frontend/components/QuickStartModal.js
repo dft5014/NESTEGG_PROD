@@ -2764,25 +2764,22 @@ const QuickStartModal = ({ isOpen, onClose }) => {
 };
 
 // Quick Start Button Component
-export const QuickStartButton = ({ className = '' }) => {
+export const QuickStartButton = ({ className = '', label = 'Add' }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   return (
       <>
           <button
               onClick={() => setIsModalOpen(true)}
-              className={`group relative flex items-center text-white py-1 px-4 transition-all duration-300 ${className}`}
+              className={`flex items-center gap-2 ${className}`}
           >
-              <div className="absolute inset-0 bg-gradient-to-r from-green-600 to-emerald-600 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-              <div className="relative flex items-center">
-                  <Sparkles className="w-5 h-5 mr-2 text-green-400 group-hover:text-white transition-colors" />
-                  <span className="text-sm text-gray-200 group-hover:text-white font-medium">Quick Add</span>
-              </div>
+              <Plus className="w-4 h-4" />
+              <span>{label}</span>
           </button>
-          
-          <QuickStartModal 
-              isOpen={isModalOpen} 
-              onClose={() => setIsModalOpen(false)} 
+
+          <QuickStartModal
+              isOpen={isModalOpen}
+              onClose={() => setIsModalOpen(false)}
           />
       </>
   );
