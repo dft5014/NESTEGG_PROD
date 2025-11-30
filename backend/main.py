@@ -497,6 +497,42 @@ class PositionCreate(BaseModel):
     cost_basis: float
     purchase_date: str  # Format: YYYY-MM-DD
 
+    @validator('ticker')
+    def ticker_not_empty(cls, v):
+        if not v or not v.strip():
+            raise ValueError('ticker cannot be empty')
+        return v.strip().upper()
+
+    @validator('shares')
+    def shares_must_be_positive(cls, v):
+        if v is None:
+            raise ValueError('shares cannot be null')
+        if not isinstance(v, (int, float)) or v != v:  # NaN check: v != v is True for NaN
+            raise ValueError('shares must be a valid number')
+        if v <= 0:
+            raise ValueError('shares must be positive')
+        return float(v)
+
+    @validator('price')
+    def price_must_be_non_negative(cls, v):
+        if v is None:
+            raise ValueError('price cannot be null')
+        if not isinstance(v, (int, float)) or v != v:  # NaN check
+            raise ValueError('price must be a valid number')
+        if v < 0:
+            raise ValueError('price cannot be negative')
+        return float(v)
+
+    @validator('cost_basis')
+    def cost_basis_must_be_non_negative(cls, v):
+        if v is None:
+            raise ValueError('cost_basis cannot be null')
+        if not isinstance(v, (int, float)) or v != v:  # NaN check
+            raise ValueError('cost_basis must be a valid number')
+        if v < 0:
+            raise ValueError('cost_basis cannot be negative')
+        return float(v)
+
 class SecuritySearch(BaseModel):
     query: str
 
@@ -6133,16 +6169,16 @@ async def get_datastore_summary(
             response_data["history"] = [
                 {
                     "date": row['snapshot_date'].strftime('%Y-%m-%d'),
-                    "net_worth": float(row['net_worth']),
-                    "total_assets": float(row['total_assets']),
-                    "total_liabilities": float(row['total_liabilities']),
-                    "liquid_assets": float(row['liquid_assets']),
-                    "unrealized_gain": float(row['total_unrealized_gain']),
-                    "unrealized_gain_percent": float(row['total_unrealized_gain_percent']),
+                    "net_worth": float(row['net_worth']) if row['net_worth'] is not None else 0.0,
+                    "total_assets": float(row['total_assets']) if row['total_assets'] is not None else 0.0,
+                    "total_liabilities": float(row['total_liabilities']) if row['total_liabilities'] is not None else 0.0,
+                    "liquid_assets": float(row['liquid_assets']) if row['liquid_assets'] is not None else 0.0,
+                    "unrealized_gain": float(row['total_unrealized_gain']) if row['total_unrealized_gain'] is not None else 0.0,
+                    "unrealized_gain_percent": float(row['total_unrealized_gain_percent']) if row['total_unrealized_gain_percent'] is not None else 0.0,
                     "net_cash_basis_metrics": row['net_cash_basis_metrics'],
-                    "alt_liquid_net_worth": float(row['alt_liquid_net_worth']) if row['alt_liquid_net_worth'] else 0,
-                    "alt_retirement_assets": float(row['alt_retirement_assets']) if row['alt_retirement_assets'] else 0,
-                    "alt_illiquid_net_worth": float(row['alt_illiquid_net_worth']) if row['alt_illiquid_net_worth'] else 0
+                    "alt_liquid_net_worth": float(row['alt_liquid_net_worth']) if row['alt_liquid_net_worth'] is not None else 0.0,
+                    "alt_retirement_assets": float(row['alt_retirement_assets']) if row['alt_retirement_assets'] is not None else 0.0,
+                    "alt_illiquid_net_worth": float(row['alt_illiquid_net_worth']) if row['alt_illiquid_net_worth'] is not None else 0.0
                 }
                 for row in history_results
             ]

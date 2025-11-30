@@ -1170,33 +1170,20 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
 }
 
 // Optional button
-export function QuickReconciliationButton({ className = "", label = "Quick Update" }) {
+export function QuickReconciliationButton({ className = "", label = "Update" }) {
   const [open, setOpen] = React.useState(false);
 
   return (
     <>
-      <div className="relative group inline-block">
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          className={
-            className ||
-            "flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-blue-600 to-blue-500 " +
-            "text-white font-semibold shadow-md transition-all duration-200 " +
-            "hover:scale-105 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-400"
-          }
-        >
-          <RefreshCw className="w-4 h-4" />
-          {label}
-        </button>
-
-        {/* Tooltip on hover */}
-        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-50">
-          <div className="px-3 py-1 text-xs text-white bg-zinc-900 rounded-md shadow-lg whitespace-nowrap">
-            Update manual account balances
-          </div>
-        </div>
-      </div>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className={`flex items-center gap-2 ${className}`}
+        title="Update manual account balances"
+      >
+        <RefreshCw className="w-4 h-4" />
+        <span>{label}</span>
+      </button>
 
       <QuickReconciliationModal isOpen={open} onClose={() => setOpen(false)} />
     </>
