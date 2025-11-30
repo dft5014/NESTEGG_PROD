@@ -109,14 +109,18 @@ export default function SearchableInput({
   }, [isOpen, searchResults, options, highlightedIndex, allowCustom, inputValue, value, onChange]);
 
   const handleSelect = useCallback((item) => {
-    const selectedValue = item.name || item.ticker || item.symbol || item.value;
+    // For security/crypto search (showEnhancedSecurityInfo), prefer ticker/symbol over name
+    // This ensures crypto symbols like "BTC-USD" are used instead of names like "Bitcoin"
+    const selectedValue = showEnhancedSecurityInfo
+      ? (item.ticker || item.symbol || item.name || item.value)
+      : (item.name || item.ticker || item.symbol || item.value);
     setInputValue(selectedValue);
     onChange(selectedValue);
     if (onSelect) {
       onSelect(item);
     }
     setIsOpen(false);
-  }, [onChange, onSelect]);
+  }, [onChange, onSelect, showEnhancedSecurityInfo]);
 
   const handleFocus = useCallback((e) => {
     setIsOpen(true);

@@ -78,7 +78,8 @@ export default function useSecuritySearch({
       updates.name = result.name;
       updates.price = result.price;
     } else if (assetType === 'crypto') {
-      updates.symbol = result.symbol;
+      // Search API returns ticker field for crypto symbols (e.g., BTC-USD)
+      updates.symbol = result.ticker || result.symbol;
       updates.name = result.name;
       updates.current_price = result.price;
     } else if (assetType === 'metal') {
