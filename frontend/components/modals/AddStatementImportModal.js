@@ -549,7 +549,188 @@ const InsightsView = ({
   );
 };
 
-// Parse Excel/CSV file
+// ============================================================================
+// HEADER ROW DETECTION - Auto-detect and allow manual adjustment
+// ============================================================================
+
+/**
+ * Detect which row contains the header in a raw 2D array of cells
+ * Returns the 0-based row index of the likely header row
+ * @param {Array<Array>} rawRows - 2D array of cell values
+ * @returns {Object} - { headerRowIndex, confidence, reason }
+ */
+const detectHeaderRow = (rawRows) => {
+  if (!rawRows || rawRows.length === 0) {
+    return { headerRowIndex: 0, confidence: 'low', reason: 'No data' };
+  }
+
+  // Common header keywords that suggest a row is a header
+  const headerKeywords = [
+    'symbol', 'ticker', 'security', 'name', 'description',
+    'quantity', 'shares', 'qty', 'units',
+    'price', 'cost', 'value', 'amount', 'market',
+    'date', 'purchase', 'acquired',
+    'type', 'account', 'cusip', 'isin'
+  ];
+
+  // Check each of the first 10 rows to find the best header candidate
+  const maxRowsToCheck = Math.min(10, rawRows.length);
+  let bestMatch = { index: 0, score: 0, reason: 'Default first row' };
+
+  for (let i = 0; i < maxRowsToCheck; i++) {
+    const row = rawRows[i];
+    if (!Array.isArray(row) || row.length === 0) continue;
+
+    let score = 0;
+    let keywordMatches = 0;
+    let numericCount = 0;
+    let textCount = 0;
+
+    for (const cell of row) {
+      const cellStr = String(cell || '').toLowerCase().trim();
+
+      // Check for header keywords
+      for (const keyword of headerKeywords) {
+        if (cellStr.includes(keyword)) {
+          keywordMatches++;
+          score += 10;
+          break;
+        }
+      }
+
+      // Headers are usually text, not numbers
+      if (cellStr && !isNaN(parseFormattedNumber(cellStr))) {
+        numericCount++;
+      } else if (cellStr && cellStr.length > 0) {
+        textCount++;
+      }
+    }
+
+    // Penalize rows with too many numeric values (likely data rows)
+    if (numericCount > textCount && numericCount > 2) {
+      score -= 5 * numericCount;
+    }
+
+    // Bonus for rows with mostly text
+    if (textCount > numericCount && textCount >= 3) {
+      score += 5;
+    }
+
+    // Strong indicator: multiple header keyword matches
+    if (keywordMatches >= 2) {
+      score += 20;
+    }
+
+    if (score > bestMatch.score) {
+      bestMatch = {
+        index: i,
+        score: score,
+        reason: keywordMatches > 0
+          ? `Found ${keywordMatches} header keyword(s)`
+          : 'Text-based row structure'
+      };
+    }
+  }
+
+  // Determine confidence
+  let confidence = 'low';
+  if (bestMatch.score >= 30) confidence = 'high';
+  else if (bestMatch.score >= 15) confidence = 'medium';
+
+  return {
+    headerRowIndex: bestMatch.index,
+    confidence,
+    reason: bestMatch.reason
+  };
+};
+
+/**
+ * Parse Excel/CSV file with raw mode to detect header row
+ * @param {File} file - File to parse
+ * @returns {Promise<Object>} - Parsed file data with raw rows for header detection
+ */
+const parseFileRaw = (file) => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+
+        // Get raw 2D array (all cells as strings)
+        const rawRows = XLSX.utils.sheet_to_json(worksheet, {
+          header: 1,  // Return as 2D array
+          raw: false,
+          defval: ''
+        });
+
+        // Detect header row
+        const detection = detectHeaderRow(rawRows);
+
+        resolve({
+          fileName: file.name,
+          rawRows,
+          detectedHeaderRow: detection.headerRowIndex,
+          headerConfidence: detection.confidence,
+          headerReason: detection.reason,
+          workbook,
+          sheetName: firstSheetName
+        });
+      } catch (error) {
+        reject(error);
+      }
+    };
+    reader.onerror = reject;
+    reader.readAsArrayBuffer(file);
+  });
+};
+
+/**
+ * Convert raw file data to JSON using a specific header row
+ * @param {Object} rawFileData - Raw parsed file data from parseFileRaw
+ * @param {number} headerRowIndex - Which row to use as header (0-indexed)
+ * @returns {Object} - Parsed data with headers and data rows
+ */
+const applyHeaderRow = (rawFileData, headerRowIndex) => {
+  const { rawRows, fileName } = rawFileData;
+
+  if (!rawRows || rawRows.length <= headerRowIndex) {
+    return { fileName, data: [], headers: [] };
+  }
+
+  // Get headers from the specified row
+  const headerRow = rawRows[headerRowIndex];
+  const headers = headerRow.map((h, idx) =>
+    (h || '').toString().trim() || `Column ${idx + 1}`
+  );
+
+  // Convert remaining rows to objects
+  const data = [];
+  for (let i = headerRowIndex + 1; i < rawRows.length; i++) {
+    const row = rawRows[i];
+    // Skip empty rows
+    if (!row || row.every(cell => !cell || String(cell).trim() === '')) continue;
+
+    const rowObj = {};
+    headers.forEach((header, idx) => {
+      rowObj[header] = row[idx] || '';
+    });
+    data.push(rowObj);
+  }
+
+  return {
+    fileName,
+    data,
+    headers,
+    headerRowIndex,
+    rawRows,  // Keep for re-parsing if user changes header row
+    skippedRows: headerRowIndex  // How many title rows were skipped
+  };
+};
+
+// Parse Excel/CSV file (legacy - still used for initial parse)
 const parseFile = (file) => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -910,13 +1091,30 @@ const InlineAccountCreator = ({ onAccountCreated, onCancel }) => {
 // LIVE DATA PREVIEW - Show sample data while mapping columns
 // ============================================================================
 
-const LiveDataPreview = ({ parsedData, mappings }) => {
+const LiveDataPreview = ({ parsedData, mappings, headerRowIndex = 0 }) => {
+  const [previewMode, setPreviewMode] = useState('first'); // 'first' or 'last'
+  const [rowCount, setRowCount] = useState(2); // 1-10
+
   if (!parsedData || parsedData.length === 0 || !parsedData[0]?.data?.length) {
     return null;
   }
 
-  const sampleRows = parsedData[0].data.slice(0, 2);
-  const headers = parsedData[0].headers || [];
+  const allData = parsedData[0].data;
+  const totalRows = allData.length;
+
+  // Get sample rows based on preview mode and row count
+  const sampleRows = previewMode === 'first'
+    ? allData.slice(0, Math.min(rowCount, totalRows))
+    : allData.slice(Math.max(0, totalRows - rowCount));
+
+  // Calculate the actual row numbers for display (1-indexed, accounting for header)
+  const getRowNumber = (idx) => {
+    if (previewMode === 'first') {
+      return idx + 1 + headerRowIndex;
+    } else {
+      return totalRows - rowCount + idx + 1 + headerRowIndex;
+    }
+  };
 
   // Get mapped values for each sample row
   const getMappedValue = (row, field) => {
@@ -960,15 +1158,66 @@ const LiveDataPreview = ({ parsedData, mappings }) => {
 
   return (
     <div className="bg-gray-800/50 rounded-lg border border-gray-700 p-3">
-      <h4 className="text-xs font-medium text-gray-400 mb-2 flex items-center gap-1">
-        <Eye className="w-3 h-3" />
-        Live Preview (first {sampleRows.length} row{sampleRows.length > 1 ? 's' : ''})
-      </h4>
+      {/* Header with controls */}
+      <div className="flex items-center justify-between mb-2">
+        <h4 className="text-xs font-medium text-gray-400 flex items-center gap-1">
+          <Eye className="w-3 h-3" />
+          Live Preview
+        </h4>
 
-      <div className="space-y-2">
+        {/* Preview controls */}
+        <div className="flex items-center gap-2">
+          {/* First/Last toggle */}
+          <div className="flex items-center bg-gray-900 rounded-lg p-0.5">
+            <button
+              onClick={() => setPreviewMode('first')}
+              className={`px-2 py-0.5 text-xs rounded transition-colors ${
+                previewMode === 'first'
+                  ? 'bg-blue-600 text-white'
+                  : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              First
+            </button>
+            <button
+              onClick={() => setPreviewMode('last')}
+              className={`px-2 py-0.5 text-xs rounded transition-colors ${
+                previewMode === 'last'
+                  ? 'bg-blue-600 text-white'
+                  : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              Last
+            </button>
+          </div>
+
+          {/* Row count input */}
+          <div className="flex items-center gap-1">
+            <input
+              type="number"
+              min="1"
+              max="10"
+              value={rowCount}
+              onChange={(e) => {
+                const val = Math.min(10, Math.max(1, parseInt(e.target.value) || 1));
+                setRowCount(val);
+              }}
+              className="w-10 px-1.5 py-0.5 text-xs bg-gray-900 border border-gray-700 rounded text-white text-center focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+            <span className="text-xs text-gray-500">rows</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Row info */}
+      <div className="text-xs text-gray-500 mb-2">
+        Showing {previewMode === 'first' ? 'first' : 'last'} {sampleRows.length} of {totalRows} data rows
+      </div>
+
+      <div className="space-y-2 max-h-64 overflow-y-auto">
         {sampleRows.map((row, idx) => (
           <div key={idx} className="bg-gray-900/50 rounded p-2">
-            <div className="text-xs text-gray-500 mb-1">Row {idx + 1}</div>
+            <div className="text-xs text-gray-500 mb-1">Row {getRowNumber(idx)}</div>
             <div className="grid grid-cols-4 gap-2 text-xs">
               {mappedFields.map(field => (
                 <div key={field.key}>
@@ -996,7 +1245,17 @@ const LiveDataPreview = ({ parsedData, mappings }) => {
 };
 
 // Column mapping interface
-const ColumnMappingUI = ({ parsedData, mappings, onMappingChange, detectedInstitution }) => {
+const ColumnMappingUI = ({
+  parsedData,
+  mappings,
+  onMappingChange,
+  detectedInstitution,
+  headerRowIndex = 0,
+  headerConfidence = 'low',
+  headerReason = '',
+  onHeaderRowChange,
+  rawFileData
+}) => {
   const [showAllColumns, setShowAllColumns] = useState(false);
 
   const requiredFields = ['symbol', 'quantity', 'purchasePrice'];
@@ -1005,6 +1264,8 @@ const ColumnMappingUI = ({ parsedData, mappings, onMappingChange, detectedInstit
 
   const availableColumns = parsedData[0]?.headers || [];
   const displayFields = showAllColumns ? allFields : requiredFields;
+  const totalRawRows = rawFileData?.[0]?.rawRows?.length || 0;
+  const dataRowCount = parsedData[0]?.data?.length || 0;
 
   const fieldLabels = {
     symbol: 'Ticker/Symbol',
@@ -1026,8 +1287,92 @@ const ColumnMappingUI = ({ parsedData, mappings, onMappingChange, detectedInstit
     costBasis: 'Total amount invested (optional)'
   };
 
+  // Confidence badge colors
+  const confidenceColors = {
+    high: 'bg-green-900/30 text-green-400 border-green-700/50',
+    medium: 'bg-yellow-900/30 text-yellow-400 border-yellow-700/50',
+    low: 'bg-gray-800 text-gray-400 border-gray-700'
+  };
+
   return (
     <div className="space-y-4">
+      {/* Header Row Detection Banner */}
+      <div className="p-3 bg-gray-800/50 border border-gray-700 rounded-lg">
+        <div className="flex items-start justify-between">
+          <div className="flex items-start gap-3">
+            <FileSpreadsheet className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" />
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <p className="text-sm font-medium text-white">Header Row Detection</p>
+                <span className={`px-1.5 py-0.5 text-xs rounded border ${confidenceColors[headerConfidence]}`}>
+                  {headerConfidence} confidence
+                </span>
+              </div>
+              <p className="text-xs text-gray-400">
+                {headerReason || 'Using default first row'}
+                {headerRowIndex > 0 && ` • Skipping ${headerRowIndex} title row${headerRowIndex > 1 ? 's' : ''}`}
+              </p>
+              <p className="text-xs text-gray-500 mt-1">
+                {dataRowCount} data rows detected from {totalRawRows} total rows
+              </p>
+            </div>
+          </div>
+
+          {/* Header row adjustment */}
+          <div className="flex items-center gap-2">
+            <label className="text-xs text-gray-400">Header row:</label>
+            <div className="flex items-center">
+              <button
+                onClick={() => onHeaderRowChange && onHeaderRowChange(headerRowIndex - 1)}
+                disabled={headerRowIndex <= 0}
+                className="px-2 py-1 text-xs bg-gray-900 border border-gray-700 rounded-l hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed text-gray-300"
+              >
+                -
+              </button>
+              <input
+                type="number"
+                min="1"
+                max={totalRawRows}
+                value={headerRowIndex + 1}
+                onChange={(e) => {
+                  const val = parseInt(e.target.value) - 1;
+                  if (!isNaN(val) && onHeaderRowChange) {
+                    onHeaderRowChange(val);
+                  }
+                }}
+                className="w-12 px-2 py-1 text-xs bg-gray-900 border-y border-gray-700 text-white text-center focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+              <button
+                onClick={() => onHeaderRowChange && onHeaderRowChange(headerRowIndex + 1)}
+                disabled={headerRowIndex >= totalRawRows - 2}
+                className="px-2 py-1 text-xs bg-gray-900 border border-gray-700 rounded-r hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed text-gray-300"
+              >
+                +
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Preview of header row content */}
+        {rawFileData?.[0]?.rawRows?.[headerRowIndex] && (
+          <div className="mt-2 pt-2 border-t border-gray-700">
+            <p className="text-xs text-gray-500 mb-1">Current header columns:</p>
+            <div className="flex flex-wrap gap-1">
+              {rawFileData[0].rawRows[headerRowIndex].slice(0, 8).map((col, idx) => (
+                <span key={idx} className="px-1.5 py-0.5 bg-gray-900 text-gray-300 text-xs rounded">
+                  {col || `(empty)`}
+                </span>
+              ))}
+              {rawFileData[0].rawRows[headerRowIndex].length > 8 && (
+                <span className="px-1.5 py-0.5 text-gray-500 text-xs">
+                  +{rawFileData[0].rawRows[headerRowIndex].length - 8} more
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Institution detection banner */}
       {detectedInstitution && (
         <div className="flex items-center space-x-3 p-3 bg-green-900/20 border border-green-700 rounded-lg">
@@ -1113,7 +1458,7 @@ const ColumnMappingUI = ({ parsedData, mappings, onMappingChange, detectedInstit
       </button>
 
       {/* Live data preview */}
-      <LiveDataPreview parsedData={parsedData} mappings={mappings} />
+      <LiveDataPreview parsedData={parsedData} mappings={mappings} headerRowIndex={headerRowIndex} />
     </div>
   );
 };
@@ -1196,6 +1541,12 @@ const AddStatementImportModal = ({ isOpen, onClose }) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [importResults, setImportResults] = useState(null);
   const [showCreateAccount, setShowCreateAccount] = useState(false);
+
+  // Header row detection state
+  const [rawFileData, setRawFileData] = useState([]);
+  const [headerRowIndex, setHeaderRowIndex] = useState(0);
+  const [headerConfidence, setHeaderConfidence] = useState('low');
+  const [headerReason, setHeaderReason] = useState('');
 
   // New state for insights step
   const [existingPositions, setExistingPositions] = useState([]);
@@ -1295,25 +1646,46 @@ const AddStatementImportModal = ({ isOpen, onClose }) => {
     return filtered;
   }, [existingAccounts]);
 
-  // Handle file selection
+  // Handle file selection - now uses header row detection
   const handleFilesSelected = async (selectedFiles) => {
     setIsProcessing(true);
     try {
-      const parsed = await Promise.all(selectedFiles.map(parseFile));
+      // Parse files with raw mode for header detection
+      const rawParsed = await Promise.all(selectedFiles.map(parseFileRaw));
+      setRawFileData(rawParsed);
       setFiles(selectedFiles);
-      setParsedData(parsed);
 
-      // Auto-detect institution from first file
-      if (parsed.length > 0 && parsed[0].data.length > 0) {
-        const institution = detectInstitution(parsed[0].data, parsed[0].fileName);
-        setDetectedInstitution(institution);
+      // Use detected header row for first file
+      if (rawParsed.length > 0) {
+        const detectedRow = rawParsed[0].detectedHeaderRow || 0;
+        setHeaderRowIndex(detectedRow);
+        setHeaderConfidence(rawParsed[0].headerConfidence || 'low');
+        setHeaderReason(rawParsed[0].headerReason || '');
 
-        // Auto-map columns
-        const autoMapped = autoMapColumns(parsed[0].headers, institution);
-        setColumnMappings(autoMapped);
+        // Apply the detected header row to get parsed data
+        const parsed = rawParsed.map((raw, idx) => {
+          const rowToUse = idx === 0 ? detectedRow : (rawParsed[idx].detectedHeaderRow || 0);
+          return applyHeaderRow(raw, rowToUse);
+        });
+        setParsedData(parsed);
 
-        if (institution) {
-          toast.success(`Detected ${INSTITUTION_TEMPLATES[institution].name} format`);
+        // Auto-detect institution from first file
+        if (parsed[0].data.length > 0) {
+          const institution = detectInstitution(parsed[0].data, parsed[0].fileName);
+          setDetectedInstitution(institution);
+
+          // Auto-map columns
+          const autoMapped = autoMapColumns(parsed[0].headers, institution);
+          setColumnMappings(autoMapped);
+
+          if (institution) {
+            toast.success(`Detected ${INSTITUTION_TEMPLATES[institution].name} format`);
+          }
+        }
+
+        // Notify about header detection if not row 0
+        if (detectedRow > 0) {
+          toast.success(`Detected header at row ${detectedRow + 1} (skipping ${detectedRow} title row${detectedRow > 1 ? 's' : ''})`);
         }
       }
 
@@ -1326,16 +1698,46 @@ const AddStatementImportModal = ({ isOpen, onClose }) => {
     }
   };
 
+  // Handle header row change by user
+  const handleHeaderRowChange = (newHeaderRow) => {
+    const rowIndex = Math.max(0, Math.min(newHeaderRow, (rawFileData[0]?.rawRows?.length || 1) - 1));
+    setHeaderRowIndex(rowIndex);
+
+    // Re-parse data with new header row
+    if (rawFileData.length > 0) {
+      const parsed = rawFileData.map((raw, idx) => {
+        const rowToUse = idx === 0 ? rowIndex : (raw.detectedHeaderRow || 0);
+        return applyHeaderRow(raw, rowToUse);
+      });
+      setParsedData(parsed);
+
+      // Re-detect institution and re-map columns
+      if (parsed[0].data.length > 0) {
+        const institution = detectInstitution(parsed[0].data, parsed[0].fileName);
+        setDetectedInstitution(institution);
+        const autoMapped = autoMapColumns(parsed[0].headers, institution);
+        setColumnMappings(autoMapped);
+      }
+
+      toast.success(`Header row set to row ${rowIndex + 1}`);
+    }
+  };
+
   const handleRemoveFile = (index) => {
     const newFiles = files.filter((_, i) => i !== index);
     const newParsedData = parsedData.filter((_, i) => i !== index);
+    const newRawFileData = rawFileData.filter((_, i) => i !== index);
     setFiles(newFiles);
     setParsedData(newParsedData);
+    setRawFileData(newRawFileData);
 
     if (newFiles.length === 0) {
       setCurrentStep(0);
       setColumnMappings({});
       setDetectedInstitution(null);
+      setHeaderRowIndex(0);
+      setHeaderConfidence('low');
+      setHeaderReason('');
     }
   };
 
@@ -1619,6 +2021,11 @@ const AddStatementImportModal = ({ isOpen, onClose }) => {
     setDetectedInstitution(null);
     setImportResults(null);
     setShowCreateAccount(false);
+    // Reset header row detection state
+    setRawFileData([]);
+    setHeaderRowIndex(0);
+    setHeaderConfidence('low');
+    setHeaderReason('');
     // Reset insights state
     setExistingPositions([]);
     setCategorizedData({ new: [], differs: [], matches: [] });
@@ -1653,6 +2060,11 @@ const AddStatementImportModal = ({ isOpen, onClose }) => {
             mappings={columnMappings}
             onMappingChange={handleMappingChange}
             detectedInstitution={detectedInstitution}
+            headerRowIndex={headerRowIndex}
+            headerConfidence={headerConfidence}
+            headerReason={headerReason}
+            onHeaderRowChange={handleHeaderRowChange}
+            rawFileData={rawFileData}
           />
         );
 
