@@ -15,29 +15,121 @@ import {
   fetchPositions,
   updatePosition
 } from '@/utils/apimethods/positionMethods';
+import { createAccount } from '@/utils/apimethods/accountMethods';
 import { formatCurrency } from '@/utils/formatters';
 import {
   Upload, X, Check, AlertCircle, FileSpreadsheet, ChevronDown,
   Download, Building2, CheckCircle, Loader2, ArrowRight, Settings,
   Info, AlertTriangle, Trash2, Eye, EyeOff, RefreshCw, File,
-  Plus, RefreshCcw, CheckCheck, ChevronRight, Square, CheckSquare
+  Plus, RefreshCcw, CheckCheck, ChevronRight, Square, CheckSquare,
+  PlusCircle
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+
+// ============================================================================
+// CONSTANTS FOR ACCOUNT CREATION
+// ============================================================================
+
+const INSTITUTION_LIST = [
+  "Vanguard", "Fidelity", "Charles Schwab", "TD Ameritrade", "E*TRADE",
+  "Robinhood", "Interactive Brokers", "Merrill Lynch", "T. Rowe Price",
+  "JPMorgan Chase", "Bank of America", "Wells Fargo", "Citibank",
+  "Goldman Sachs", "Morgan Stanley", "Capital One", "Coinbase", "Kraken",
+  "Gemini", "M1 Finance", "SoFi", "Other"
+];
+
+const ACCOUNT_CATEGORIES = [
+  { id: 'brokerage', name: 'Investment/Brokerage' },
+  { id: 'retirement', name: 'Retirement' },
+  { id: 'cryptocurrency', name: 'Cryptocurrency' }
+];
+
+const ACCOUNT_TYPES_BY_CATEGORY = {
+  brokerage: [
+    { value: 'Individual', label: 'Individual' },
+    { value: 'Joint', label: 'Joint' },
+    { value: 'Custodial', label: 'Custodial' },
+    { value: 'Trust', label: 'Trust' }
+  ],
+  retirement: [
+    { value: 'Traditional IRA', label: 'Traditional IRA' },
+    { value: 'Roth IRA', label: 'Roth IRA' },
+    { value: '401(k)', label: '401(k)' },
+    { value: 'Roth 401(k)', label: 'Roth 401(k)' },
+    { value: '403(b)', label: '403(b)' },
+    { value: 'SEP IRA', label: 'SEP IRA' },
+    { value: 'HSA', label: 'HSA' }
+  ],
+  cryptocurrency: [
+    { value: 'Exchange Account', label: 'Exchange Account' },
+    { value: 'Hardware Wallet', label: 'Hardware Wallet' },
+    { value: 'Software Wallet', label: 'Software Wallet' }
+  ]
+};
 
 // ============================================================================
 // DATA VALIDATION HELPERS - Ensure clean data before database insert
 // ============================================================================
 
 /**
+ * Parses a formatted number string into a float
+ * Handles currency symbols ($, €, £), thousands separators (,),
+ * percentage signs (%), and parentheses for negatives
+ * @param {any} value - Value to parse
+ * @returns {number} - Parsed number or NaN if unparseable
+ */
+const parseFormattedNumber = (value) => {
+  if (value === null || value === undefined) return NaN;
+  if (typeof value === 'number') return value;
+
+  let str = String(value).trim();
+
+  // Handle empty string
+  if (str === '') return NaN;
+
+  // Check for negative in parentheses: (100.00) -> -100.00
+  const isNegativeParens = str.startsWith('(') && str.endsWith(')');
+  if (isNegativeParens) {
+    str = str.slice(1, -1);
+  }
+
+  // Remove currency symbols and whitespace
+  str = str.replace(/[$€£¥₹\s]/g, '');
+
+  // Remove percentage sign (but remember it was there)
+  const isPercent = str.includes('%');
+  str = str.replace(/%/g, '');
+
+  // Remove thousands separators (commas)
+  str = str.replace(/,/g, '');
+
+  // Handle negative sign
+  const isNegative = str.startsWith('-') || isNegativeParens;
+  str = str.replace(/^-/, '');
+
+  // Parse the number
+  const num = parseFloat(str);
+
+  if (isNaN(num)) return NaN;
+
+  // Apply percentage conversion if needed (58.29% -> 0.5829)
+  // Note: We don't auto-convert percentages since context matters
+  // The caller can decide if they want to divide by 100
+
+  return isNegative ? -num : num;
+};
+
+/**
  * Validates and sanitizes a numeric value
  * Returns 0 for NaN, null, undefined, Infinity, or negative Infinity
+ * Now uses parseFormattedNumber for better string handling
  * @param {any} value - Value to validate
  * @param {number} defaultValue - Default to return if invalid (default: 0)
  * @returns {number} - Safe numeric value
  */
 const sanitizeNumber = (value, defaultValue = 0) => {
   if (value === null || value === undefined) return defaultValue;
-  const num = typeof value === 'number' ? value : parseFloat(value);
+  const num = parseFormattedNumber(value);
   if (isNaN(num) || !isFinite(num)) return defaultValue;
   return num;
 };
@@ -657,6 +749,252 @@ const FileUploadZone = ({ onFilesSelected, files, onRemoveFile }) => {
   );
 };
 
+// ============================================================================
+// INLINE ACCOUNT CREATOR - Quick account creation within the modal
+// ============================================================================
+
+const InlineAccountCreator = ({ onAccountCreated, onCancel }) => {
+  const [isCreating, setIsCreating] = useState(false);
+  const [formData, setFormData] = useState({
+    accountName: '',
+    institution: '',
+    accountCategory: '',
+    accountType: ''
+  });
+
+  const availableTypes = formData.accountCategory
+    ? ACCOUNT_TYPES_BY_CATEGORY[formData.accountCategory] || []
+    : [];
+
+  const handleChange = (field, value) => {
+    setFormData(prev => {
+      const updated = { ...prev, [field]: value };
+      // Reset account type when category changes
+      if (field === 'accountCategory') {
+        updated.accountType = '';
+      }
+      return updated;
+    });
+  };
+
+  const isValid = formData.accountName && formData.institution &&
+    formData.accountCategory && formData.accountType;
+
+  const handleCreate = async () => {
+    if (!isValid) return;
+
+    setIsCreating(true);
+    try {
+      const result = await createAccount({
+        account_name: formData.accountName,
+        institution: formData.institution,
+        account_category: formData.accountCategory,
+        type: formData.accountType
+      });
+
+      toast.success(`Account "${formData.accountName}" created!`);
+      onAccountCreated(result);
+    } catch (error) {
+      console.error('Failed to create account:', error);
+      toast.error(error.message || 'Failed to create account');
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  return (
+    <div className="p-4 bg-blue-900/20 border border-blue-700/50 rounded-xl space-y-4">
+      <div className="flex items-center justify-between">
+        <h4 className="text-sm font-medium text-blue-300 flex items-center gap-2">
+          <PlusCircle className="w-4 h-4" />
+          Create New Account
+        </h4>
+        <button
+          onClick={onCancel}
+          className="p-1 text-gray-400 hover:text-white rounded transition-colors"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        {/* Account Name */}
+        <div className="col-span-2">
+          <label className="block text-xs text-gray-400 mb-1">Account Name *</label>
+          <input
+            type="text"
+            value={formData.accountName}
+            onChange={(e) => handleChange('accountName', e.target.value)}
+            placeholder="e.g., My Retirement Account"
+            className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+
+        {/* Institution */}
+        <div>
+          <label className="block text-xs text-gray-400 mb-1">Institution *</label>
+          <select
+            value={formData.institution}
+            onChange={(e) => handleChange('institution', e.target.value)}
+            className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">Select...</option>
+            {INSTITUTION_LIST.map(inst => (
+              <option key={inst} value={inst}>{inst}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Category */}
+        <div>
+          <label className="block text-xs text-gray-400 mb-1">Category *</label>
+          <select
+            value={formData.accountCategory}
+            onChange={(e) => handleChange('accountCategory', e.target.value)}
+            className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">Select...</option>
+            {ACCOUNT_CATEGORIES.map(cat => (
+              <option key={cat.id} value={cat.id}>{cat.name}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Account Type */}
+        <div className="col-span-2">
+          <label className="block text-xs text-gray-400 mb-1">Account Type *</label>
+          <select
+            value={formData.accountType}
+            onChange={(e) => handleChange('accountType', e.target.value)}
+            disabled={!formData.accountCategory}
+            className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+          >
+            <option value="">{formData.accountCategory ? 'Select...' : 'Choose category first'}</option>
+            {availableTypes.map(type => (
+              <option key={type.value} value={type.value}>{type.label}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <div className="flex justify-end gap-2">
+        <button
+          onClick={onCancel}
+          className="px-3 py-1.5 text-sm text-gray-400 hover:text-white transition-colors"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={handleCreate}
+          disabled={!isValid || isCreating}
+          className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+        >
+          {isCreating ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Creating...
+            </>
+          ) : (
+            <>
+              <Plus className="w-4 h-4" />
+              Create Account
+            </>
+          )}
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// ============================================================================
+// LIVE DATA PREVIEW - Show sample data while mapping columns
+// ============================================================================
+
+const LiveDataPreview = ({ parsedData, mappings }) => {
+  if (!parsedData || parsedData.length === 0 || !parsedData[0]?.data?.length) {
+    return null;
+  }
+
+  const sampleRows = parsedData[0].data.slice(0, 2);
+  const headers = parsedData[0].headers || [];
+
+  // Get mapped values for each sample row
+  const getMappedValue = (row, field) => {
+    const columnName = mappings[field];
+    if (!columnName) return null;
+    const value = row[columnName];
+    return value;
+  };
+
+  // Format value for display
+  const formatPreviewValue = (value, field) => {
+    if (value === null || value === undefined) return <span className="text-gray-500">—</span>;
+
+    // For numeric fields, try to parse and show formatted
+    if (['quantity', 'purchasePrice', 'currentValue', 'costBasis'].includes(field)) {
+      const parsed = parseFormattedNumber(value);
+      if (!isNaN(parsed)) {
+        const formatted = field === 'quantity'
+          ? parsed.toLocaleString()
+          : formatCurrency(parsed);
+        return (
+          <span className="text-white">
+            {formatted}
+            {String(value) !== String(parsed) && (
+              <span className="text-xs text-gray-500 ml-1">← {String(value)}</span>
+            )}
+          </span>
+        );
+      }
+    }
+
+    return <span className="text-white">{String(value)}</span>;
+  };
+
+  const mappedFields = [
+    { key: 'symbol', label: 'Symbol' },
+    { key: 'quantity', label: 'Qty' },
+    { key: 'purchasePrice', label: 'Price' },
+    { key: 'currentValue', label: 'Value' }
+  ];
+
+  return (
+    <div className="bg-gray-800/50 rounded-lg border border-gray-700 p-3">
+      <h4 className="text-xs font-medium text-gray-400 mb-2 flex items-center gap-1">
+        <Eye className="w-3 h-3" />
+        Live Preview (first {sampleRows.length} row{sampleRows.length > 1 ? 's' : ''})
+      </h4>
+
+      <div className="space-y-2">
+        {sampleRows.map((row, idx) => (
+          <div key={idx} className="bg-gray-900/50 rounded p-2">
+            <div className="text-xs text-gray-500 mb-1">Row {idx + 1}</div>
+            <div className="grid grid-cols-4 gap-2 text-xs">
+              {mappedFields.map(field => (
+                <div key={field.key}>
+                  <div className="text-gray-500">{field.label}</div>
+                  <div className="truncate">
+                    {mappings[field.key]
+                      ? formatPreviewValue(getMappedValue(row, field.key), field.key)
+                      : <span className="text-gray-600 italic">Not mapped</span>
+                    }
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Show conversion notice */}
+      <div className="mt-2 text-xs text-gray-500 flex items-start gap-1">
+        <Info className="w-3 h-3 mt-0.5 flex-shrink-0" />
+        <span>Values like "$1,234.56" are automatically converted to numbers</span>
+      </div>
+    </div>
+  );
+};
+
 // Column mapping interface
 const ColumnMappingUI = ({ parsedData, mappings, onMappingChange, detectedInstitution }) => {
   const [showAllColumns, setShowAllColumns] = useState(false);
@@ -773,6 +1111,9 @@ const ColumnMappingUI = ({ parsedData, mappings, onMappingChange, detectedInstit
         <span>{showAllColumns ? 'Hide' : 'Show'} optional fields</span>
         <ChevronDown className={`w-4 h-4 transition-transform ${showAllColumns ? 'rotate-180' : ''}`} />
       </button>
+
+      {/* Live data preview */}
+      <LiveDataPreview parsedData={parsedData} mappings={mappings} />
     </div>
   );
 };
@@ -854,6 +1195,7 @@ const AddStatementImportModal = ({ isOpen, onClose }) => {
   const [detectedInstitution, setDetectedInstitution] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [importResults, setImportResults] = useState(null);
+  const [showCreateAccount, setShowCreateAccount] = useState(false);
 
   // New state for insights step
   const [existingPositions, setExistingPositions] = useState([]);
@@ -1276,6 +1618,7 @@ const AddStatementImportModal = ({ isOpen, onClose }) => {
     setColumnMappings({});
     setDetectedInstitution(null);
     setImportResults(null);
+    setShowCreateAccount(false);
     // Reset insights state
     setExistingPositions([]);
     setCategorizedData({ new: [], differs: [], matches: [] });
@@ -1320,25 +1663,62 @@ const AddStatementImportModal = ({ isOpen, onClose }) => {
           filteredAccounts: filteredAccounts.map(a => ({ id: a.id, name: a.name, type: a.type, category: a.category }))
         });
 
+        // Handler for when a new account is created
+        const handleAccountCreated = async (newAccount) => {
+          setShowCreateAccount(false);
+          // Refresh accounts and select the new one
+          await refreshAccounts();
+          if (newAccount?.id) {
+            setSelectedAccount(newAccount.id);
+          }
+        };
+
         return (
           <div className="space-y-4">
-            <p className="text-sm text-gray-400">
-              Select the account where these positions will be imported
-            </p>
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-gray-400">
+                Select the account where these positions will be imported
+              </p>
+              {!showCreateAccount && (
+                <button
+                  onClick={() => setShowCreateAccount(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-blue-600/20 text-blue-400 hover:bg-blue-600/30 rounded-lg transition-colors"
+                >
+                  <PlusCircle className="w-4 h-4" />
+                  New Account
+                </button>
+              )}
+            </div>
+
+            {/* Inline account creation form */}
+            {showCreateAccount && (
+              <InlineAccountCreator
+                onAccountCreated={handleAccountCreated}
+                onCancel={() => setShowCreateAccount(false)}
+              />
+            )}
+
             {isLoadingAccounts ? (
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="w-6 h-6 text-blue-400 animate-spin" />
                 <span className="ml-2 text-gray-400">Loading accounts...</span>
               </div>
-            ) : filteredAccounts.length === 0 ? (
+            ) : filteredAccounts.length === 0 && !showCreateAccount ? (
               <div className="text-center py-8">
                 <p className="text-gray-400">No eligible accounts found</p>
-                <p className="text-sm text-gray-500 mt-1">
+                <p className="text-sm text-gray-500 mt-1 mb-3">
                   Create a brokerage, retirement, or crypto account first
                 </p>
+                <button
+                  onClick={() => setShowCreateAccount(true)}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  <PlusCircle className="w-4 h-4" />
+                  Create Account
+                </button>
               </div>
             ) : (
-              <div className="space-y-2 max-h-96 overflow-y-auto">
+              <div className="space-y-2 max-h-80 overflow-y-auto">
                 {filteredAccounts.map(account => {
                   // Use correct field names from useAccounts hook
                   const accountName = account.name;
