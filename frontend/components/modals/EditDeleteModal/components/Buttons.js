@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Edit3, CreditCard } from 'lucide-react';
-import EditDeleteModal from '../EditDeleteModal';
+import EditDeleteModal from '../EditDeleteModal.js';
 
 /**
  * Button to open the Edit & Delete modal (general purpose)
