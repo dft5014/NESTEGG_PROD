@@ -1,6 +1,6 @@
 # NestEgg TODO List
 
-**Last Updated:** 2025-11-25
+**Last Updated:** 2025-11-26
 
 This document tracks all outstanding tasks, improvements, and known issues for the NestEgg project. This list should be reviewed and updated regularly by Claude Code sessions as work progresses or new issues are identified.
 
@@ -230,7 +230,10 @@ This document tracks all outstanding tasks, improvements, and known issues for t
 *Add bugs here as they are discovered*
 
 ### Frontend
-- [ ] _(No known bugs at this time)_
+- [ ] **Duplicate CSS animation definition** - `@keyframes fadeIn` is defined twice in `globals.css` (lines 299-302 and 901-904)
+- [ ] **Z-index fragility** - Multiple `!important` z-index overrides in `globals.css` (lines 933-946, 1005-1015) indicate structural issues
+- [ ] **Inconsistent modal rendering** - Liabilities page (`liabilities.js:234-260, 714-742`) renders modals inline instead of using shared Modal components
+- [ ] **Sidebar indentation bug** - `getInitials` function has inconsistent indentation (`sidebar.js:163-167`)
 
 ### Backend
 - [ ] _(No known bugs at this time)_
@@ -368,6 +371,20 @@ When a bug is discovered, add it to the "Known Bugs" section with:
 ## ✅ Completed Tasks
 
 *Move completed items here to track progress while keeping the main list focused*
+
+### 2025-11-26: Full UI Review
+- [x] Reviewed all main pages (portfolio, accounts, positions, liabilities)
+- [x] Reviewed navigation components (sidebar, navbar)
+- [x] Reviewed modal components and patterns
+- [x] Analyzed styling consistency and design patterns
+- [x] Identified UI issues and documented in Known Bugs section
+- [x] **Assessment: B+ Grade** - Solid professional UI with good architectural decisions
+- Key findings:
+  - Excellent DataStore pattern and custom hooks
+  - Consistent Tailwind + Framer Motion usage
+  - Professional animations and loading states
+  - Issues: z-index management, modal rendering inconsistency, duplicate CSS
+  - Recommendations: Create z-index scale, consolidate modal patterns, audit light mode styles
 
 ### 2025-11-25: QuickStartModalV2 - Complete Rebuild
 - [x] Created new modular architecture in `/frontend/components/modals/quickstart/`
