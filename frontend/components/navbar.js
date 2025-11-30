@@ -8,7 +8,6 @@ import { QuickReconciliationButton } from '@/components/modals/QuickReconciliati
 import { QuickEditDeleteButton } from '@/components/modals/QuickEditDeleteModal';
 import { QuickStatementValidationButton } from '@/components/modals/QuickStatementValidationModal';
 import { QuickStatementImportButton } from '@/components/modals/AddStatementImportModal';
-import { QuickStartModalV2Button } from '@/components/modals/quickstart';
 
 import { useGroupedPositions } from '@/store/hooks/useGroupedPositions';
 import { useDataStore } from '@/store/DataStore';
@@ -25,20 +24,36 @@ const TICKER_H  = 32;      // 8  * 4px
 const HEADER_TOTAL_H = NAV_BAR_H + TICKER_H; // 96
 const SCROLL_SPEED_PX_PER_FRAME = 0.6;       // ~36px/s @ 60fps
 
-// ---- Pro styling applied to the REAL Quick* buttons (so modals open reliably)
-const PRO_WRAP_CLASSES = [
+// ---- Unified button wrapper styling for navbar action buttons
+// Base styling applied to all Quick* buttons for consistent appearance
+const NAVBAR_BTN_BASE = [
   // size & shape
-  "[&_*button]:px-3.5 [&_*button]:h-9 [&_*button]:rounded-xl",
+  "[&_button]:px-3.5 [&_button]:h-9 [&_button]:rounded-lg",
   // background / border / blur
-  "[&_*button]:bg-gray-800/60 [&_*button]:border [&_*button]:border-white/10 [&_*button]:backdrop-blur",
-  // shadow & motion
-  "[&_*button]:shadow-[0_1px_0_0_rgba(255,255,255,0.06)_inset,0_1px_12px_rgba(0,0,0,0.35)]",
-  "[&_*button:hover]:-translate-y-[1px] [&_*button:hover]:shadow-[0_2px_0_0_rgba(255,255,255,0.08)_inset,0_8px_20px_rgba(0,0,0,0.45)]",
-  "[&_*button]:transition-all [&_*button]:duration-200",
-  // text & icon polish
-  "[&_*button]:text-gray-100 [&_*button]:text-[13px] [&_*button]:font-medium",
-  "[&_*button_svg]:w-[18px] [&_*button_svg]:h-[18px] [&_*button_svg]:text-blue-300/90",
+  "[&_button]:bg-gray-800/70 [&_button]:border [&_button]:border-white/[0.08] [&_button]:backdrop-blur-sm",
+  // base shadow
+  "[&_button]:shadow-[0_1px_2px_rgba(0,0,0,0.3),inset_0_1px_0_rgba(255,255,255,0.05)]",
+  // hover: lift + stronger shadow
+  "[&_button:hover]:-translate-y-0.5",
+  "[&_button:hover]:shadow-[0_4px_12px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.08)]",
+  "[&_button:hover]:border-white/[0.12]",
+  "[&_button:hover]:bg-gray-700/80",
+  // transitions
+  "[&_button]:transition-all [&_button]:duration-200 [&_button]:ease-out",
+  // text styling
+  "[&_button]:text-gray-200 [&_button]:text-[13px] [&_button]:font-medium",
+  // icon base
+  "[&_button_svg]:w-4 [&_button_svg]:h-4 [&_button_svg]:transition-colors [&_button_svg]:duration-200",
 ].join(' ');
+
+// Color accent classes for each button type
+const BTN_ACCENT = {
+  add: "[&_button_svg]:text-emerald-400 [&_button:hover_svg]:text-emerald-300 [&_button:hover]:border-emerald-500/20",
+  edit: "[&_button_svg]:text-blue-400 [&_button:hover_svg]:text-blue-300 [&_button:hover]:border-blue-500/20",
+  update: "[&_button_svg]:text-cyan-400 [&_button:hover_svg]:text-cyan-300 [&_button:hover]:border-cyan-500/20",
+  reconcile: "[&_button_svg]:text-violet-400 [&_button:hover_svg]:text-violet-300 [&_button:hover]:border-violet-500/20",
+  import: "[&_button_svg]:text-amber-400 [&_button:hover_svg]:text-amber-300 [&_button:hover]:border-amber-500/20",
+};
 
 // ---- rAF-throttled scroll state setter
 function useRafScroll(cb) {
@@ -596,52 +611,54 @@ const Navbar = () => {
               {/* Left spacer */}
               <div />
 
-              {/* Center: REAL Quick* buttons (so modals open) */}
+              {/* Center: Quick action buttons */}
               <div className="justify-self-center">
-                <div className="flex items-center gap-2 md:-ml-6">
-                  {/* Add */}
-                  <div ref={addRef} className={PRO_WRAP_CLASSES}>
-                    <QuickStartButton />
+                <div className="flex items-center gap-1.5 md:-ml-6">
+                  {/* 1. Add */}
+                  <div ref={addRef} className={`${NAVBAR_BTN_BASE} ${BTN_ACCENT.add}`}>
+                    <QuickStartButton label="Add" />
                   </div>
 
-                  {/* Edit */}
-                  <div ref={editRef} className={PRO_WRAP_CLASSES}>
-                    <QuickEditDeleteButton />
+                  {/* 2. Edit */}
+                  <div ref={editRef} className={`${NAVBAR_BTN_BASE} ${BTN_ACCENT.edit}`}>
+                    <QuickEditDeleteButton label="Edit" />
                   </div>
 
-                  {/* Update / Reconciliation */}
-                  <div ref={recRef} className={PRO_WRAP_CLASSES}>
-                    <QuickReconciliationButton />
+                  {/* 3. Update */}
+                  <div ref={recRef} className={`${NAVBAR_BTN_BASE} ${BTN_ACCENT.update}`}>
+                    <QuickReconciliationButton label="Update" />
                   </div>
 
-                  {/* Validate / Statement Reconciliation */}
-                  <div ref={validateRef} className={PRO_WRAP_CLASSES}>
-                    <QuickStatementValidationButton />
+                  {/* 4. Reconcile (validate) */}
+                  <div ref={validateRef} className={`${NAVBAR_BTN_BASE} ${BTN_ACCENT.reconcile}`}>
+                    <QuickStatementValidationButton label="Reconcile" />
                   </div>
 
-                  {/* Import Statement */}
-                  <div className={PRO_WRAP_CLASSES}>
-                    <QuickStatementImportButton />
-                  </div>
-
-                  {/* QuickStart V2 Test Button */}
-                  <div className={PRO_WRAP_CLASSES}>
-                    <QuickStartModalV2Button />
+                  {/* 5. Import Statements */}
+                  <div className={`${NAVBAR_BTN_BASE} ${BTN_ACCENT.import}`}>
+                    <QuickStatementImportButton label="Import" />
                   </div>
                 </div>
               </div>
 
-              {/* Right: "?" then Summary (as requested) */}
+              {/* Right: "?" then Summary */}
               <div className="justify-self-end shrink-0 flex items-center gap-2">
-                {/* Orientation toggle to the LEFT of Summary */}
+                {/* Orientation toggle */}
                 <button
                   type="button"
                   onClick={() => { setShowTour(v => !v); setStep(0); }}
-                  className="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-gray-800/60 border border-white/10 backdrop-blur text-gray-200 hover:bg-white/10 transition"
+                  className={[
+                    "inline-flex items-center justify-center w-9 h-9 rounded-lg",
+                    "bg-gray-800/70 border border-white/[0.08] backdrop-blur-sm",
+                    "shadow-[0_1px_2px_rgba(0,0,0,0.3),inset_0_1px_0_rgba(255,255,255,0.05)]",
+                    "hover:-translate-y-0.5 hover:shadow-[0_4px_12px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.08)]",
+                    "hover:border-white/[0.12] hover:bg-gray-700/80",
+                    "transition-all duration-200 ease-out",
+                  ].join(' ')}
                   aria-pressed={showTour}
                   title="Orientation"
                 >
-                  <HelpCircle className="w-[18px] h-[18px] text-blue-300/90" aria-hidden="true" />
+                  <HelpCircle className="w-4 h-4 text-gray-400" aria-hidden="true" />
                 </button>
 
                 {/* Portfolio Summary */}

@@ -1539,17 +1539,18 @@ const AddStatementImportModal = ({ isOpen, onClose }) => {
 };
 
 // Export button component for navbar
-export const QuickStatementImportButton = () => {
+export const QuickStatementImportButton = ({ className = '', label = 'Import' }) => {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
     <>
       <button
         onClick={() => setIsOpen(true)}
-        className="flex items-center space-x-2 transition-all duration-200"
+        className={`flex items-center gap-2 ${className}`}
+        title="Import statement positions"
       >
         <Upload className="w-4 h-4" />
-        <span>Import Statement</span>
+        <span>{label}</span>
       </button>
       <AddStatementImportModal
         isOpen={isOpen}
