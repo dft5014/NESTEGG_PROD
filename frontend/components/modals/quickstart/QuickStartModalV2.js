@@ -2,6 +2,7 @@
 // A modern, clean interface for adding accounts, positions, and liabilities
 import React, { useReducer, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Plus } from 'lucide-react';
 import FixedModal from '../FixedModal';
 import { fetchAllAccounts } from '@/utils/apimethods/accountMethods';
 import { popularBrokerages } from '@/utils/constants';
@@ -337,19 +338,17 @@ export default function QuickStartModalV2({ isOpen, onClose, onSuccess }) {
 }
 
 // Self-contained button + modal component (manages its own state)
-export function QuickStartModalV2Button({ className = '', onSuccess }) {
+export function QuickStartModalV2Button({ className = '', label = 'Add', onSuccess }) {
   const [isOpen, setIsOpen] = React.useState(false);
 
   return (
     <>
       <button
         onClick={() => setIsOpen(true)}
-        className={`group relative flex items-center text-white py-1 px-4 transition-all duration-300 ${className}`}
+        className={`flex items-center gap-2 ${className}`}
       >
-        <div className="absolute inset-0 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-        <div className="relative flex items-center">
-          <span className="text-sm text-gray-200 group-hover:text-white font-medium">QuickStart V2</span>
-        </div>
+        <Plus className="w-4 h-4" />
+        <span>{label}</span>
       </button>
 
       <QuickStartModalV2

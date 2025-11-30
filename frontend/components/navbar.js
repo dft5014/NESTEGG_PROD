@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import PeriodSummaryChips from '@/components/PeriodSummaryChips';
 import { motion } from 'framer-motion';
 
-import { QuickStartButton } from '@/components/QuickStartModal';
+import { QuickStartModalV2Button } from '@/components/modals/quickstart';
 import { QuickReconciliationButton } from '@/components/modals/QuickReconciliationModal';
 import { QuickEditDeleteButton } from '@/components/modals/QuickEditDeleteModal';
 import { QuickStatementValidationButton } from '@/components/modals/QuickStatementValidationModal';
@@ -616,7 +616,7 @@ const Navbar = () => {
                 <div className="flex items-center gap-1.5 md:-ml-6">
                   {/* 1. Add */}
                   <div ref={addRef} className={`${NAVBAR_BTN_BASE} ${BTN_ACCENT.add}`}>
-                    <QuickStartButton label="Add" />
+                    <QuickStartModalV2Button label="Add" />
                   </div>
 
                   {/* 2. Edit */}
