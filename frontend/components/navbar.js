@@ -5,7 +5,7 @@ import { motion } from 'framer-motion';
 
 import { QuickStartButton } from '@/components/QuickStartModal';
 import { QuickReconciliationButton } from '@/components/modals/QuickReconciliationModal';
-import { QuickEditDeleteButton } from '@/components/modals/QuickEditDeleteModal';
+import { QuickEditDeleteButton } from '@/components/modals/EditDeleteModal';
 import { QuickStatementValidationButton } from '@/components/modals/QuickStatementValidationModal';
 import { QuickStatementImportButton } from '@/components/modals/AddStatementImportModal';
 
