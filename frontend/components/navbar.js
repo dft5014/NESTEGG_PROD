@@ -620,14 +620,14 @@ const Navbar = () => {
                     <QuickStartButton label="Add" />
                   </div>
 
-                  {/* Edit2 - New modular version for testing */}
-                  <div className={PRO_WRAP_CLASSES}>
-                    <QuickEditDeleteButton2 />
+                  {/* 2. Edit - Original version */}
+                  <div ref={editRef} className={`${NAVBAR_BTN_BASE} ${BTN_ACCENT.edit}`}>
+                    <QuickEditDeleteButton />
                   </div>
 
-                  {/* Update / Reconciliation */}
-                  <div ref={recRef} className={PRO_WRAP_CLASSES}>
-                    <QuickReconciliationButton />
+                  {/* Edit2 - New modular version for testing */}
+                  <div className={`${NAVBAR_BTN_BASE} ${BTN_ACCENT.edit}`}>
+                    <QuickEditDeleteButton2 />
                   </div>
 
                   {/* 3. Update */}
