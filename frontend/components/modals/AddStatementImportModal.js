@@ -25,6 +25,63 @@ import {
 import toast from 'react-hot-toast';
 
 // ============================================================================
+// DATA VALIDATION HELPERS - Ensure clean data before database insert
+// ============================================================================
+
+/**
+ * Validates and sanitizes a numeric value
+ * Returns 0 for NaN, null, undefined, Infinity, or negative Infinity
+ * @param {any} value - Value to validate
+ * @param {number} defaultValue - Default to return if invalid (default: 0)
+ * @returns {number} - Safe numeric value
+ */
+const sanitizeNumber = (value, defaultValue = 0) => {
+  if (value === null || value === undefined) return defaultValue;
+  const num = typeof value === 'number' ? value : parseFloat(value);
+  if (isNaN(num) || !isFinite(num)) return defaultValue;
+  return num;
+};
+
+/**
+ * Validates a position object before sending to backend
+ * Ensures all numeric fields are valid and ticker exists
+ * @param {Object} position - Position object to validate
+ * @returns {Object|null} - Validated position or null if invalid
+ */
+const validatePosition = (position) => {
+  // Require ticker
+  if (!position.ticker || typeof position.ticker !== 'string' || position.ticker.trim() === '') {
+    console.warn('[validatePosition] Invalid ticker:', position.ticker);
+    return null;
+  }
+
+  // Sanitize numeric fields
+  const shares = sanitizeNumber(position.shares);
+  const price = sanitizeNumber(position.price);
+  const cost_basis = sanitizeNumber(position.cost_basis);
+
+  // Shares must be positive
+  if (shares <= 0) {
+    console.warn('[validatePosition] Invalid shares:', shares, 'for', position.ticker);
+    return null;
+  }
+
+  // Price must be non-negative (could be 0 for some edge cases)
+  if (price < 0) {
+    console.warn('[validatePosition] Invalid price:', price, 'for', position.ticker);
+    return null;
+  }
+
+  return {
+    ticker: position.ticker.trim().toUpperCase(),
+    shares: shares,
+    price: price,
+    cost_basis: cost_basis > 0 ? cost_basis : shares * price, // Default cost_basis if not provided
+    purchase_date: position.purchase_date || new Date().toISOString().split('T')[0]
+  };
+};
+
+// ============================================================================
 // MATCHING LOGIC - Compare imported positions against existing account positions
 // ============================================================================
 
@@ -1080,7 +1137,7 @@ const AddStatementImportModal = ({ isOpen, onClose }) => {
 
       // Process NEW positions (add to account)
       if (selectedNew.size > 0) {
-        const newPositionsToAdd = categorizedData.new
+        const rawPositions = categorizedData.new
           .filter(item => selectedNew.has(item.index))
           .map(item => ({
             ticker: item.ticker,
@@ -1090,8 +1147,20 @@ const AddStatementImportModal = ({ isOpen, onClose }) => {
             purchase_date: item.rawRow[columnMappings.purchaseDate] || new Date().toISOString().split('T')[0]
           }));
 
+        // Validate each position before sending
+        const newPositionsToAdd = rawPositions
+          .map(validatePosition)
+          .filter(pos => pos !== null);
+
+        const skippedCount = rawPositions.length - newPositionsToAdd.length;
+        if (skippedCount > 0) {
+          console.warn(`[AddStatementImportModal] Skipped ${skippedCount} invalid positions`);
+          errors.push(`Skipped ${skippedCount} positions with invalid data`);
+        }
+
         if (newPositionsToAdd.length > 0) {
           console.log('[AddStatementImportModal] Adding new positions:', newPositionsToAdd.length);
+          console.log('[AddStatementImportModal] Sample validated position:', newPositionsToAdd[0]);
           try {
             await addSecurityPositionBulk(selectedAccount, newPositionsToAdd);
             addedCount = newPositionsToAdd.length;
@@ -1114,13 +1183,22 @@ const AddStatementImportModal = ({ isOpen, onClose }) => {
           try {
             if (item.quantityDiff > 0) {
               // Need to add more shares - create a new lot with the difference
-              const newLot = {
+              const rawLot = {
                 ticker: item.ticker,
                 shares: item.quantityDiff,
                 price: item.price,
                 cost_basis: item.quantityDiff * item.price,
                 purchase_date: new Date().toISOString().split('T')[0]
               };
+
+              // Validate the new lot before sending
+              const newLot = validatePosition(rawLot);
+              if (!newLot) {
+                console.warn(`[AddStatementImportModal] Skipping invalid differs lot for ${item.ticker}`);
+                errors.push(`Skipped ${item.ticker}: invalid data`);
+                continue;
+              }
+
               await addSecurityPositionBulk(selectedAccount, [newLot]);
               updatedCount++;
             } else if (item.quantityDiff < 0) {
