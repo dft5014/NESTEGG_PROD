@@ -5,7 +5,8 @@ import { motion } from 'framer-motion';
 
 import { QuickStartButton } from '@/components/QuickStartModal';
 import { QuickReconciliationButton } from '@/components/modals/QuickReconciliationModal';
-import { QuickEditDeleteButton } from '@/components/modals/EditDeleteModal';
+import { QuickEditDeleteButton } from '@/components/modals/QuickEditDeleteModal';
+import { QuickEditDeleteButton as QuickEditDeleteButton2 } from '@/components/modals/EditDeleteModal';
 import { QuickStatementValidationButton } from '@/components/modals/QuickStatementValidationModal';
 import { QuickStatementImportButton } from '@/components/modals/AddStatementImportModal';
 
@@ -619,9 +620,14 @@ const Navbar = () => {
                     <QuickStartButton label="Add" />
                   </div>
 
-                  {/* 2. Edit */}
-                  <div ref={editRef} className={`${NAVBAR_BTN_BASE} ${BTN_ACCENT.edit}`}>
-                    <QuickEditDeleteButton label="Edit" />
+                  {/* Edit2 - New modular version for testing */}
+                  <div className={PRO_WRAP_CLASSES}>
+                    <QuickEditDeleteButton2 />
+                  </div>
+
+                  {/* Update / Reconciliation */}
+                  <div ref={recRef} className={PRO_WRAP_CLASSES}>
+                    <QuickReconciliationButton />
                   </div>
 
                   {/* 3. Update */}
