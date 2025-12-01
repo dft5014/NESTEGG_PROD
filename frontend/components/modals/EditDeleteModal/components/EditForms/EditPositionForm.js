@@ -106,7 +106,7 @@ const EditPositionForm = ({ position, assetType: rawAssetType, onSave, onCancel,
 
   const getInputType = (field) => {
     if (field.includes('price') || field.includes('value') || field.includes('cost') ||
-        field === 'shares' || field === 'quantity' || field === 'amount') {
+        field.includes('rate') || field === 'shares' || field === 'quantity' || field === 'amount') {
       return 'number';
     }
     if (field.includes('date')) {
@@ -187,7 +187,7 @@ const EditPositionForm = ({ position, assetType: rawAssetType, onSave, onCancel,
                   onChange={(e) => handleFieldChange(field, e.target.value)}
                   disabled={!isEditable}
                   className={getInputClassName(field, isEditable)}
-                  step={field.includes('price') || field.includes('value') || field.includes('cost') ? '0.01' : '1'}
+                  step={field.includes('price') || field.includes('value') || field.includes('cost') || field.includes('rate') ? '0.01' : '1'}
                 />
               )}
               {errors[field] && (
