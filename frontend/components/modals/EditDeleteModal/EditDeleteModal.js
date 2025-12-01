@@ -10,7 +10,7 @@ import {
   useEntityData,
   useMessage
 } from './hooks';
-import { exportToCsv } from './utils';
+import { exportToCsv, preparePositionUpdatePayload } from './utils';
 import { normalizeAssetType } from './config';
 
 // API methods
@@ -163,8 +163,9 @@ const EditDeleteModal = ({
         } else if (assetType === 'cash') {
           await updateCashPosition(editingItem.id, updatedData);
         } else {
-          // security, crypto, metal
-          await updatePosition(editingItem.id, updatedData, assetType);
+          // security, crypto, metal - transform internal format to API format
+          const apiPayload = preparePositionUpdatePayload(updatedData, assetType);
+          await updatePosition(editingItem.id, apiPayload, assetType);
         }
         showSuccess('Position updated successfully');
       } else if (editingType === 'liability') {
