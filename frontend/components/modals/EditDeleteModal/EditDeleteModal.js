@@ -15,7 +15,16 @@ import { normalizeAssetType } from './config';
 
 // API methods
 import { updateAccount, deleteAccount } from '@/utils/apimethods/accountMethods';
-import { updatePosition, deletePosition, updateLiability, deleteLiability } from '@/utils/apimethods/positionMethods';
+import {
+  updatePosition,
+  deletePosition,
+  updateLiability,
+  deleteLiability,
+  updateOtherAsset,
+  deleteOtherAsset,
+  updateCashPosition,
+  deleteCashPosition
+} from '@/utils/apimethods/positionMethods';
 
 /**
  * EditDeleteModal - Main orchestrator component for managing entities
@@ -147,7 +156,16 @@ const EditDeleteModal = ({
         showSuccess('Account updated successfully');
       } else if (editingType === 'position') {
         const assetType = normalizeAssetType(editingItem.asset_type);
-        await updatePosition(editingItem.id, updatedData, assetType);
+
+        // Route to correct API based on asset type
+        if (assetType === 'otherAssets') {
+          await updateOtherAsset(parseInt(editingItem.id), updatedData);
+        } else if (assetType === 'cash') {
+          await updateCashPosition(editingItem.id, updatedData);
+        } else {
+          // security, crypto, metal
+          await updatePosition(editingItem.id, updatedData, assetType);
+        }
         showSuccess('Position updated successfully');
       } else if (editingType === 'liability') {
         await updateLiability(editingItem.id, updatedData);
@@ -187,7 +205,16 @@ const EditDeleteModal = ({
         showSuccess('Account deleted successfully');
       } else if (currentView === 'positions') {
         const assetType = normalizeAssetType(item.asset_type);
-        await deletePosition(item.id, assetType);
+
+        // Route to correct API based on asset type
+        if (assetType === 'otherAssets') {
+          await deleteOtherAsset(parseInt(item.id));
+        } else if (assetType === 'cash') {
+          await deleteCashPosition(item.id);
+        } else {
+          // security, crypto, metal
+          await deletePosition(item.id, assetType);
+        }
         showSuccess('Position deleted successfully');
       } else if (currentView === 'liabilities') {
         await deleteLiability(item.id);
@@ -235,7 +262,15 @@ const EditDeleteModal = ({
             await deleteAccount(item.id);
           } else if (currentView === 'positions') {
             const assetType = normalizeAssetType(item.asset_type);
-            await deletePosition(item.id, assetType);
+
+            // Route to correct API based on asset type
+            if (assetType === 'otherAssets') {
+              await deleteOtherAsset(parseInt(item.id));
+            } else if (assetType === 'cash') {
+              await deleteCashPosition(item.id);
+            } else {
+              await deletePosition(item.id, assetType);
+            }
           } else if (currentView === 'liabilities') {
             await deleteLiability(item.id);
           }
