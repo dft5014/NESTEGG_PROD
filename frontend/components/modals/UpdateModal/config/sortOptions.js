@@ -32,6 +32,18 @@ export const SORT_OPTIONS = [
     }
   },
   {
+    id: 'identifier',
+    name: 'Identifier',
+    icon: Tag,
+    sortFn: (a, b, dir) => {
+      const idA = (a.identifier || '').toLowerCase();
+      const idB = (b.identifier || '').toLowerCase();
+      return dir === 'asc'
+        ? idA.localeCompare(idB)
+        : idB.localeCompare(idA);
+    }
+  },
+  {
     id: 'value',
     name: 'Value',
     icon: DollarSign,

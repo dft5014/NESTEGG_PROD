@@ -236,6 +236,73 @@ export const useUpdateData = (isOpen) => {
     return Array.from(uniq.values());
   }, [cashAssets, liabilities, otherAssets]);
 
+  // Build position drilldown by institution (cash + other only)
+  const positionsByInstitution = useMemo(() => {
+    const map = new Map();
+
+    // Add cash assets
+    cashAssets.forEach(p => {
+      const inst = p.institution || OTHER_INST;
+      if (!map.has(inst)) map.set(inst, []);
+      map.get(inst).push({
+        id: p.id,
+        name: p.name || p.identifier || 'Position',
+        identifier: p.identifier || '',
+        type: p.type || 'cash',
+        value: Number(p.currentValue || 0),
+        accountName: p.inv_account_name || ''
+      });
+    });
+
+    // Add other assets
+    otherAssets.forEach(p => {
+      const inst = p.institution || OTHER_INST;
+      if (!map.has(inst)) map.set(inst, []);
+      map.get(inst).push({
+        id: p.id,
+        name: p.name || p.identifier || 'Position',
+        identifier: p.identifier || '',
+        type: p.type || 'other',
+        value: Number(p.currentValue || 0),
+        accountName: p.inv_account_name || ''
+      });
+    });
+
+    // Sort each institution's positions by value
+    Array.from(map.values()).forEach(list =>
+      list.sort((a, b) => Math.abs(b.value) - Math.abs(a.value))
+    );
+
+    return map;
+  }, [cashAssets, otherAssets]);
+
+  // Build liability drilldown by institution
+  const liabilitiesByInstitution = useMemo(() => {
+    const map = new Map();
+
+    liabilities.forEach(l => {
+      const inst = l.institution || OTHER_INST;
+      if (!map.has(inst)) map.set(inst, []);
+      map.get(inst).push({
+        id: l.id,
+        name: l.name || 'Liability',
+        identifier: l.identifier || '',
+        type: l.type || 'liability',
+        value: Number(l.currentValue || 0),
+        accountName: l.inv_account_name || '',
+        interestRate: l.interest_rate,
+        creditLimit: l.credit_limit
+      });
+    });
+
+    // Sort by value
+    Array.from(map.values()).forEach(list =>
+      list.sort((a, b) => Math.abs(b.value) - Math.abs(a.value))
+    );
+
+    return map;
+  }, [liabilities]);
+
   // Build institution summaries
   const institutionSummaries = useMemo(() => {
     const map = new Map();
@@ -318,6 +385,10 @@ export const useUpdateData = (isOpen) => {
     otherAssets,
     institutionSummaries,
     totals,
+
+    // Drilldown data
+    positionsByInstitution,
+    liabilitiesByInstitution,
 
     // Loading states
     loading: accountsLoading || positionsLoading || liabsLoading,
