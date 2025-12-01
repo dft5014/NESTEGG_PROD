@@ -196,7 +196,11 @@ const EditDeleteModal = ({
 
   // Handle single delete
   const handleDelete = useCallback(async (item) => {
-    if (!window.confirm(`Are you sure you want to delete "${item.name || item.identifier || 'this item'}"?`)) {
+    const itemType = currentView === 'accounts' ? 'account' :
+      currentView === 'positions' ? 'position' : 'liability';
+    const itemName = item.name || item.identifier || item.asset_name || 'this item';
+
+    if (!window.confirm(`Delete ${itemType} "${itemName}"? This action cannot be undone.`)) {
       return;
     }
 
@@ -245,7 +249,10 @@ const EditDeleteModal = ({
 
     if (selectedCount === 0) return;
 
-    if (!window.confirm(`Are you sure you want to delete ${selectedCount} selected item${selectedCount > 1 ? 's' : ''}?`)) {
+    const itemType = currentView === 'accounts' ? 'account' :
+      currentView === 'positions' ? 'position' : 'liability';
+
+    if (!window.confirm(`Delete ${selectedCount} ${itemType}${selectedCount !== 1 ? 's' : ''}? This action cannot be undone.`)) {
       return;
     }
 

@@ -4660,7 +4660,7 @@ async def update_other_asset_value(
 # Delete an other asset (soft delete)
 @app.delete("/other-assets/{asset_id}")
 async def delete_other_asset(
-    asset_id: str, 
+    asset_id: int,
     current_user: dict = Depends(get_current_user)
 ):
     try:
