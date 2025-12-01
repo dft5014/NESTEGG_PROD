@@ -157,14 +157,16 @@ const EditDeleteModal = ({
       } else if (editingType === 'position') {
         const assetType = normalizeAssetType(editingItem.asset_type);
 
+        // Transform internal format to API format for ALL asset types
+        const apiPayload = preparePositionUpdatePayload(updatedData, assetType);
+
         // Route to correct API based on asset type
         if (assetType === 'otherAssets') {
-          await updateOtherAsset(parseInt(editingItem.id), updatedData);
+          await updateOtherAsset(parseInt(editingItem.id), apiPayload);
         } else if (assetType === 'cash') {
-          await updateCashPosition(editingItem.id, updatedData);
+          await updateCashPosition(editingItem.id, apiPayload);
         } else {
-          // security, crypto, metal - transform internal format to API format
-          const apiPayload = preparePositionUpdatePayload(updatedData, assetType);
+          // security, crypto, metal
           await updatePosition(editingItem.id, apiPayload, assetType);
         }
         showSuccess('Position updated successfully');
