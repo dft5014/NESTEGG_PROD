@@ -119,13 +119,16 @@ const UpdateModal = ({
   const { message, showSuccess, showError, showWarning, clearMessage } = useMessage();
 
   // ============================================
-  // Reset state when modal closes
+  // Reset state when modal opens or closes
   // ============================================
   useEffect(() => {
-    if (!isOpen) {
+    if (isOpen) {
+      // Reset to initial state when modal opens
       setCurrentView(initialView);
       setCurrentWorkflow(initialWorkflow);
       filtering.setSelectedInstitution(initialInstitution);
+    } else {
+      // Clear drafts and filters when modal closes
       balanceDrafts.clearAllDrafts();
       balanceSubmit.clearFailed();
       filtering.clearFilters();
@@ -134,7 +137,7 @@ const UpdateModal = ({
       resetQtyFilters();
       clearAllNewPositions();
     }
-  }, [isOpen, initialView, initialWorkflow, initialInstitution]);
+  }, [isOpen]);
 
   // ============================================
   // Keyboard shortcuts
