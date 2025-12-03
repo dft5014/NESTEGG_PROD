@@ -318,7 +318,7 @@ export default function ValidateModal2({ isOpen, onClose }) {
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
               transition={{ duration: 0.2, ease: 'easeInOut' }}
-              className="flex-1 overflow-hidden flex flex-col rounded-xl border border-gray-800 bg-gray-900/30"
+              className="flex-1 overflow-hidden flex flex-col border border-gray-800 bg-gray-900/30"
             >
               {renderView()}
             </motion.div>
