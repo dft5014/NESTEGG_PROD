@@ -622,14 +622,9 @@ const Navbar = () => {
                     <QuickStartModalV2Button />
                   </div>
 
-                  {/* 2. Edit - Original version */}
+                  {/* 2. Edit */}
                   <div ref={editRef} className={`${NAVBAR_BTN_BASE} ${BTN_ACCENT.edit}`}>
-                    <QuickEditDeleteButton />
-                  </div>
-
-                  {/* Edit2 - New modular version for testing */}
-                  <div className={`${NAVBAR_BTN_BASE} ${BTN_ACCENT.edit}`}>
-                    <QuickEditDeleteButton2 />
+                    <QuickEditDeleteButton label="Edit" />
                   </div>
 
                   {/* 3. Update (Original) */}

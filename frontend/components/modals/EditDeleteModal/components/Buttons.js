@@ -5,7 +5,7 @@ import EditDeleteModal from '../EditDeleteModal.js';
 /**
  * Button to open the Edit & Delete modal (general purpose)
  */
-export const QuickEditDeleteButton = ({ className = '', mobileView = false }) => {
+export const QuickEditDeleteButton = ({ className = '', mobileView = false, label = 'Edit' }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   if (mobileView) {
@@ -16,7 +16,7 @@ export const QuickEditDeleteButton = ({ className = '', mobileView = false }) =>
           className={className}
         >
           <Edit3 className="h-6 w-6 mb-1 text-white group-hover:text-blue-300" />
-          <span className="text-xs text-gray-200 group-hover:text-white">Edit</span>
+          <span className="text-xs text-gray-200 group-hover:text-white">{label}</span>
         </button>
 
         <EditDeleteModal
@@ -33,10 +33,10 @@ export const QuickEditDeleteButton = ({ className = '', mobileView = false }) =>
         onClick={() => setIsModalOpen(true)}
         className={`group relative flex items-center text-white py-1 px-4 transition-all duration-300 ${className}`}
       >
-        <div className="absolute inset-0 bg-gradient-to-r from-purple-600 to-pink-600 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+        <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
         <div className="relative flex items-center">
-          <Edit3 className="w-5 h-5 mr-2 text-purple-400 group-hover:text-white transition-colors" />
-          <span className="text-sm text-gray-200 group-hover:text-white font-medium">Edit & Delete</span>
+          <Edit3 className="w-4 h-4 mr-1.5 text-blue-400 group-hover:text-white transition-colors" />
+          <span className="text-sm text-gray-200 group-hover:text-white font-medium">{label}</span>
         </div>
       </button>
 

@@ -11,7 +11,7 @@ const FixedModal = ({
     zIndex = 'z-50',
     disableBackdropClose = false,
     colorfulHeader = false, // NEW: Enable gradient header
-    customHeader = false // NEW: If title is a React component, render it as-is without default header chrome
+    headerContent = null // NEW: Custom header content (replaces title)
 }) => {
     const [mounted, setMounted] = useState(false);
     const portalRootRef = useRef(null);
@@ -64,46 +64,42 @@ const FixedModal = ({
             >
                 {/* Header */}
                 <div className={`
-                    flex justify-between items-center p-5 border-b flex-shrink-0
+                    flex justify-between items-center p-4 border-b flex-shrink-0
                     ${colorfulHeader
                         ? 'bg-gradient-to-r from-indigo-600 to-purple-600 border-indigo-700'
                         : 'border-gray-800 bg-gray-950'
                     }
                 `}>
-                    {customHeader ? (
-                        // Custom header - title prop is a React component with its own layout
-                        <div className="w-full" id={titleId}>
-                            {title}
+                    {headerContent ? (
+                        <div className="flex-1 flex items-center justify-between" id={titleId}>
+                            {headerContent}
                         </div>
                     ) : (
-                        // Default header - title is text, with close button
-                        <>
-                            <h2
-                                className="text-xl font-bold text-white"
-                                id={titleId}
-                            >
-                                {title}
-                            </h2>
-                            <button
-                                onClick={onClose}
-                                className={`
-                                    h-8 w-8 flex items-center justify-center rounded-full
-                                    transition-colors
-                                    ${colorfulHeader
-                                        ? 'text-white hover:bg-white/20'
-                                        : 'text-gray-400 hover:text-white hover:bg-gray-800'
-                                    }
-                                `}
-                                aria-label="Close modal"
-                            >
-                                <X className="h-5 w-5" />
-                            </button>
-                        </>
+                        <h2
+                            className="text-xl font-bold text-white"
+                            id={titleId}
+                        >
+                            {title}
+                        </h2>
                     )}
+                    <button
+                        onClick={onClose}
+                        className={`
+                            h-8 w-8 flex items-center justify-center rounded-full
+                            transition-colors ml-3 flex-shrink-0
+                            ${colorfulHeader
+                                ? 'text-white hover:bg-white/20'
+                                : 'text-gray-400 hover:text-white hover:bg-gray-800'
+                            }
+                        `}
+                        aria-label="Close modal"
+                    >
+                        <X className="h-5 w-5" />
+                    </button>
                 </div>
 
                 {/* Content - Clean dark background */}
-                <div className="flex-1 overflow-y-auto bg-gray-950 p-6">
+                <div className="flex-1 overflow-y-auto bg-gray-950">
                     {children}
                 </div>
             </div>

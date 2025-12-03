@@ -1,4 +1,5 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import { ArrowLeft, Edit3, Eye, EyeOff, RefreshCw, Wallet, Layers, CreditCard } from 'lucide-react';
 import FixedModal from '../FixedModal';
 import SelectionScreen from './components/SelectionScreen';
 import EntityManager from './components/EntityManager';
@@ -347,6 +348,85 @@ const EditDeleteModal = ({
   // Get loading state for current view
   const loading = getLoadingState(currentView);
 
+  // View configuration
+  const viewConfig = useMemo(() => ({
+    accounts: { title: 'Manage Accounts', icon: Wallet, color: 'blue' },
+    positions: { title: 'Manage Positions', icon: Layers, color: 'purple' },
+    liabilities: { title: 'Manage Liabilities', icon: CreditCard, color: 'rose' }
+  }), []);
+
+  // Get item count for current view
+  const itemCount = useMemo(() => {
+    if (!currentView) return 0;
+    if (currentView === 'accounts') return accounts.length;
+    if (currentView === 'positions') return positions.length;
+    if (currentView === 'liabilities') return liabilities.length;
+    return 0;
+  }, [currentView, accounts.length, positions.length, liabilities.length]);
+
+  // Custom header content
+  const headerContent = useMemo(() => {
+    const config = currentView ? viewConfig[currentView] : null;
+    const IconComponent = config?.icon;
+
+    return (
+      <>
+        {/* Left side - Title */}
+        <div className="flex items-center gap-3">
+          {currentView && (
+            <button
+              onClick={handleBack}
+              className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-all"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+          )}
+          <div className={`p-2.5 rounded-xl bg-gradient-to-br ${
+            !currentView ? 'from-purple-600 to-pink-600' :
+            config?.color === 'blue' ? 'from-blue-600 to-indigo-700' :
+            config?.color === 'purple' ? 'from-purple-600 to-pink-700' :
+            'from-rose-600 to-orange-700'
+          }`}>
+            {currentView && IconComponent ? (
+              <IconComponent className="w-5 h-5 text-white" />
+            ) : (
+              <Edit3 className="w-5 h-5 text-white" />
+            )}
+          </div>
+          <div>
+            <h2 className="text-lg font-bold text-white">
+              {currentView ? config?.title : 'Edit & Delete Manager'}
+            </h2>
+            <p className="text-xs text-gray-400">
+              {currentView ? `${itemCount} items` : 'Select what you\'d like to manage'}
+            </p>
+          </div>
+        </div>
+
+        {/* Right side - Actions */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowValues(!showValues)}
+            className={`p-2 rounded-lg transition-all ${
+              showValues ? 'bg-indigo-500/20 text-indigo-400' : 'bg-gray-800 text-gray-400 hover:text-white'
+            }`}
+            title={showValues ? 'Hide values' : 'Show values'}
+          >
+            {showValues ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+          </button>
+          <button
+            onClick={handleRefresh}
+            disabled={loading}
+            className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-all disabled:opacity-50"
+            title="Refresh"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          </button>
+        </div>
+      </>
+    );
+  }, [currentView, viewConfig, itemCount, showValues, loading, handleBack, handleRefresh]);
+
   return (
     <FixedModal
       isOpen={isOpen}
@@ -354,6 +434,7 @@ const EditDeleteModal = ({
       title=""
       size="max-w-6xl"
       disableBackdropClose={true}
+      headerContent={headerContent}
     >
       <div className="relative flex flex-col h-[80vh]">
         {/* Selection Screen or Entity Manager */}
@@ -362,6 +443,7 @@ const EditDeleteModal = ({
             portfolioSummary={portfolioSummary}
             positions={positions}
             onSelectView={handleSelectView}
+            showValues={showValues}
           />
         ) : (
           <EntityManager
