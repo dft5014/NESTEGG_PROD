@@ -88,28 +88,6 @@ const WorkflowSelector = ({
 }) => {
   return (
     <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="flex-shrink-0 p-6 border-b border-gray-800">
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex items-center gap-4"
-        >
-          <div className="p-3 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-2xl shadow-lg shadow-cyan-500/25">
-            <RefreshCw className="w-6 h-6 text-white" />
-          </div>
-          <div>
-            <h2 className="text-xl font-bold text-white flex items-center gap-2">
-              Quick Update
-              <Sparkles className="w-5 h-5 text-amber-400" />
-            </h2>
-            <p className="text-sm text-gray-400">
-              Choose what you'd like to update
-            </p>
-          </div>
-        </motion.div>
-      </div>
-
       {/* Workflow selection */}
       <div className="flex-1 p-6 flex items-center justify-center">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl w-full">

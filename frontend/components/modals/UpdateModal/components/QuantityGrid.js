@@ -77,6 +77,10 @@ const QuantityGrid = ({
   sortBy = 'identifier',
   sortDir = 'asc',
   onSort,
+  // Account column sorting props
+  accountSortBy = 'value',
+  accountSortDir = 'desc',
+  onAccountSort,
   loading = false,
   showFullPrecision = false
 }) => {
@@ -128,7 +132,7 @@ const QuantityGrid = ({
     );
   }
 
-  const totalDataHeight = (gridMatrix.length + 1) * ROW_HEIGHT; // +1 for totals row
+  const totalDataHeight = gridMatrix.length * ROW_HEIGHT; // Totals row moved to frozen header
 
   return (
     <div className="relative flex flex-col h-full overflow-hidden bg-gray-900 rounded-lg border border-gray-700">
@@ -139,15 +143,15 @@ const QuantityGrid = ({
           className="flex-shrink-0 flex flex-col bg-gray-900 border-r border-gray-700"
           style={{ width: ROW_HEADER_WIDTH }}
         >
-          {/* Corner cell (frozen both ways) - sortable headers */}
+          {/* Row sort controls (aligns with account sort row on right) */}
           <div
-            className="flex-shrink-0 bg-gray-800 border-b border-gray-700 px-2 flex items-center gap-1"
-            style={{ height: HEADER_HEIGHT }}
+            className="flex-shrink-0 bg-gray-850 border-b border-gray-700 px-2 flex items-center gap-1"
+            style={{ height: 28 }}
           >
-            {/* Sort by Ticker */}
+            <span className="text-xs text-gray-500 mr-1">Sort rows:</span>
             <button
               onClick={() => onSort?.('identifier')}
-              className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors ${
+              className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium transition-colors ${
                 sortBy === 'identifier'
                   ? 'bg-cyan-500/20 text-cyan-400'
                   : 'text-gray-400 hover:text-gray-200 hover:bg-gray-700/50'
@@ -155,36 +159,54 @@ const QuantityGrid = ({
               title="Sort by ticker"
             >
               <span>Ticker</span>
-              <SortIndicator column="identifier" sortBy={sortBy} sortDir={sortDir} />
+              {sortBy === 'identifier' && (
+                sortDir === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />
+              )}
             </button>
-            <span className="text-gray-600">/</span>
-            {/* Sort by Date */}
             <button
               onClick={() => onSort?.('purchaseDate')}
-              className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors ${
+              className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium transition-colors ${
                 sortBy === 'purchaseDate'
                   ? 'bg-cyan-500/20 text-cyan-400'
                   : 'text-gray-400 hover:text-gray-200 hover:bg-gray-700/50'
               }`}
-              title="Sort by purchase date"
+              title="Sort by date"
             >
               <span>Date</span>
-              <SortIndicator column="purchaseDate" sortBy={sortBy} sortDir={sortDir} />
+              {sortBy === 'purchaseDate' && (
+                sortDir === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />
+              )}
             </button>
-            <span className="text-gray-600">/</span>
-            {/* Sort by Qty */}
             <button
               onClick={() => onSort?.('totalQuantity')}
-              className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors ${
+              className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium transition-colors ${
                 sortBy === 'totalQuantity'
                   ? 'bg-cyan-500/20 text-cyan-400'
                   : 'text-gray-400 hover:text-gray-200 hover:bg-gray-700/50'
               }`}
-              title="Sort by total quantity"
+              title="Sort by quantity"
             >
               <span>Qty</span>
-              <SortIndicator column="totalQuantity" sortBy={sortBy} sortDir={sortDir} />
+              {sortBy === 'totalQuantity' && (
+                sortDir === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />
+              )}
             </button>
+          </div>
+
+          {/* Column header placeholder (aligns with account headers on right) */}
+          <div
+            className="flex-shrink-0 bg-gray-800 border-b border-gray-700 px-3 flex items-center"
+            style={{ height: HEADER_HEIGHT }}
+          >
+            <span className="text-xs font-medium text-gray-400 uppercase tracking-wider">Position / Date</span>
+          </div>
+
+          {/* Totals row label (aligns with totals row on right) */}
+          <div
+            className="flex-shrink-0 bg-gray-800/90 border-b-2 border-emerald-600/30 px-3 flex items-center"
+            style={{ height: ROW_HEIGHT }}
+          >
+            <span className="text-sm font-semibold text-emerald-400">Totals</span>
           </div>
 
           {/* Row headers - scrollable vertically, synced with data */}
@@ -236,20 +258,62 @@ const QuantityGrid = ({
                   </div>
                 );
               })}
-
-              {/* Totals row header */}
-              <div
-                className="flex items-center gap-2 px-3 bg-gray-800/80 border-t-2 border-gray-600 font-semibold"
-                style={{ height: ROW_HEIGHT }}
-              >
-                <span className="text-sm text-gray-300">Totals</span>
-              </div>
             </div>
           </div>
         </div>
 
         {/* Scrollable data area */}
         <div className="flex-1 flex flex-col overflow-hidden">
+          {/* Account sort controls row */}
+          <div
+            className="flex-shrink-0 bg-gray-850 border-b border-gray-700 px-2 py-1.5 flex items-center gap-1"
+            style={{ height: 28 }}
+          >
+            <span className="text-xs text-gray-500 mr-1">Sort accounts:</span>
+            <button
+              onClick={() => onAccountSort?.('value')}
+              className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium transition-colors ${
+                accountSortBy === 'value'
+                  ? 'bg-emerald-500/20 text-emerald-400'
+                  : 'text-gray-400 hover:text-gray-200 hover:bg-gray-700/50'
+              }`}
+              title="Sort accounts by balance"
+            >
+              <span>Value</span>
+              {accountSortBy === 'value' && (
+                accountSortDir === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />
+              )}
+            </button>
+            <button
+              onClick={() => onAccountSort?.('name')}
+              className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium transition-colors ${
+                accountSortBy === 'name'
+                  ? 'bg-blue-500/20 text-blue-400'
+                  : 'text-gray-400 hover:text-gray-200 hover:bg-gray-700/50'
+              }`}
+              title="Sort accounts alphabetically"
+            >
+              <span>A-Z</span>
+              {accountSortBy === 'name' && (
+                accountSortDir === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />
+              )}
+            </button>
+            <button
+              onClick={() => onAccountSort?.('institution')}
+              className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium transition-colors ${
+                accountSortBy === 'institution'
+                  ? 'bg-violet-500/20 text-violet-400'
+                  : 'text-gray-400 hover:text-gray-200 hover:bg-gray-700/50'
+              }`}
+              title="Sort accounts by institution"
+            >
+              <span>Institution</span>
+              {accountSortBy === 'institution' && (
+                accountSortDir === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />
+              )}
+            </button>
+          </div>
+
           {/* Column headers (frozen row, scrolls horizontally) */}
           <div
             className="flex-shrink-0 bg-gray-800 border-b border-gray-700 overflow-hidden"
@@ -277,6 +341,30 @@ const QuantityGrid = ({
                       {acc.institution}
                     </span>
                   </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Column totals row (frozen at top, scrolls horizontally with columns) */}
+          <div
+            className="flex-shrink-0 bg-gray-800/90 border-b-2 border-emerald-600/30 overflow-hidden"
+            style={{ height: ROW_HEIGHT }}
+          >
+            <div
+              className="flex"
+              style={{
+                minWidth: relevantAccounts.length * CELL_WIDTH,
+                transform: `translateX(-${scrollLeft}px)`
+              }}
+            >
+              {columnTotals.map((total) => (
+                <div
+                  key={total.accountId}
+                  className="flex-shrink-0 flex items-center justify-end px-2 border-r border-gray-700/50 text-sm font-semibold text-emerald-400"
+                  style={{ width: CELL_WIDTH }}
+                >
+                  {formatCurrency(total.totalValue)}
                 </div>
               ))}
             </div>
@@ -342,21 +430,6 @@ const QuantityGrid = ({
                 </div>
               ))}
 
-              {/* Column totals row */}
-              <div
-                className="flex bg-gray-800/80 border-t-2 border-gray-600"
-                style={{ height: ROW_HEIGHT }}
-              >
-                {columnTotals.map((total) => (
-                  <div
-                    key={total.accountId}
-                    className="flex-shrink-0 flex items-center justify-end px-2 border-r border-gray-700/50 text-sm font-medium text-gray-300"
-                    style={{ width: CELL_WIDTH }}
-                  >
-                    {formatCurrency(total.totalValue)}
-                  </div>
-                ))}
-              </div>
             </div>
           </div>
         </div>

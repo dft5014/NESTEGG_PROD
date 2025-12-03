@@ -144,6 +144,11 @@ const QuantityManager = ({
   sortDir,
   toggleSort,
 
+  // Account column sorting
+  accountSortBy,
+  accountSortDir,
+  toggleAccountSort,
+
   // Submit
   isSubmitting,
   progress,
@@ -213,36 +218,10 @@ const QuantityManager = ({
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="flex-shrink-0 p-4 border-b border-gray-800">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            {/* Back button */}
-            <button
-              onClick={onBack}
-              className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </button>
-
-            {/* Title */}
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl">
-                <Grid3x3 className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                  Position Quantities
-                  <Sparkles className="w-4 h-4 text-amber-400" />
-                </h2>
-                <p className="text-xs text-gray-500">
-                  {grandTotals?.uniqueSecurities || 0} securities across {grandTotals?.uniqueAccounts || 0} accounts
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Actions */}
+      {/* Actions bar */}
+      <div className="flex-shrink-0 px-4 py-3 border-b border-gray-800 bg-gray-900/50">
+        <div className="flex items-center justify-between gap-4">
+          {/* Left side actions */}
           <div className="flex items-center gap-2">
             {/* Info button */}
             <div className="relative">
@@ -264,16 +243,6 @@ const QuantityManager = ({
               </AnimatePresence>
             </div>
 
-            {/* Refresh */}
-            <button
-              onClick={onRefresh}
-              disabled={loading}
-              className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors disabled:opacity-50"
-              title="Refresh data"
-            >
-              <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
-            </button>
-
             {/* Paste */}
             <button
               onClick={() => setShowPasteInput(!showPasteInput)}
@@ -288,7 +257,10 @@ const QuantityManager = ({
               <ClipboardPaste className="w-4 h-4" />
               Paste
             </button>
+          </div>
 
+          {/* Right side: Save/Import buttons */}
+          <div className="flex items-center gap-2">
             {/* Import New Positions */}
             {newPositionsCount > 0 && (
               <motion.button
@@ -485,6 +457,9 @@ const QuantityManager = ({
           sortBy={sortBy}
           sortDir={sortDir}
           onSort={toggleSort}
+          accountSortBy={accountSortBy}
+          accountSortDir={accountSortDir}
+          onAccountSort={toggleAccountSort}
           loading={loading}
         />
       </div>

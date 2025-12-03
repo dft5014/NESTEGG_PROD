@@ -10,8 +10,11 @@
 // - Beautiful animations with framer-motion
 // - Quantity grid with freeze panes for securities/crypto/metals
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
+import {
+  ArrowLeft, RefreshCw, Sparkles, Wallet, Grid3x3
+} from 'lucide-react';
 import FixedModal from '../FixedModal';
 import MessageToast from './components/MessageToast';
 import { SelectionDashboard, UpdateManager, WorkflowSelector, QuantityManager } from './views';
@@ -96,6 +99,9 @@ const UpdateModal = ({
     sortBy: qtySortBy,
     sortDir: qtySortDir,
     toggleSort: qtyToggleSort,
+    accountSortBy: qtyAccountSortBy,
+    accountSortDir: qtyAccountSortDir,
+    toggleAccountSort: qtyToggleAccountSort,
     loading: quantityLoading,
     refreshAllData: refreshQuantityData
   } = useQuantityData(isOpen);
@@ -288,6 +294,138 @@ const UpdateModal = ({
   };
 
   // ============================================
+  // Header Content for FixedModal
+  // ============================================
+  const headerContent = useMemo(() => {
+    // Workflow selector view
+    if (currentView === 'workflow') {
+      return (
+        <>
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 shadow-lg shadow-cyan-500/25">
+              <RefreshCw className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                Quick Update
+                <Sparkles className="w-4 h-4 text-amber-400" />
+              </h2>
+              <p className="text-xs text-gray-400">
+                Choose what you'd like to update
+              </p>
+            </div>
+          </div>
+          <div />
+        </>
+      );
+    }
+
+    // Balance workflow - dashboard view
+    if (currentView === 'dashboard' && currentWorkflow === 'balances') {
+      return (
+        <>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleBackToWorkflow}
+              className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-all"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+            <div className="p-2.5 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 shadow-lg shadow-emerald-500/25">
+              <Wallet className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                Manual Balances
+                <Sparkles className="w-4 h-4 text-amber-400" />
+              </h2>
+              <p className="text-xs text-gray-400">
+                Update balances for cash, liabilities, and other assets
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={handleBalanceRefresh}
+            disabled={balanceLoading}
+            className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 border border-gray-700 transition-colors disabled:opacity-50"
+          >
+            <RefreshCw className={`w-4 h-4 text-gray-400 ${balanceLoading ? 'animate-spin' : ''}`} />
+          </button>
+        </>
+      );
+    }
+
+    // Balance workflow - manager view
+    if (currentView === 'manager' && currentWorkflow === 'balances') {
+      return (
+        <>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleBackToDashboard}
+              className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-all"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+            <div className="p-2.5 rounded-xl bg-gradient-to-br from-cyan-600 to-blue-700">
+              <RefreshCw className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-white">
+                {filtering.selectedInstitution ? `Update ${filtering.selectedInstitution}` : 'Update All'}
+              </h2>
+              <p className="text-xs text-gray-400">
+                {filtering.filteredRows.length} items to update
+              </p>
+            </div>
+          </div>
+          <div />
+        </>
+      );
+    }
+
+    // Quantity workflow
+    if (currentView === 'quantities' && currentWorkflow === 'quantities') {
+      return (
+        <>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleBackToWorkflow}
+              className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-all"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+            <div className="p-2.5 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600">
+              <Grid3x3 className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                Position Quantities
+                <Sparkles className="w-4 h-4 text-amber-400" />
+              </h2>
+              <p className="text-xs text-gray-400">
+                {grandTotals?.uniqueSecurities || 0} securities across {grandTotals?.uniqueAccounts || 0} accounts
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={handleQuantityRefresh}
+            disabled={quantityLoading}
+            className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 border border-gray-700 transition-colors disabled:opacity-50"
+          >
+            <RefreshCw className={`w-4 h-4 text-gray-400 ${quantityLoading ? 'animate-spin' : ''}`} />
+          </button>
+        </>
+      );
+    }
+
+    return null;
+  }, [
+    currentView, currentWorkflow, filtering.selectedInstitution, filtering.filteredRows.length,
+    grandTotals, balanceLoading, quantityLoading, handleBackToWorkflow, handleBackToDashboard,
+    handleBalanceRefresh, handleQuantityRefresh
+  ]);
+
+  // ============================================
   // Render
   // ============================================
   return (
@@ -297,6 +435,7 @@ const UpdateModal = ({
       title=""
       size="max-w-6xl"
       disableBackdropClose={true}
+      headerContent={headerContent}
     >
       <div className="relative flex flex-col h-[85vh]">
         <AnimatePresence mode="wait">
@@ -468,6 +607,11 @@ const UpdateModal = ({
                 sortBy={qtySortBy}
                 sortDir={qtySortDir}
                 toggleSort={qtyToggleSort}
+
+                // Account column sorting
+                accountSortBy={qtyAccountSortBy}
+                accountSortDir={qtyAccountSortDir}
+                toggleAccountSort={qtyToggleAccountSort}
 
                 // Submit
                 isSubmitting={quantitySubmit.isSubmitting}
