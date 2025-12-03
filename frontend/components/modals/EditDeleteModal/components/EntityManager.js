@@ -465,9 +465,6 @@ const EntityManager = ({
 
   return (
     <div className="flex flex-col h-full">
-      {/* Stats bar - now at the top */}
-      <StatsBar stats={stats} currentView={currentView} showValues={showValues} />
-
       {/* Search and filters bar */}
       <div className="flex-shrink-0 border-b border-gray-800">
         <div className="px-6 py-3 bg-gray-900/50">
@@ -563,11 +560,10 @@ const EntityManager = ({
         </div>
       </div>
 
-      {/* Stats bar */}
-      <StatsBar stats={stats} currentView={currentView} showValues={showValues} />
-
       {/* Main content */}
       <div className="flex-1 overflow-y-auto p-6">
+        {/* Stats bar - inside scrollable area */}
+        <StatsBar stats={stats} currentView={currentView} showValues={showValues} />
         <AnimatePresence mode="wait">
           {loading ? (
             <motion.div
