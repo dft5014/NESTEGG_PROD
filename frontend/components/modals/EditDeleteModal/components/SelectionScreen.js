@@ -82,48 +82,48 @@ const SelectionCard = ({ icon: Icon, title, subtitle, count, color, onClick, del
       className={`
         group relative cursor-pointer overflow-hidden
         bg-gradient-to-br from-gray-800/80 to-gray-900/80
-        backdrop-blur-sm rounded-2xl p-6
+        backdrop-blur-sm rounded-xl p-4
         border border-gray-700/50
         ${c.hover}
-        hover:shadow-2xl hover:-translate-y-1
+        hover:shadow-2xl hover:-translate-y-0.5
         transition-all duration-300
       `}
     >
       {/* Subtle glow effect on hover */}
-      <div className={`absolute -inset-1 ${c.glow} rounded-2xl opacity-0 group-hover:opacity-5 blur-xl transition-opacity duration-300`} />
+      <div className={`absolute -inset-1 ${c.glow} rounded-xl opacity-0 group-hover:opacity-5 blur-xl transition-opacity duration-300`} />
 
       <div className="relative flex flex-col items-center text-center">
         {/* Icon */}
         <div className={`
-          relative p-4 rounded-2xl mb-4
+          relative p-3 rounded-xl mb-2
           bg-gradient-to-br ${c.bg}
           shadow-lg group-hover:scale-110
           transition-transform duration-300
         `}>
-          <Icon className="w-8 h-8 text-white" />
+          <Icon className="w-6 h-6 text-white" />
         </div>
 
         {/* Title */}
-        <h3 className="text-lg font-bold text-white mb-1">{title}</h3>
+        <h3 className="text-base font-bold text-white mb-0.5">{title}</h3>
 
         {/* Subtitle */}
-        <p className="text-sm text-gray-400 mb-3">{subtitle}</p>
+        <p className="text-xs text-gray-400 mb-2">{subtitle}</p>
 
         {/* Count badge */}
         <div className={`
-          inline-flex items-center px-3 py-1 rounded-full
+          inline-flex items-center px-2.5 py-0.5 rounded-full
           ${c.iconBg} border border-${color}-500/20
-          mb-3
+          mb-2
         `}>
-          <span className={`text-sm font-semibold ${c.text}`}>
+          <span className={`text-xs font-semibold ${c.text}`}>
             <AnimatedStat value={count} /> items
           </span>
         </div>
 
         {/* Action hint */}
-        <div className={`flex items-center text-sm ${c.text} font-medium`}>
+        <div className={`flex items-center text-xs ${c.text} font-medium`}>
           <span>Manage</span>
-          <ChevronRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
+          <ChevronRight className="w-3.5 h-3.5 ml-1 group-hover:translate-x-1 transition-transform" />
         </div>
       </div>
     </motion.div>
@@ -181,7 +181,7 @@ const StatsBar = ({ portfolioSummary, showValues = true }) => {
   };
 
   return (
-    <div className="grid grid-cols-5 gap-3 p-4 bg-gray-900/50 border-b border-gray-800">
+    <div className="grid grid-cols-5 gap-2 px-4 py-2 bg-gray-900/50 border-b border-gray-800">
       {stats.map((stat, idx) => (
         <motion.div
           key={stat.label}
@@ -190,15 +190,15 @@ const StatsBar = ({ portfolioSummary, showValues = true }) => {
           transition={{ duration: 0.3, delay: idx * 0.05 }}
           className="text-center"
         >
-          <div className="inline-flex items-center justify-center w-10 h-10 bg-gray-800 rounded-lg mb-1">
-            <p className={`text-lg font-black bg-gradient-to-r ${colorClasses[stat.color]} bg-clip-text text-transparent`}>
+          <div className="inline-flex items-center justify-center w-auto px-2 py-1 bg-gray-800 rounded-lg mb-0.5">
+            <p className={`text-sm font-black bg-gradient-to-r ${colorClasses[stat.color]} bg-clip-text text-transparent`}>
               {stat.format === 'currency'
                 ? (showValues ? formatCurrency(stat.value).replace(/\.\d{2}$/, '') : '••••')
                 : <AnimatedStat value={stat.value} />
               }
             </p>
           </div>
-          <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">{stat.label}</p>
+          <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wide">{stat.label}</p>
         </motion.div>
       ))}
     </div>
@@ -285,9 +285,9 @@ const SelectionScreen = ({
       <StatsBar portfolioSummary={portfolioSummary} showValues={showValues} />
 
       {/* Main Content */}
-      <div className="flex-1 overflow-auto p-6">
+      <div className="flex-1 overflow-auto p-4">
         {/* Selection Cards */}
-        <div className="grid md:grid-cols-3 gap-4 mb-6">
+        <div className="grid md:grid-cols-3 gap-3 mb-4">
           <SelectionCard
             icon={Wallet}
             title="Accounts"
@@ -326,9 +326,9 @@ const SelectionScreen = ({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.4 }}
-        className="flex-shrink-0 p-4 border-t border-gray-800 bg-gray-900/50"
+        className="flex-shrink-0 px-4 py-2 border-t border-gray-800 bg-gray-900/50"
       >
-        <p className="text-center text-sm text-gray-500">
+        <p className="text-center text-xs text-gray-500">
           Click a category above to start managing your data
         </p>
       </motion.div>
