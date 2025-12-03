@@ -139,7 +139,7 @@ const SelectionCard = ({ icon: Icon, title, subtitle, count, totalValue, color, 
 };
 
 /**
- * Stats bar component
+ * Stats bar component - larger KPI boxes
  */
 const StatsBar = ({ portfolioSummary, showValues = true }) => {
   const stats = [
@@ -181,34 +181,41 @@ const StatsBar = ({ portfolioSummary, showValues = true }) => {
   ];
 
   const colorClasses = {
-    emerald: 'from-emerald-600 to-emerald-700',
-    blue: 'from-blue-600 to-blue-700',
-    indigo: 'from-indigo-600 to-indigo-700',
-    purple: 'from-purple-600 to-purple-700',
-    rose: 'from-rose-600 to-rose-700'
+    emerald: { gradient: 'from-emerald-600 to-emerald-700', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20' },
+    blue: { gradient: 'from-blue-600 to-blue-700', bg: 'bg-blue-500/10', border: 'border-blue-500/20' },
+    indigo: { gradient: 'from-indigo-600 to-indigo-700', bg: 'bg-indigo-500/10', border: 'border-indigo-500/20' },
+    purple: { gradient: 'from-purple-600 to-purple-700', bg: 'bg-purple-500/10', border: 'border-purple-500/20' },
+    rose: { gradient: 'from-rose-600 to-rose-700', bg: 'bg-rose-500/10', border: 'border-rose-500/20' }
   };
 
   return (
-    <div className="grid grid-cols-5 gap-2 px-4 py-2 bg-gray-900/50 border-b border-gray-800">
-      {stats.map((stat, idx) => (
-        <motion.div
-          key={stat.label}
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, delay: idx * 0.05 }}
-          className="text-center"
-        >
-          <div className="inline-flex items-center justify-center w-auto px-2 py-1 bg-gray-800 rounded-lg mb-0.5">
-            <p className={`text-sm font-black bg-gradient-to-r ${colorClasses[stat.color]} bg-clip-text text-transparent`}>
-              {stat.format === 'currency'
-                ? (showValues ? formatCurrency(stat.value).replace(/\.\d{2}$/, '') : '••••')
-                : <AnimatedStat value={stat.value} />
-              }
-            </p>
-          </div>
-          <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wide">{stat.label}</p>
-        </motion.div>
-      ))}
+    <div className="grid grid-cols-5 gap-3 px-4 py-3 bg-gray-900/50 border-b border-gray-800">
+      {stats.map((stat, idx) => {
+        const colors = colorClasses[stat.color];
+        const IconComponent = stat.icon;
+        return (
+          <motion.div
+            key={stat.label}
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: idx * 0.05 }}
+            className={`flex items-center gap-2 px-3 py-2 rounded-xl ${colors.bg} border ${colors.border}`}
+          >
+            <div className={`p-1.5 rounded-lg bg-gradient-to-br ${colors.gradient}`}>
+              <IconComponent className="w-4 h-4 text-white" />
+            </div>
+            <div className="min-w-0">
+              <p className={`text-base font-bold bg-gradient-to-r ${colors.gradient} bg-clip-text text-transparent truncate`}>
+                {stat.format === 'currency'
+                  ? (showValues ? formatCurrency(stat.value).replace(/\.\d{2}$/, '') : '••••')
+                  : <AnimatedStat value={stat.value} />
+                }
+              </p>
+              <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wide">{stat.label}</p>
+            </div>
+          </motion.div>
+        );
+      })}
     </div>
   );
 };
@@ -518,8 +525,8 @@ const SelectionScreen = ({
       {/* Stats Bar */}
       <StatsBar portfolioSummary={portfolioSummary} showValues={showValues} />
 
-      {/* Main Content - Scrollable */}
-      <div className="flex-1 overflow-auto p-4">
+      {/* Main Content */}
+      <div className="flex-1 overflow-auto px-4 pt-4 pb-2">
         {/* Three columns: each with card + breakdown */}
         <div className="grid md:grid-cols-3 gap-4">
           {/* Accounts Column */}
@@ -570,19 +577,17 @@ const SelectionScreen = ({
             <LiabilityBreakdown liabilities={liabilities} showValues={showValues} />
           </div>
         </div>
-      </div>
 
-      {/* Footer hint */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.4 }}
-        className="flex-shrink-0 px-4 py-2 border-t border-gray-800 bg-gray-900/50"
-      >
-        <p className="text-center text-xs text-gray-500">
+        {/* Footer hint - inside content area */}
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.4 }}
+          className="text-center text-xs text-gray-500 mt-4 pb-2"
+        >
           Click a category above to start managing your data
-        </p>
-      </motion.div>
+        </motion.p>
+      </div>
     </div>
   );
 };
