@@ -2,10 +2,10 @@
 import React, { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  ArrowLeft, RefreshCw, Search, Filter, Save, X,
+  ArrowLeft, RefreshCw, Search, Save, X,
   TrendingUp, Coins, CircleDollarSign, Plus,
-  ClipboardPaste, AlertTriangle, CheckCircle2,
-  ChevronDown, Sparkles, Grid3x3
+  ClipboardPaste, AlertTriangle, Info,
+  Sparkles, Grid3x3, Import, FileDown
 } from 'lucide-react';
 import { QuantityGrid, AnimatedCurrency } from '../components';
 
@@ -67,6 +67,44 @@ const FilterToggle = ({ type, config, active, onClick, count = 0 }) => {
 };
 
 /**
+ * Info tooltip component
+ */
+const InfoTooltip = ({ show, onClose }) => {
+  if (!show) return null;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -10 }}
+      className="absolute right-0 top-full mt-2 w-80 p-4 bg-gray-800 border border-gray-700 rounded-xl shadow-xl z-50"
+    >
+      <button
+        onClick={onClose}
+        className="absolute top-2 right-2 p-1 text-gray-500 hover:text-white"
+      >
+        <X className="w-4 h-4" />
+      </button>
+      <h4 className="text-sm font-semibold text-white mb-3">How this works</h4>
+      <div className="space-y-3 text-xs text-gray-400">
+        <div className="flex gap-2">
+          <div className="w-3 h-3 rounded bg-emerald-500/30 flex-shrink-0 mt-0.5" />
+          <p><span className="text-emerald-400 font-medium">Green cells:</span> Edit existing position quantities. Click "Save Changes" to update.</p>
+        </div>
+        <div className="flex gap-2">
+          <div className="w-3 h-3 rounded bg-blue-500/30 flex-shrink-0 mt-0.5" />
+          <p><span className="text-blue-400 font-medium">Blue cells:</span> New positions to add. Click the "+" in empty cells to enter a quantity, then click "Import" to add them.</p>
+        </div>
+        <div className="flex gap-2">
+          <Plus className="w-3 h-3 text-gray-500 flex-shrink-0 mt-0.5" />
+          <p><span className="text-gray-300 font-medium">+ buttons:</span> Click to add a new position in that account for the selected ticker/date.</p>
+        </div>
+      </div>
+    </motion.div>
+  );
+};
+
+/**
  * QuantityManager - Main view for quantity updates
  */
 const QuantityManager = ({
@@ -76,7 +114,7 @@ const QuantityManager = ({
   columnTotals,
   grandTotals,
 
-  // Drafts
+  // Drafts (for editing existing positions)
   drafts,
   setDraft,
   draftTotals,
@@ -84,6 +122,15 @@ const QuantityManager = ({
   clearAllDrafts,
   handleBulkPaste,
   hasChanges,
+
+  // New positions
+  newPositions = {},
+  newPositionsCount = 0,
+  newPositionsList = [],
+  setNewPosition,
+  getNewPositionValue,
+  clearAllNewPositions,
+  onImportNewPositions,
 
   // Filtering
   searchQuery,
@@ -102,7 +149,6 @@ const QuantityManager = ({
   // Navigation
   onBack,
   onRefresh,
-  onAddPosition,
   loading,
 
   // Messages
@@ -112,8 +158,9 @@ const QuantityManager = ({
 }) => {
   const [showPasteInput, setShowPasteInput] = useState(false);
   const [pasteText, setPasteText] = useState('');
+  const [showInfoTooltip, setShowInfoTooltip] = useState(false);
 
-  // Handle save
+  // Handle save for existing positions
   const handleSave = useCallback(async () => {
     const changedRows = getChangedRows();
     if (!changedRows.length) {
@@ -140,7 +187,6 @@ const QuantityManager = ({
       return;
     }
 
-    // Need to pass gridRows and relevantAccounts for bulk paste
     const result = handleBulkPaste(pasteText, gridMatrix, relevantAccounts, null);
 
     if (result.success > 0) {
@@ -153,6 +199,12 @@ const QuantityManager = ({
     setPasteText('');
     setShowPasteInput(false);
   }, [pasteText, handleBulkPaste, gridMatrix, relevantAccounts, showSuccess, showWarning]);
+
+  // Handle import new positions
+  const handleImport = useCallback(() => {
+    if (newPositionsCount === 0) return;
+    onImportNewPositions?.(newPositionsList);
+  }, [newPositionsCount, newPositionsList, onImportNewPositions]);
 
   return (
     <div className="flex flex-col h-full">
@@ -187,6 +239,26 @@ const QuantityManager = ({
 
           {/* Actions */}
           <div className="flex items-center gap-2">
+            {/* Info button */}
+            <div className="relative">
+              <button
+                onClick={() => setShowInfoTooltip(!showInfoTooltip)}
+                className={`
+                  p-2 rounded-lg transition-colors
+                  ${showInfoTooltip
+                    ? 'text-cyan-400 bg-cyan-500/10'
+                    : 'text-gray-400 hover:text-white hover:bg-gray-800'
+                  }
+                `}
+                title="How this works"
+              >
+                <Info className="w-5 h-5" />
+              </button>
+              <AnimatePresence>
+                <InfoTooltip show={showInfoTooltip} onClose={() => setShowInfoTooltip(false)} />
+              </AnimatePresence>
+            </div>
+
             {/* Refresh */}
             <button
               onClick={onRefresh}
@@ -195,15 +267,6 @@ const QuantityManager = ({
               title="Refresh data"
             >
               <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
-            </button>
-
-            {/* Add Position */}
-            <button
-              onClick={() => onAddPosition?.()}
-              className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-300 hover:text-white bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors"
-            >
-              <Plus className="w-4 h-4" />
-              Add Position
             </button>
 
             {/* Paste */}
@@ -221,7 +284,20 @@ const QuantityManager = ({
               Paste
             </button>
 
-            {/* Save */}
+            {/* Import New Positions */}
+            {newPositionsCount > 0 && (
+              <motion.button
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                onClick={handleImport}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 rounded-lg shadow-lg shadow-blue-500/25 transition-all"
+              >
+                <FileDown className="w-4 h-4" />
+                Import {newPositionsCount} New Position{newPositionsCount !== 1 ? 's' : ''}
+              </motion.button>
+            )}
+
+            {/* Save Changes (for existing positions) */}
             <button
               onClick={handleSave}
               disabled={!hasChanges || isSubmitting}
@@ -322,6 +398,23 @@ const QuantityManager = ({
 
           {/* Stats */}
           <div className="flex items-center gap-4 text-sm">
+            {/* New positions indicator */}
+            {newPositionsCount > 0 && (
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+                <Sparkles className="w-4 h-4 text-blue-400" />
+                <span className="text-blue-400 font-medium">
+                  {newPositionsCount} new position{newPositionsCount !== 1 ? 's' : ''}
+                </span>
+                <button
+                  onClick={clearAllNewPositions}
+                  className="ml-1 text-blue-500 hover:text-blue-300"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+
+            {/* Unsaved changes indicator */}
             {hasChanges && (
               <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-500/10 border border-amber-500/30 rounded-lg">
                 <AlertTriangle className="w-4 h-4 text-amber-400" />
@@ -336,6 +429,7 @@ const QuantityManager = ({
                 </button>
               </div>
             )}
+
             <div className="text-gray-500">
               <span className="text-gray-300 font-medium">{grandTotals?.totalPositions || 0}</span> positions
             </div>
@@ -380,13 +474,15 @@ const QuantityManager = ({
           columnTotals={columnTotals}
           drafts={drafts}
           setDraft={setDraft}
-          onAddPosition={onAddPosition}
+          newPositions={newPositions}
+          onNewPositionChange={setNewPosition}
+          getNewPositionValue={getNewPositionValue}
           loading={loading}
         />
       </div>
 
       {/* Footer with delta summary */}
-      {hasChanges && (
+      {(hasChanges || newPositionsCount > 0) && (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -394,33 +490,32 @@ const QuantityManager = ({
         >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-6 text-sm">
+              {hasChanges && (
+                <div className="text-gray-500">
+                  Value change:
+                  <span className={`ml-2 font-medium ${draftTotals.totalDelta >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                    {draftTotals.totalDelta >= 0 ? '+' : ''}
+                    <AnimatedCurrency value={draftTotals.totalDelta} />
+                  </span>
+                </div>
+              )}
               <div className="text-gray-500">
-                Value change:
-                <span className={`ml-2 font-medium ${draftTotals.totalDelta >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                  {draftTotals.totalDelta >= 0 ? '+' : ''}
-                  <AnimatedCurrency value={draftTotals.totalDelta} />
-                </span>
-              </div>
-              <div className="text-gray-500">
-                {draftTotals.byAssetType.security > 0 && (
+                {draftTotals?.byAssetType?.security > 0 && (
                   <span className="mr-3">
-                    <span className="text-blue-400">{draftTotals.byAssetType.security}</span> securities
+                    <span className="text-emerald-400">{draftTotals.byAssetType.security}</span> edits
                   </span>
                 )}
-                {draftTotals.byAssetType.crypto > 0 && (
+                {newPositionsCount > 0 && (
                   <span className="mr-3">
-                    <span className="text-orange-400">{draftTotals.byAssetType.crypto}</span> crypto
-                  </span>
-                )}
-                {draftTotals.byAssetType.metal > 0 && (
-                  <span>
-                    <span className="text-yellow-400">{draftTotals.byAssetType.metal}</span> metals
+                    <span className="text-blue-400">{newPositionsCount}</span> new
                   </span>
                 )}
               </div>
             </div>
             <div className="text-xs text-gray-500">
-              Press Cmd/Ctrl + Enter to save
+              {hasChanges && 'Cmd/Ctrl + Enter to save edits'}
+              {hasChanges && newPositionsCount > 0 && ' · '}
+              {newPositionsCount > 0 && 'Click Import to add new positions'}
             </div>
           </div>
         </motion.div>

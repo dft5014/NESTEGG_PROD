@@ -91,9 +91,10 @@ function getTimeAgo(date) {
   return savedDate.toLocaleDateString();
 }
 
-export default function QuickStartModalV2({ isOpen, onClose, onSuccess }) {
+export default function QuickStartModalV2({ isOpen, onClose, onSuccess, initialPositions = null }) {
   const [state, dispatch] = useReducer(quickStartReducer, initialState);
   const { markStale } = useDataStore();
+  const hasSeededPositionsRef = React.useRef(false);
 
   // Format institutions for dropdowns
   const institutions = useMemo(() =>
@@ -170,6 +171,62 @@ export default function QuickStartModalV2({ isOpen, onClose, onSuccess }) {
     }
 
     loadExistingAccounts();
+  }, [isOpen]);
+
+  // Seed initial positions when provided (from UpdateModal grid)
+  useEffect(() => {
+    if (!isOpen || !initialPositions?.length || hasSeededPositionsRef.current) return;
+
+    // Only seed once per modal open
+    hasSeededPositionsRef.current = true;
+
+    // Add each position from the seeded data
+    initialPositions.forEach(pos => {
+      const assetType = pos.assetType || 'security';
+
+      // Map the seeded data to the position format expected by the reducer
+      let positionData = {};
+
+      if (assetType === 'security') {
+        positionData = {
+          account_id: pos.accountId,
+          ticker: pos.identifier,
+          name: pos.name || pos.identifier,
+          shares: pos.quantity,
+          purchase_date: pos.purchaseDate,
+          // cost_basis will need to be filled by user or fetched
+        };
+      } else if (assetType === 'crypto') {
+        positionData = {
+          account_id: pos.accountId,
+          symbol: pos.identifier,
+          name: pos.name || pos.identifier,
+          quantity: pos.quantity,
+          purchase_date: pos.purchaseDate,
+          // purchase_price will need to be filled by user
+        };
+      } else if (assetType === 'metal') {
+        positionData = {
+          account_id: pos.accountId,
+          metal_type: pos.identifier,
+          quantity: pos.quantity,
+          purchase_date: pos.purchaseDate,
+          // purchase_price will need to be filled by user
+        };
+      }
+
+      dispatch(actions.addPosition(assetType, positionData));
+    });
+
+    // Navigate to positions view
+    dispatch(actions.setView(VIEWS.positions));
+  }, [isOpen, initialPositions]);
+
+  // Reset seeding ref when modal closes
+  useEffect(() => {
+    if (!isOpen) {
+      hasSeededPositionsRef.current = false;
+    }
   }, [isOpen]);
 
   // Auto-hydrate prices when entering positions view (e.g., after import)

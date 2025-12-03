@@ -23,7 +23,8 @@ import {
   useMessage,
   useQuantityData,
   useQuantityDrafts,
-  useQuantitySubmit
+  useQuantitySubmit,
+  useNewPositions
 } from './hooks';
 
 /**
@@ -51,7 +52,8 @@ const UpdateModal = ({
   initialWorkflow = null, // 'balances' | 'quantities'
   initialInstitution = null,
   onDataChange = null,
-  onAddPosition = null // Callback to open QuickStart modal
+  onAddPosition = null, // Callback to open QuickStart modal with optional seeded positions
+  onImportPositions = null // Callback to open QuickStart modal with seeded positions array
 }) => {
   // View state: 'workflow' -> 'dashboard' -> 'manager' (for balances)
   //            'workflow' -> 'quantities' (for quantities)
@@ -99,6 +101,19 @@ const UpdateModal = ({
   const quantitySubmit = useQuantitySubmit(refreshQuantityData);
 
   // ============================================
+  // New Positions Hook (for grid-based position adding)
+  // ============================================
+  const {
+    newPositions,
+    newPositionsList,
+    newPositionsCount,
+    setNewPosition,
+    getNewPositionValue,
+    clearAllNewPositions,
+    prepareForImport
+  } = useNewPositions();
+
+  // ============================================
   // Message Hook (shared)
   // ============================================
   const { message, showSuccess, showError, showWarning, clearMessage } = useMessage();
@@ -117,6 +132,7 @@ const UpdateModal = ({
       quantityDrafts.clearAllDrafts();
       quantitySubmit.reset();
       resetQtyFilters();
+      clearAllNewPositions();
     }
   }, [isOpen, initialView, initialWorkflow, initialInstitution]);
 
@@ -183,7 +199,8 @@ const UpdateModal = ({
     balanceDrafts.clearAllDrafts();
     quantityDrafts.clearAllDrafts();
     resetQtyFilters();
-  }, [filtering, balanceDrafts, quantityDrafts, resetQtyFilters]);
+    clearAllNewPositions();
+  }, [filtering, balanceDrafts, quantityDrafts, resetQtyFilters, clearAllNewPositions]);
 
   const handleBalanceRefresh = useCallback(async () => {
     try {
@@ -233,6 +250,25 @@ const UpdateModal = ({
     // Open QuickStart modal if callback provided
     onAddPosition?.();
   }, [onAddPosition]);
+
+  // Handle importing new positions from the grid
+  const handleImportNewPositions = useCallback((positionsList) => {
+    if (!positionsList?.length) return;
+
+    // Prepare positions for QuickStart modal
+    const preparedPositions = prepareForImport();
+
+    // If onImportPositions callback is provided, use it
+    if (onImportPositions) {
+      onImportPositions(preparedPositions);
+      // Clear new positions after triggering import
+      clearAllNewPositions();
+    } else if (onAddPosition) {
+      // Fallback: open add position modal without seeding (legacy support)
+      onAddPosition(preparedPositions);
+      clearAllNewPositions();
+    }
+  }, [prepareForImport, onImportPositions, onAddPosition, clearAllNewPositions]);
 
   // ============================================
   // Calculate stats for workflow selector
@@ -397,7 +433,7 @@ const UpdateModal = ({
                 columnTotals={columnTotals}
                 grandTotals={grandTotals}
 
-                // Drafts
+                // Drafts (for editing existing positions)
                 drafts={quantityDrafts.drafts}
                 setDraft={quantityDrafts.setDraft}
                 draftTotals={quantityDrafts.draftTotals}
@@ -405,6 +441,15 @@ const UpdateModal = ({
                 clearAllDrafts={quantityDrafts.clearAllDrafts}
                 handleBulkPaste={quantityDrafts.handleBulkPaste}
                 hasChanges={quantityDrafts.hasChanges}
+
+                // New positions (for adding via grid)
+                newPositions={newPositions}
+                newPositionsCount={newPositionsCount}
+                newPositionsList={newPositionsList}
+                setNewPosition={setNewPosition}
+                getNewPositionValue={getNewPositionValue}
+                clearAllNewPositions={clearAllNewPositions}
+                onImportNewPositions={handleImportNewPositions}
 
                 // Filtering
                 searchQuery={qtySearchQuery}
