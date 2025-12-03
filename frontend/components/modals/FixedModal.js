@@ -10,7 +10,8 @@ const FixedModal = ({
     size = 'max-w-4xl', // Better default: 896px instead of 448px
     zIndex = 'z-50',
     disableBackdropClose = false,
-    colorfulHeader = false // NEW: Enable gradient header
+    colorfulHeader = false, // NEW: Enable gradient header
+    customHeader = false // NEW: If title is a React component, render it as-is without default header chrome
 }) => {
     const [mounted, setMounted] = useState(false);
     const portalRootRef = useRef(null);
@@ -69,26 +70,36 @@ const FixedModal = ({
                         : 'border-gray-800 bg-gray-950'
                     }
                 `}>
-                    <h2
-                        className="text-xl font-bold text-white"
-                        id={titleId}
-                    >
-                        {title}
-                    </h2>
-                    <button
-                        onClick={onClose}
-                        className={`
-                            h-8 w-8 flex items-center justify-center rounded-full
-                            transition-colors
-                            ${colorfulHeader
-                                ? 'text-white hover:bg-white/20'
-                                : 'text-gray-400 hover:text-white hover:bg-gray-800'
-                            }
-                        `}
-                        aria-label="Close modal"
-                    >
-                        <X className="h-5 w-5" />
-                    </button>
+                    {customHeader ? (
+                        // Custom header - title prop is a React component with its own layout
+                        <div className="w-full" id={titleId}>
+                            {title}
+                        </div>
+                    ) : (
+                        // Default header - title is text, with close button
+                        <>
+                            <h2
+                                className="text-xl font-bold text-white"
+                                id={titleId}
+                            >
+                                {title}
+                            </h2>
+                            <button
+                                onClick={onClose}
+                                className={`
+                                    h-8 w-8 flex items-center justify-center rounded-full
+                                    transition-colors
+                                    ${colorfulHeader
+                                        ? 'text-white hover:bg-white/20'
+                                        : 'text-gray-400 hover:text-white hover:bg-gray-800'
+                                    }
+                                `}
+                                aria-label="Close modal"
+                            >
+                                <X className="h-5 w-5" />
+                            </button>
+                        </>
+                    )}
                 </div>
 
                 {/* Content - Clean dark background */}
