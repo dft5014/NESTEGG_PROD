@@ -23,6 +23,54 @@ import OverviewView from './views/OverviewView';
 import AccountDetailView from './views/AccountDetailView';
 
 // ============================================================================
+// CUSTOM HEADER FOR FIXEDMODAL
+// ============================================================================
+
+function ValidateModalHeader({ state, dispatch, actions, onShowShortcuts, onClose }) {
+  return (
+    <div className="flex items-center justify-between w-full">
+      <div className="flex items-center gap-3">
+        <div className="p-2 bg-indigo-600 rounded-xl shadow-lg">
+          <Target className="w-5 h-5 text-white" />
+        </div>
+        <div>
+          <h2 className="text-lg font-bold text-white leading-tight">Account Validation</h2>
+          <p className="text-xs text-gray-400">Reconcile your accounts with confidence</p>
+        </div>
+      </div>
+      <div className="flex items-center gap-2">
+        {/* Shortcuts help */}
+        <button
+          onClick={onShowShortcuts}
+          className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
+          title="Keyboard shortcuts (?)"
+        >
+          <HelpCircle className="w-5 h-5 text-gray-400" />
+        </button>
+        {/* Hide values toggle */}
+        <button
+          onClick={() => dispatch(actions.setHideValues(!state.hideValues))}
+          className={`p-2 rounded-lg transition-colors ${
+            state.hideValues ? 'bg-indigo-600 text-white' : 'hover:bg-gray-800 text-gray-400'
+          }`}
+          title={state.hideValues ? 'Show values' : 'Hide values'}
+        >
+          {state.hideValues ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+        </button>
+        {/* Close button */}
+        <button
+          onClick={onClose}
+          className="p-2 hover:bg-gray-800 rounded-lg transition-colors ml-2"
+          title="Close"
+        >
+          <X className="w-5 h-5 text-gray-400" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
 // KEYBOARD SHORTCUTS MODAL
 // ============================================================================
 
@@ -103,36 +151,23 @@ export default function ValidateModal2({ isOpen, onClose }) {
   const [state, dispatch] = useReducer(validateReducer, initialState);
   const [showShortcuts, setShowShortcuts] = useState(false);
 
-  // Data hooks
+  // Data hooks - Use directly from DataStore like the old modal does
+  // This ensures data is always fresh when modal opens
   const { accounts = [], loading: accountsLoading, refresh: refreshAccounts } = useAccounts();
-  const { positions: allPositions = [], loading: positionsLoading } = useDetailedPositions();
+  const { positions: allPositions = [], loading: positionsLoading, refresh: refreshPositions } = useDetailedPositions();
   const { markStale } = useDataStore();
 
   // Import modal state (for integration with AddStatementImportModal)
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [importAccount, setImportAccount] = useState(null);
 
-  // Sync external data with state
-  useEffect(() => {
-    if (!accountsLoading) {
-      dispatch(actions.setAccounts(accounts));
-    }
-  }, [accounts, accountsLoading]);
+  // Derive loading state - don't copy to reducer
+  const isLoading = accountsLoading || positionsLoading;
 
-  useEffect(() => {
-    if (!positionsLoading) {
-      dispatch(actions.setPositions(allPositions));
-    }
-  }, [allPositions, positionsLoading]);
-
-  useEffect(() => {
-    dispatch(actions.setLoading(accountsLoading || positionsLoading));
-  }, [accountsLoading, positionsLoading]);
-
-  // Calculate summary stats
+  // Calculate summary stats - use accounts directly from DataStore
   const stats = useMemo(() =>
-    calculateValidationStats(state.accounts, state.statementBalances, state.reconciliationStatus),
-    [state.accounts, state.statementBalances, state.reconciliationStatus]
+    calculateValidationStats(accounts, state.statementBalances, state.reconciliationStatus),
+    [accounts, state.statementBalances, state.reconciliationStatus]
   );
 
   // Keyboard shortcuts
@@ -180,11 +215,13 @@ export default function ValidateModal2({ isOpen, onClose }) {
 
   // Handlers
   const handleRefresh = useCallback(async () => {
-    dispatch(actions.setLoading(true));
-    await refreshAccounts();
+    await Promise.all([
+      refreshAccounts(),
+      refreshPositions?.()
+    ]);
     markStale('detailedPositions');
     toast.success('Data refreshed');
-  }, [refreshAccounts, markStale]);
+  }, [refreshAccounts, refreshPositions, markStale]);
 
   const handleClose = useCallback(() => {
     if (state.isDirty) {
@@ -211,23 +248,7 @@ export default function ValidateModal2({ isOpen, onClose }) {
     setImportAccount(null);
   }, []);
 
-  // Get modal title based on view
-  const getModalTitle = () => {
-    switch (state.currentView) {
-      case VIEWS.overview:
-        return 'Account Validation';
-      case VIEWS.institution:
-        return state.activeInstitution || 'Institution Details';
-      case VIEWS.account:
-        return state.activeAccount?.name || 'Account Details';
-      case VIEWS.analysis:
-        return 'Validation Analysis';
-      default:
-        return 'Account Validation';
-    }
-  };
-
-  // Render current view
+  // Render current view - pass accounts/positions directly from DataStore hooks
   const renderView = () => {
     switch (state.currentView) {
       case VIEWS.overview:
@@ -236,8 +257,9 @@ export default function ValidateModal2({ isOpen, onClose }) {
             state={state}
             dispatch={dispatch}
             actions={actions}
-            accounts={state.accounts}
-            positions={state.positions}
+            accounts={accounts}
+            positions={allPositions}
+            isLoading={isLoading}
             onRefresh={handleRefresh}
             onOpenImportModal={handleOpenImportModal}
           />
@@ -248,7 +270,7 @@ export default function ValidateModal2({ isOpen, onClose }) {
             state={state}
             dispatch={dispatch}
             actions={actions}
-            positions={state.positions}
+            positions={allPositions}
             onOpenImportModal={handleOpenImportModal}
           />
         );
@@ -258,8 +280,9 @@ export default function ValidateModal2({ isOpen, onClose }) {
             state={state}
             dispatch={dispatch}
             actions={actions}
-            accounts={state.accounts}
-            positions={state.positions}
+            accounts={accounts}
+            positions={allPositions}
+            isLoading={isLoading}
             onRefresh={handleRefresh}
             onOpenImportModal={handleOpenImportModal}
           />
@@ -272,44 +295,22 @@ export default function ValidateModal2({ isOpen, onClose }) {
       <FixedModal
         isOpen={isOpen}
         onClose={handleClose}
-        title={getModalTitle()}
+        customHeader={true}
+        title={
+          <ValidateModalHeader
+            state={state}
+            dispatch={dispatch}
+            actions={actions}
+            onShowShortcuts={() => setShowShortcuts(true)}
+            onClose={handleClose}
+          />
+        }
         size="max-w-7xl"
         disableBackdropClose={state.isDirty}
       >
-        <div className="h-[80vh] flex flex-col overflow-hidden -m-6">
-          {/* Custom Header with Actions */}
-          <div className="px-6 py-4 border-b border-gray-800 bg-gray-900 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 bg-indigo-600 rounded-xl shadow-lg">
-                <Target className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <h2 className="text-lg font-bold text-white">{getModalTitle()}</h2>
-                <p className="text-xs text-gray-400">Reconcile your accounts with confidence</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              {/* Shortcuts help */}
-              <button
-                onClick={() => setShowShortcuts(true)}
-                className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
-                title="Keyboard shortcuts (?)"
-              >
-                <HelpCircle className="w-5 h-5 text-gray-400" />
-              </button>
-              {/* Hide values toggle */}
-              <button
-                onClick={() => dispatch(actions.setHideValues(!state.hideValues))}
-                className={`p-2 rounded-lg transition-colors ${
-                  state.hideValues ? 'bg-indigo-600 text-white' : 'hover:bg-gray-800 text-gray-400'
-                }`}
-                title={state.hideValues ? 'Show values' : 'Hide values'}
-              >
-                {state.hideValues ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-              </button>
-            </div>
-          </div>
-          {/* View Content */}
+        {/* Main content container - removed negative margin, uses FixedModal's built-in padding */}
+        <div className="h-[80vh] flex flex-col overflow-hidden -m-6 -mt-6">
+          {/* View Content - full height for scrollable area */}
           <AnimatePresence mode="wait">
             <motion.div
               key={state.currentView}
@@ -323,8 +324,8 @@ export default function ValidateModal2({ isOpen, onClose }) {
             </motion.div>
           </AnimatePresence>
 
-          {/* Footer */}
-          <div className="px-6 py-4 bg-gray-900/70 border-t border-gray-800 flex items-center justify-between">
+          {/* Footer - Progress bar and actions */}
+          <div className="px-6 py-3 bg-gray-900/70 border-t border-gray-800 flex items-center justify-between flex-shrink-0">
             <ProgressBar stats={stats} />
             <div className="flex items-center gap-3">
               {state.currentView !== VIEWS.overview && (
@@ -338,9 +339,9 @@ export default function ValidateModal2({ isOpen, onClose }) {
               )}
               <button
                 onClick={handleClose}
-                className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-semibold shadow-lg"
+                className="flex items-center gap-2 px-5 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-semibold shadow-lg"
               >
-                <CheckCircle className="w-5 h-5" />
+                <CheckCircle className="w-4 h-4" />
                 Done
               </button>
             </div>
