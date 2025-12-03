@@ -23,10 +23,14 @@ export default function OverviewView({
   actions,
   accounts,
   positions,
+  isLoading = false, // Accept loading state as prop
   onRefresh,
   onOpenImportModal
 }) {
   const [showTip, setShowTip] = useState(true);
+
+  // Use passed loading state or fallback to state.isLoading
+  const loading = isLoading || state.isLoading;
 
   // Group accounts by institution
   const accountsByInstitution = useMemo(() =>
@@ -158,13 +162,8 @@ export default function OverviewView({
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      {/* Stats Header */}
-      <div className="px-6 pt-4 pb-3 border-b border-gray-800 bg-gray-950">
-        <StatsHeader stats={stats} hideValues={state.hideValues} />
-      </div>
-
-      {/* Filter Bar */}
-      <div className="px-6 py-4 border-b border-gray-800 bg-gray-900/50">
+      {/* Compact Filter Bar - Fixed at top */}
+      <div className="px-6 py-3 border-b border-gray-800 bg-gray-900/50 flex-shrink-0">
         <FilterBar
           searchQuery={state.searchQuery}
           onSearchChange={(q) => dispatch(actions.setSearchQuery(q))}
@@ -179,23 +178,29 @@ export default function OverviewView({
           onExport={handleExport}
           onImportCSV={handleImportCSV}
           onRefresh={onRefresh}
-          isLoading={state.isLoading}
+          isLoading={loading}
           filterCounts={filterCounts}
         />
+      </div>
 
-        {/* Quick Tip */}
+      {/* Scrollable Content Area - Stats + Quick Tip + Institutions */}
+      <div className="flex-1 overflow-y-auto p-6 bg-gray-950">
+        {/* Stats Header - Now in scrollable area */}
+        <div className="mb-4">
+          <StatsHeader stats={stats} hideValues={state.hideValues} />
+        </div>
+
+        {/* Quick Tip - Now in scrollable area */}
         <AnimatePresence>
           {showTip && (
-            <div className="mt-4">
+            <div className="mb-4">
               <QuickTipBanner onDismiss={() => setShowTip(false)} />
             </div>
           )}
         </AnimatePresence>
-      </div>
 
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto p-6 bg-gray-950">
-        {state.isLoading ? (
+        {/* Institution Cards */}
+        {loading ? (
           <div className="flex flex-col items-center justify-center py-16">
             <Loader2 className="w-10 h-10 text-indigo-400 animate-spin mb-4" />
             <p className="text-gray-400">Loading your accounts...</p>
@@ -246,7 +251,7 @@ export default function OverviewView({
         )}
 
         {/* Help Text */}
-        {!state.isLoading && filteredInstitutions.length > 0 && (
+        {!loading && filteredInstitutions.length > 0 && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
