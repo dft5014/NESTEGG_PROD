@@ -77,47 +77,6 @@ const SelectionDashboard = ({
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="flex-shrink-0 p-6 border-b border-gray-800">
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex items-center justify-between"
-        >
-          <div className="flex items-center gap-4">
-            {/* Back button */}
-            {onBack && (
-              <button
-                onClick={onBack}
-                className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
-              >
-                <ArrowLeft className="w-5 h-5" />
-              </button>
-            )}
-            <div className="p-3 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl shadow-lg shadow-emerald-500/25">
-              <Wallet className="w-6 h-6 text-white" />
-            </div>
-            <div>
-              <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                Manual Balances
-                <Sparkles className="w-5 h-5 text-amber-400" />
-              </h2>
-              <p className="text-sm text-gray-400">
-                Update balances for cash, liabilities, and other assets
-              </p>
-            </div>
-          </div>
-
-          <button
-            onClick={onRefresh}
-            disabled={loading}
-            className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 border border-gray-700 transition-colors disabled:opacity-50"
-          >
-            <RefreshCw className={`w-4 h-4 text-gray-400 ${loading ? 'animate-spin' : ''}`} />
-          </button>
-        </motion.div>
-      </div>
-
       {/* Main stats */}
       <div className="flex-shrink-0 p-6 pb-4">
         <div className="grid grid-cols-4 gap-4">

@@ -45,6 +45,10 @@ export const useQuantityData = (isOpen) => {
   const [sortBy, setSortBy] = useState('identifier'); // 'identifier' | 'purchaseDate' | 'totalQuantity' | 'totalValue'
   const [sortDir, setSortDir] = useState('asc'); // 'asc' | 'desc'
 
+  // Account column sorting
+  const [accountSortBy, setAccountSortBy] = useState('value'); // 'value' | 'name' | 'institution'
+  const [accountSortDir, setAccountSortDir] = useState('desc'); // 'asc' | 'desc'
+
   const {
     positions: rawPositions = [],
     loading: positionsLoading,
@@ -119,6 +123,21 @@ export const useQuantityData = (isOpen) => {
     return map;
   }, [accounts]);
 
+  // Calculate account values for sorting
+  const accountValues = useMemo(() => {
+    const values = new Map();
+    quantityPositions.forEach(pos => {
+      const accId = pos.accountId;
+      if (!values.has(accId)) {
+        values.set(accId, { totalValue: 0, positionCount: 0 });
+      }
+      const acc = values.get(accId);
+      acc.totalValue += pos.currentValue || 0;
+      acc.positionCount += 1;
+    });
+    return values;
+  }, [quantityPositions]);
+
   // Get all accounts that could have positions (investment/brokerage type accounts)
   // Include all accounts so users can add positions to any account via the grid
   const relevantAccounts = useMemo(() => {
@@ -130,23 +149,38 @@ export const useQuantityData = (isOpen) => {
       'other_investment', 'other_retirement', 'other_crypto'
     ]);
 
-    return accounts
-      .filter(acc => {
-        // Include account if it has positions OR if it's a type that can hold positions
-        const accType = (acc.accountType || acc.account_type || '').toLowerCase();
-        const accCategory = (acc.accountCategory || acc.category || '').toLowerCase();
-        return positionAccountTypes.has(accType) ||
-               accCategory === 'investment' ||
-               accCategory === 'retirement' ||
-               accCategory === 'crypto';
-      })
-      .sort((a, b) => {
-        // Sort by institution, then by name
-        const instCmp = (a.institution || '').localeCompare(b.institution || '');
-        if (instCmp !== 0) return instCmp;
-        return (a.name || '').localeCompare(b.name || '');
-      });
-  }, [accounts, quantityPositions]);
+    const filteredAccounts = accounts.filter(acc => {
+      // Include account if it has positions OR if it's a type that can hold positions
+      const accType = (acc.accountType || acc.account_type || '').toLowerCase();
+      const accCategory = (acc.accountCategory || acc.category || '').toLowerCase();
+      return positionAccountTypes.has(accType) ||
+             accCategory === 'investment' ||
+             accCategory === 'retirement' ||
+             accCategory === 'crypto';
+    });
+
+    // Sort based on user preference
+    return filteredAccounts.sort((a, b) => {
+      const dir = accountSortDir === 'asc' ? 1 : -1;
+
+      switch (accountSortBy) {
+        case 'value': {
+          const aValue = accountValues.get(a.id)?.totalValue || 0;
+          const bValue = accountValues.get(b.id)?.totalValue || 0;
+          return dir * (aValue - bValue);
+        }
+        case 'name':
+          return dir * (a.name || '').localeCompare(b.name || '');
+        case 'institution': {
+          const instCmp = (a.institution || '').localeCompare(b.institution || '');
+          if (instCmp !== 0) return dir * instCmp;
+          return dir * (a.name || '').localeCompare(b.name || '');
+        }
+        default:
+          return 0;
+      }
+    });
+  }, [accounts, quantityPositions, accountSortBy, accountSortDir, accountValues]);
 
   // Build grid rows (unique ticker + purchase_date combinations)
   const gridRows = useMemo(() => {
@@ -327,6 +361,20 @@ export const useQuantityData = (isOpen) => {
     });
   }, []);
 
+  // Toggle account column sort
+  const toggleAccountSort = useCallback((column) => {
+    setAccountSortBy(prev => {
+      if (prev === column) {
+        // Toggle direction if same column
+        setAccountSortDir(d => d === 'asc' ? 'desc' : 'asc');
+        return column;
+      }
+      // New column - default to descending for value, ascending for others
+      setAccountSortDir(column === 'value' ? 'desc' : 'asc');
+      return column;
+    });
+  }, []);
+
   return {
     // Grid data
     gridRows,
@@ -351,6 +399,11 @@ export const useQuantityData = (isOpen) => {
     sortBy,
     sortDir,
     toggleSort,
+
+    // Account column sorting
+    accountSortBy,
+    accountSortDir,
+    toggleAccountSort,
 
     // Loading states
     loading: positionsLoading || accountsLoading,

@@ -3,13 +3,13 @@ import React, { useMemo, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft, RefreshCw, Database, Building2, Loader2,
-  ArrowUpDown, ChevronDown, ChevronRight, Info
+  ArrowUpDown, ChevronDown, ChevronRight, Info,
+  Check, AlertTriangle, RotateCcw, X
 } from 'lucide-react';
 import { formatCurrency } from '@/utils/formatters';
 import StatsBar from '../components/StatsBar';
 import FilterBar from '../components/FilterBar';
 import UpdateRow from '../components/UpdateRow';
-import ActionBar from '../components/ActionBar';
 
 /**
  * Collapsible group component
@@ -305,33 +305,8 @@ const UpdateManager = ({
       className="flex flex-col h-full"
       onPaste={handlePaste}
     >
-      {/* Header */}
+      {/* Filter bar */}
       <div className="flex-shrink-0 border-b border-gray-800">
-        <div className="flex items-center justify-between px-6 py-4">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={onBack}
-              className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-all"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </button>
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-xl bg-gradient-to-br from-cyan-600 to-blue-700">
-                <RefreshCw className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <h2 className="text-lg font-bold text-white">
-                  {selectedInstitution ? `Update ${selectedInstitution}` : 'Update All'}
-                </h2>
-                <p className="text-xs text-gray-400">
-                  {filteredRows.length} items to update
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Filter bar */}
         <FilterBar
           showCash={showCash}
           setShowCash={setShowCash}
@@ -367,8 +342,118 @@ const UpdateManager = ({
         showValues={showValues}
       />
 
+      {/* Inline action bar - appears when there are changes */}
+      <AnimatePresence>
+        {(draftTotals.changedCount > 0 || failedRows.length > 0) && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="flex-shrink-0 border-b border-gray-800"
+          >
+            <div className="flex items-center justify-between px-4 py-2.5 bg-gray-800/50">
+              {/* Left: Status info */}
+              <div className="flex items-center gap-4">
+                {draftTotals.changedCount > 0 && (
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 bg-indigo-500/20 rounded-lg">
+                      <Check className="w-4 h-4 text-indigo-400" />
+                    </div>
+                    <span className="text-sm text-gray-300">
+                      <span className="font-semibold text-indigo-400">{draftTotals.changedCount}</span> change{draftTotals.changedCount !== 1 ? 's' : ''}
+                    </span>
+                    <span className={`text-sm font-medium ${draftTotals.totalDelta >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      {showValues
+                        ? `${draftTotals.totalDelta >= 0 ? '+' : ''}${formatCurrency(draftTotals.totalDelta)}`
+                        : '••••'
+                      }
+                    </span>
+                  </div>
+                )}
+                {failedRows.length > 0 && (
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 bg-amber-500/20 rounded-lg">
+                      <AlertTriangle className="w-4 h-4 text-amber-400" />
+                    </div>
+                    <span className="text-sm text-amber-400">
+                      <span className="font-semibold">{failedRows.length}</span> failed
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Right: Action buttons */}
+              <div className="flex items-center gap-2">
+                {/* Progress indicator */}
+                {isSubmitting && progress.total > 0 && (
+                  <div className="flex items-center gap-2 mr-2">
+                    <div className="w-24 h-1.5 bg-gray-700 rounded-full overflow-hidden">
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${(progress.current / progress.total) * 100}%` }}
+                        className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full"
+                      />
+                    </div>
+                    <span className="text-xs text-gray-400 tabular-nums">{progress.current}/{progress.total}</span>
+                  </div>
+                )}
+
+                {/* Retry failed */}
+                {failedRows.length > 0 && !isSubmitting && (
+                  <button
+                    onClick={handleRetry}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 rounded-lg transition-colors"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    Retry
+                  </button>
+                )}
+
+                {/* Update All button */}
+                {draftTotals.changedCount > 0 && (
+                  <button
+                    onClick={handleSave}
+                    disabled={isSubmitting}
+                    className="inline-flex items-center gap-1.5 px-4 py-1.5 text-sm font-semibold text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 rounded-lg shadow-lg shadow-blue-500/25 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isSubmitting ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Check className="w-4 h-4" />
+                    )}
+                    {isSubmitting ? 'Saving...' : 'Update All'}
+                  </button>
+                )}
+
+                {/* Clear button */}
+                {draftTotals.changedCount > 0 && !isSubmitting && (
+                  <button
+                    onClick={clearAllDrafts}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-400 hover:text-gray-200 hover:bg-gray-800 rounded-lg transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                    Clear
+                  </button>
+                )}
+
+                {/* Keyboard hint */}
+                {draftTotals.changedCount > 0 && !isSubmitting && (
+                  <div className="hidden md:flex items-center gap-1 text-[10px] text-gray-500 ml-2">
+                    <kbd className="px-1.5 py-0.5 bg-gray-800 rounded border border-gray-700">
+                      {typeof navigator !== 'undefined' && navigator.platform?.includes('Mac') ? '⌘' : 'Ctrl'}
+                    </kbd>
+                    <span>+</span>
+                    <kbd className="px-1.5 py-0.5 bg-gray-800 rounded border border-gray-700">Enter</kbd>
+                  </div>
+                )}
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Main content */}
-      <div className="flex-1 overflow-y-auto p-6 pb-24">
+      <div className="flex-1 overflow-y-auto p-6">
         <AnimatePresence mode="wait">
           {loading ? (
             <motion.div
@@ -568,18 +653,6 @@ const UpdateManager = ({
         )}
       </div>
 
-      {/* Sticky action bar */}
-      <ActionBar
-        changedCount={draftTotals.changedCount}
-        totalDelta={draftTotals.totalDelta}
-        failedCount={failedRows.length}
-        isSubmitting={isSubmitting}
-        progress={progress}
-        showValues={showValues}
-        onSave={handleSave}
-        onClear={clearAllDrafts}
-        onRetryFailed={handleRetry}
-      />
     </div>
   );
 };
