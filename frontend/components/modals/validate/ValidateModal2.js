@@ -308,9 +308,9 @@ export default function ValidateModal2({ isOpen, onClose }) {
         size="max-w-7xl"
         disableBackdropClose={state.isDirty}
       >
-        {/* Main content container - offset FixedModal padding, each section adds its own */}
-        <div className="h-[80vh] flex flex-col overflow-hidden -m-6">
-          {/* View Content - full height for scrollable area */}
+        {/* Main content container - uses FixedModal's p-6 padding for edge spacing */}
+        <div className="h-[75vh] flex flex-col overflow-hidden">
+          {/* View Content */}
           <AnimatePresence mode="wait">
             <motion.div
               key={state.currentView}
@@ -318,14 +318,14 @@ export default function ValidateModal2({ isOpen, onClose }) {
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
               transition={{ duration: 0.2, ease: 'easeInOut' }}
-              className="flex-1 overflow-hidden flex flex-col"
+              className="flex-1 overflow-hidden flex flex-col rounded-xl border border-gray-800 bg-gray-900/30"
             >
               {renderView()}
             </motion.div>
           </AnimatePresence>
 
           {/* Footer - Progress bar and actions */}
-          <div className="px-6 py-4 bg-gray-900/70 border-t border-gray-800 flex items-center justify-between flex-shrink-0">
+          <div className="pt-4 flex items-center justify-between flex-shrink-0">
             <ProgressBar stats={stats} />
             <div className="flex items-center gap-3">
               {state.currentView !== VIEWS.overview && (

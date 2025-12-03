@@ -162,8 +162,8 @@ export default function OverviewView({
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      {/* Compact Filter Bar - Fixed at top with proper spacing */}
-      <div className="px-6 py-4 border-b border-gray-800 bg-gray-900/50 flex-shrink-0">
+      {/* Compact Filter Bar - Fixed at top */}
+      <div className="px-4 py-3 border-b border-gray-800 bg-gray-900/50 flex-shrink-0">
         <FilterBar
           searchQuery={state.searchQuery}
           onSearchChange={(q) => dispatch(actions.setSearchQuery(q))}
@@ -184,7 +184,7 @@ export default function OverviewView({
       </div>
 
       {/* Scrollable Content Area - Stats + Quick Tip + Institutions */}
-      <div className="flex-1 overflow-y-auto p-6 bg-gray-950">
+      <div className="flex-1 overflow-y-auto p-4 bg-gray-950">
         {/* Stats Header - Now in scrollable area */}
         <div className="mb-4">
           <StatsHeader stats={stats} hideValues={state.hideValues} />
