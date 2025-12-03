@@ -308,8 +308,8 @@ export default function ValidateModal2({ isOpen, onClose }) {
         size="max-w-7xl"
         disableBackdropClose={state.isDirty}
       >
-        {/* Main content container - proper edge spacing */}
-        <div className="h-[80vh] flex flex-col overflow-hidden -mx-6 -mb-6">
+        {/* Main content container - offset FixedModal padding, each section adds its own */}
+        <div className="h-[80vh] flex flex-col overflow-hidden -m-6">
           {/* View Content - full height for scrollable area */}
           <AnimatePresence mode="wait">
             <motion.div
