@@ -5,8 +5,11 @@ import { motion } from 'framer-motion';
 
 import { QuickStartModalV2Button } from '@/components/modals/quickstart';
 import { QuickReconciliationButton } from '@/components/modals/QuickReconciliationModal';
-import { QuickEditDeleteButton } from '@/components/modals/EditDeleteModal';
+import { QuickEditDeleteButton } from '@/components/modals/QuickEditDeleteModal';
+import { QuickEditDeleteButton as QuickEditDeleteButton2 } from '@/components/modals/EditDeleteModal';
+import { UpdateButtonV2 } from '@/components/modals/UpdateModal';
 import { QuickStatementValidationButton } from '@/components/modals/QuickStatementValidationModal';
+import { ValidateButton2 } from '@/components/modals/validate';
 import { QuickStatementImportButton } from '@/components/modals/AddStatementImportModal';
 
 import { useGroupedPositions } from '@/store/hooks/useGroupedPositions';
@@ -624,14 +627,24 @@ const Navbar = () => {
                     <QuickEditDeleteButton label="Edit" />
                   </div>
 
-                  {/* 3. Update */}
+                  {/* 3. Update (Original) */}
                   <div ref={recRef} className={`${NAVBAR_BTN_BASE} ${BTN_ACCENT.update}`}>
                     <QuickReconciliationButton label="Update" />
                   </div>
 
-                  {/* 4. Reconcile (validate) */}
+                  {/* 3b. Update V2 (New modular version for testing) */}
+                  <div className={`${NAVBAR_BTN_BASE} ${BTN_ACCENT.update}`}>
+                    <UpdateButtonV2 label="Update V2" />
+                  </div>
+
+                  {/* 4. Reconcile (validate) - Original */}
                   <div ref={validateRef} className={`${NAVBAR_BTN_BASE} ${BTN_ACCENT.reconcile}`}>
                     <QuickStatementValidationButton label="Reconcile" />
+                  </div>
+
+                  {/* 4b. Reconcile V2 - New modular version */}
+                  <div className={`${NAVBAR_BTN_BASE} ${BTN_ACCENT.reconcile}`}>
+                    <ValidateButton2 label="Reconcile V2" />
                   </div>
 
                   {/* 5. Import Statements */}
