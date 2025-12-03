@@ -1,5 +1,6 @@
-// UpdateModal - Main orchestrator component for balance updates
+// UpdateModal - Main orchestrator component for balance and quantity updates
 // Features:
+// - Workflow selector: Choose between balance updates or quantity updates
 // - Modular, scalable architecture following EditDeleteModal pattern
 // - Institution-based selection and grouping
 // - Inline editing with keyboard navigation
@@ -7,28 +8,37 @@
 // - Real-time stats and delta tracking
 // - Retry logic for failed updates
 // - Beautiful animations with framer-motion
+// - Quantity grid with freeze panes for securities/crypto/metals
 
 import React, { useState, useCallback, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import FixedModal from '../FixedModal';
 import MessageToast from './components/MessageToast';
-import { SelectionDashboard, UpdateManager } from './views';
+import { SelectionDashboard, UpdateManager, WorkflowSelector, QuantityManager } from './views';
 import {
   useUpdateData,
   useUpdateFiltering,
   useUpdateDrafts,
   useUpdateSubmit,
-  useMessage
+  useMessage,
+  useQuantityData,
+  useQuantityDrafts,
+  useQuantitySubmit
 } from './hooks';
 
 /**
- * UpdateModal - Modern balance update interface
+ * UpdateModal - Modern update interface for balances and quantities
+ *
+ * Workflows:
+ * 1. Balances: Update cash accounts, liabilities, other asset values
+ * 2. Quantities: Update position quantities for securities, crypto, metals
  *
  * Features:
  * - Institution cards with net value summaries
  * - Grouped/flat table view with inline editing
+ * - Pivot table grid for quantities
  * - Bulk paste from spreadsheets
- * - Filter by type (cash, liabilities, other)
+ * - Filter by type (cash, liabilities, other / securities, crypto, metals)
  * - Sort by institution, value, change, etc.
  * - Keyboard shortcuts (Cmd+Enter to save, Escape to close)
  * - Progress tracking and retry logic
@@ -37,50 +47,82 @@ import {
 const UpdateModal = ({
   isOpen,
   onClose,
-  initialView = 'dashboard', // 'dashboard' | 'manager'
+  initialView = 'workflow', // 'workflow' | 'dashboard' | 'manager' | 'quantities'
+  initialWorkflow = null, // 'balances' | 'quantities'
   initialInstitution = null,
-  onDataChange = null
+  onDataChange = null,
+  onAddPosition = null // Callback to open QuickStart modal
 }) => {
-  // View state
+  // View state: 'workflow' -> 'dashboard' -> 'manager' (for balances)
+  //            'workflow' -> 'quantities' (for quantities)
   const [currentView, setCurrentView] = useState(initialView);
+  const [currentWorkflow, setCurrentWorkflow] = useState(initialWorkflow);
   const [showValues, setShowValues] = useState(true);
 
-  // Data hook
+  // ============================================
+  // Balance Workflow Hooks
+  // ============================================
   const {
     rows,
     institutionSummaries,
     totals,
     positionsByInstitution,
     liabilitiesByInstitution,
-    loading,
-    refreshAllData,
+    loading: balanceLoading,
+    refreshAllData: refreshBalanceData,
     getInstitutionLogo
   } = useUpdateData(isOpen);
 
-  // Drafts hook
-  const drafts = useUpdateDrafts(rows);
+  const balanceDrafts = useUpdateDrafts(rows);
+  const filtering = useUpdateFiltering(rows, balanceDrafts.drafts);
+  const balanceSubmit = useUpdateSubmit(refreshBalanceData);
 
-  // Filtering hook
-  const filtering = useUpdateFiltering(rows, drafts.drafts);
+  // ============================================
+  // Quantity Workflow Hooks
+  // ============================================
+  const {
+    gridMatrix,
+    relevantAccounts,
+    columnTotals,
+    grandTotals,
+    quantityPositions,
+    searchQuery: qtySearchQuery,
+    setSearchQuery: setQtySearchQuery,
+    selectedTypes,
+    toggleAssetType,
+    resetFilters: resetQtyFilters,
+    loading: quantityLoading,
+    refreshAllData: refreshQuantityData
+  } = useQuantityData(isOpen);
 
-  // Submit hook
-  const submit = useUpdateSubmit(refreshAllData);
+  const quantityDrafts = useQuantityDrafts(quantityPositions);
+  const quantitySubmit = useQuantitySubmit(refreshQuantityData);
 
-  // Message hook
+  // ============================================
+  // Message Hook (shared)
+  // ============================================
   const { message, showSuccess, showError, showWarning, clearMessage } = useMessage();
 
+  // ============================================
   // Reset state when modal closes
+  // ============================================
   useEffect(() => {
     if (!isOpen) {
       setCurrentView(initialView);
+      setCurrentWorkflow(initialWorkflow);
       filtering.setSelectedInstitution(initialInstitution);
-      drafts.clearAllDrafts();
-      submit.clearFailed();
+      balanceDrafts.clearAllDrafts();
+      balanceSubmit.clearFailed();
       filtering.clearFilters();
+      quantityDrafts.clearAllDrafts();
+      quantitySubmit.reset();
+      resetQtyFilters();
     }
-  }, [isOpen, initialView, initialInstitution]);
+  }, [isOpen, initialView, initialWorkflow, initialInstitution]);
 
+  // ============================================
   // Keyboard shortcuts
+  // ============================================
   useEffect(() => {
     if (!isOpen) return;
 
@@ -89,46 +131,123 @@ const UpdateModal = ({
         e.preventDefault();
         onClose?.();
       }
+      // Cmd/Ctrl + Enter to save
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+        e.preventDefault();
+        if (currentWorkflow === 'balances' && currentView === 'manager') {
+          handleBalanceSave();
+        } else if (currentWorkflow === 'quantities' && currentView === 'quantities') {
+          handleQuantitySave();
+        }
+      }
     };
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, currentView, currentWorkflow]);
 
-  // Handle institution selection from dashboard
+  // ============================================
+  // Workflow Selection Handlers
+  // ============================================
+  const handleSelectBalances = useCallback(() => {
+    setCurrentWorkflow('balances');
+    setCurrentView('dashboard');
+  }, []);
+
+  const handleSelectQuantities = useCallback(() => {
+    setCurrentWorkflow('quantities');
+    setCurrentView('quantities');
+  }, []);
+
+  // ============================================
+  // Balance Workflow Handlers
+  // ============================================
   const handleSelectInstitution = useCallback((institution) => {
     filtering.setSelectedInstitution(institution);
   }, [filtering]);
 
-  // Handle continue from dashboard
   const handleContinue = useCallback(() => {
     setCurrentView('manager');
   }, []);
 
-  // Handle back to dashboard
-  const handleBack = useCallback(() => {
+  const handleBackToDashboard = useCallback(() => {
     setCurrentView('dashboard');
     filtering.clearFilters();
-    drafts.clearAllDrafts();
-  }, [filtering, drafts]);
+    balanceDrafts.clearAllDrafts();
+  }, [filtering, balanceDrafts]);
 
-  // Handle refresh
-  const handleRefresh = useCallback(async () => {
+  const handleBackToWorkflow = useCallback(() => {
+    setCurrentView('workflow');
+    setCurrentWorkflow(null);
+    filtering.clearFilters();
+    balanceDrafts.clearAllDrafts();
+    quantityDrafts.clearAllDrafts();
+    resetQtyFilters();
+  }, [filtering, balanceDrafts, quantityDrafts, resetQtyFilters]);
+
+  const handleBalanceRefresh = useCallback(async () => {
     try {
-      await refreshAllData();
+      await refreshBalanceData();
       showSuccess('Data refreshed');
     } catch (error) {
       showError('Failed to refresh data');
     }
-  }, [refreshAllData, showSuccess, showError]);
+  }, [refreshBalanceData, showSuccess, showError]);
 
-  // Handle successful save
-  const handleDataChange = useCallback(() => {
-    if (onDataChange) {
-      onDataChange();
+  const handleBalanceSave = useCallback(async () => {
+    const changedRows = balanceDrafts.getChangedRows();
+    if (!changedRows.length) return;
+
+    const result = await balanceSubmit.submitAll(changedRows);
+    if (result.success > 0) {
+      balanceDrafts.clearAllDrafts();
+      onDataChange?.();
     }
-  }, [onDataChange]);
+  }, [balanceDrafts, balanceSubmit, onDataChange]);
 
+  // ============================================
+  // Quantity Workflow Handlers
+  // ============================================
+  const handleQuantityRefresh = useCallback(async () => {
+    try {
+      await refreshQuantityData();
+      showSuccess('Data refreshed');
+    } catch (error) {
+      showError('Failed to refresh data');
+    }
+  }, [refreshQuantityData, showSuccess, showError]);
+
+  const handleQuantitySave = useCallback(async () => {
+    const changedRows = quantityDrafts.getChangedRows();
+    if (!changedRows.length) return;
+
+    const result = await quantitySubmit.submitAll(changedRows);
+    if (result.success > 0) {
+      quantityDrafts.clearAllDrafts();
+      onDataChange?.();
+    }
+    return result;
+  }, [quantityDrafts, quantitySubmit, onDataChange]);
+
+  const handleAddPosition = useCallback((row, cell) => {
+    // Open QuickStart modal if callback provided
+    onAddPosition?.();
+  }, [onAddPosition]);
+
+  // ============================================
+  // Calculate stats for workflow selector
+  // ============================================
+  const balanceStats = {
+    count: rows?.length || 0
+  };
+
+  const quantityStats = {
+    count: quantityPositions?.length || 0
+  };
+
+  // ============================================
+  // Render
+  // ============================================
   return (
     <FixedModal
       isOpen={isOpen}
@@ -139,7 +258,28 @@ const UpdateModal = ({
     >
       <div className="relative flex flex-col h-[85vh]">
         <AnimatePresence mode="wait">
-          {currentView === 'dashboard' ? (
+          {/* Workflow Selector */}
+          {currentView === 'workflow' && (
+            <motion.div
+              key="workflow"
+              initial={{ opacity: 0, scale: 0.98 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.98 }}
+              transition={{ duration: 0.2 }}
+              className="h-full"
+            >
+              <WorkflowSelector
+                onSelectBalances={handleSelectBalances}
+                onSelectQuantities={handleSelectQuantities}
+                balanceStats={balanceStats}
+                quantityStats={quantityStats}
+                loading={balanceLoading || quantityLoading}
+              />
+            </motion.div>
+          )}
+
+          {/* Balance Dashboard */}
+          {currentView === 'dashboard' && currentWorkflow === 'balances' && (
             <motion.div
               key="dashboard"
               initial={{ opacity: 0, x: -20 }}
@@ -154,12 +294,16 @@ const UpdateModal = ({
                 selectedInstitution={filtering.selectedInstitution}
                 onSelectInstitution={handleSelectInstitution}
                 onContinue={handleContinue}
+                onBack={handleBackToWorkflow}
                 showValues={showValues}
-                onRefresh={handleRefresh}
-                loading={loading}
+                onRefresh={handleBalanceRefresh}
+                loading={balanceLoading}
               />
             </motion.div>
-          ) : (
+          )}
+
+          {/* Balance Manager */}
+          {currentView === 'manager' && currentWorkflow === 'balances' && (
             <motion.div
               key="manager"
               initial={{ opacity: 0, x: 20 }}
@@ -173,14 +317,14 @@ const UpdateModal = ({
                 totals={filtering.stats}
                 filteredRows={filtering.filteredRows}
                 groupedRows={filtering.groupedRows}
-                draftTotals={drafts.draftTotals}
+                draftTotals={balanceDrafts.draftTotals}
 
                 // Drafts
-                drafts={drafts.drafts}
-                setDraft={drafts.setDraft}
-                getChangedRows={drafts.getChangedRows}
-                clearAllDrafts={drafts.clearAllDrafts}
-                handleBulkPaste={drafts.handleBulkPaste}
+                drafts={balanceDrafts.drafts}
+                setDraft={balanceDrafts.setDraft}
+                getChangedRows={balanceDrafts.getChangedRows}
+                clearAllDrafts={balanceDrafts.clearAllDrafts}
+                handleBulkPaste={balanceDrafts.handleBulkPaste}
 
                 // Filtering
                 showCash={filtering.showCash}
@@ -214,19 +358,73 @@ const UpdateModal = ({
                 liabilitiesByInstitution={liabilitiesByInstitution}
 
                 // Submit
-                isSubmitting={submit.isSubmitting}
-                progress={submit.progress}
-                failedRows={submit.failedRows}
-                submitAll={submit.submitAll}
-                retryFailed={submit.retryFailed}
+                isSubmitting={balanceSubmit.isSubmitting}
+                progress={balanceSubmit.progress}
+                failedRows={balanceSubmit.failedRows}
+                submitAll={balanceSubmit.submitAll}
+                retryFailed={balanceSubmit.retryFailed}
 
                 // Navigation
-                onBack={handleBack}
-                onRefresh={handleRefresh}
-                loading={loading}
+                onBack={handleBackToDashboard}
+                onRefresh={handleBalanceRefresh}
+                loading={balanceLoading}
 
                 // Utilities
                 getInstitutionLogo={getInstitutionLogo}
+
+                // Messages
+                showSuccess={showSuccess}
+                showError={showError}
+                showWarning={showWarning}
+              />
+            </motion.div>
+          )}
+
+          {/* Quantity Manager */}
+          {currentView === 'quantities' && currentWorkflow === 'quantities' && (
+            <motion.div
+              key="quantities"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 20 }}
+              transition={{ duration: 0.2 }}
+              className="h-full"
+            >
+              <QuantityManager
+                // Data
+                gridMatrix={gridMatrix}
+                relevantAccounts={relevantAccounts}
+                columnTotals={columnTotals}
+                grandTotals={grandTotals}
+
+                // Drafts
+                drafts={quantityDrafts.drafts}
+                setDraft={quantityDrafts.setDraft}
+                draftTotals={quantityDrafts.draftTotals}
+                getChangedRows={quantityDrafts.getChangedRows}
+                clearAllDrafts={quantityDrafts.clearAllDrafts}
+                handleBulkPaste={quantityDrafts.handleBulkPaste}
+                hasChanges={quantityDrafts.hasChanges}
+
+                // Filtering
+                searchQuery={qtySearchQuery}
+                setSearchQuery={setQtySearchQuery}
+                selectedTypes={selectedTypes}
+                toggleAssetType={toggleAssetType}
+                resetFilters={resetQtyFilters}
+
+                // Submit
+                isSubmitting={quantitySubmit.isSubmitting}
+                progress={quantitySubmit.progress}
+                failedRows={quantitySubmit.failedRows}
+                submitAll={handleQuantitySave}
+                retryFailed={quantitySubmit.retryFailed}
+
+                // Navigation
+                onBack={handleBackToWorkflow}
+                onRefresh={handleQuantityRefresh}
+                onAddPosition={handleAddPosition}
+                loading={quantityLoading}
 
                 // Messages
                 showSuccess={showSuccess}
