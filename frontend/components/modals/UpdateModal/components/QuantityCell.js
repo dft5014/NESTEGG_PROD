@@ -1,7 +1,7 @@
 // QuantityCell - Editable cell for quantity grid
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Check, X, AlertCircle } from 'lucide-react';
+import { Plus, Check, X } from 'lucide-react';
 
 /**
  * Format quantity for display (2 decimal places)
@@ -44,7 +44,9 @@ const QuantityCell = ({
   hasPosition = false,
   showFullPrecision = false,
   tabIndex = 0,
-  onKeyNavigation
+  onKeyNavigation,
+  rowIndex,
+  cellIndex
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [localValue, setLocalValue] = useState('');
@@ -74,7 +76,11 @@ const QuantityCell = ({
   }, [localValue, onDraftChange, position]);
 
   // Cancel the edit
-  const cancelEdit = useCallback(() => {
+  const cancelEdit = useCallback((e) => {
+    if (e) {
+      e.stopPropagation();
+      e.preventDefault();
+    }
     setIsEditing(false);
     setLocalValue('');
   }, []);
@@ -120,10 +126,10 @@ const QuantityCell = ({
     }
   }, [isEditing]);
 
-  // Empty cell (no position in this account)
+  // Empty cell (no position in this account) - lowest z-index
   if (!hasPosition) {
     return (
-      <td className="px-2 py-1 text-center border-r border-gray-700/50 bg-gray-900/30">
+      <div className="w-full h-full px-2 py-1 text-center border-r border-gray-700/50 bg-gray-900/30 relative z-0">
         <button
           onClick={() => onAddPosition?.()}
           disabled={disabled}
@@ -132,15 +138,15 @@ const QuantityCell = ({
         >
           <Plus className="w-4 h-4" />
         </button>
-      </td>
+      </div>
     );
   }
 
-  // Editing mode
+  // Editing mode - highest z-index
   if (isEditing) {
     return (
-      <td className="px-1 py-1 border-r border-gray-700/50 bg-gray-800">
-        <div className="flex items-center gap-1">
+      <div className="w-full h-full px-1 py-1 border-r border-gray-700/50 bg-gray-800 relative z-50">
+        <div className="flex items-center gap-1 h-full">
           <input
             ref={inputRef}
             type="text"
@@ -148,32 +154,36 @@ const QuantityCell = ({
             onChange={(e) => setLocalValue(e.target.value)}
             onKeyDown={handleKeyDown}
             onBlur={commitEdit}
-            className="w-full px-2 py-1 text-sm text-right bg-gray-700 border border-cyan-500 rounded text-white focus:outline-none focus:ring-1 focus:ring-cyan-500"
-            style={{ minWidth: '80px' }}
+            className="flex-1 min-w-0 px-2 py-1 text-sm text-right bg-gray-700 border border-cyan-500 rounded text-white focus:outline-none focus:ring-1 focus:ring-cyan-500"
           />
           <button
-            onClick={commitEdit}
-            className="p-1 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 rounded"
+            onClick={(e) => {
+              e.stopPropagation();
+              commitEdit();
+            }}
+            onMouseDown={(e) => e.preventDefault()}
+            className="flex-shrink-0 p-1 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 rounded z-50"
           >
             <Check className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={cancelEdit}
-            className="p-1 text-gray-400 hover:text-gray-300 hover:bg-gray-600/50 rounded"
+            onMouseDown={(e) => e.preventDefault()}
+            className="flex-shrink-0 p-1 text-gray-400 hover:text-gray-300 hover:bg-gray-600/50 rounded z-50"
           >
             <X className="w-3.5 h-3.5" />
           </button>
         </div>
-      </td>
+      </div>
     );
   }
 
-  // Display mode
+  // Display mode - medium z-index
   return (
-    <td
+    <div
       className={`
-        px-2 py-1 text-right border-r border-gray-700/50 cursor-pointer
-        transition-colors group relative
+        w-full h-full px-2 py-1 text-right border-r border-gray-700/50 cursor-pointer
+        transition-colors group relative z-10
         ${hasChange
           ? delta > 0
             ? 'bg-emerald-900/20 hover:bg-emerald-900/30'
@@ -187,7 +197,7 @@ const QuantityCell = ({
       tabIndex={tabIndex}
       onFocus={startEdit}
     >
-      <div className="flex items-center justify-end gap-1">
+      <div className="flex items-center justify-end gap-1 h-full">
         {/* Main value */}
         <span className={`
           text-sm font-mono
@@ -222,11 +232,11 @@ const QuantityCell = ({
 
       {/* Hover tooltip with full precision */}
       {showPrecision && originalQuantity !== 0 && (
-        <div className="absolute z-10 bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 bg-gray-900 border border-gray-700 rounded text-xs text-gray-400 whitespace-nowrap shadow-lg">
+        <div className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 bg-gray-900 border border-gray-700 rounded text-xs text-gray-400 whitespace-nowrap shadow-lg">
           Original: {formatQuantity(originalQuantity, false)}
         </div>
       )}
-    </td>
+    </div>
   );
 };
 
