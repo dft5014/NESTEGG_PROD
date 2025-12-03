@@ -248,7 +248,12 @@ const AccountBreakdown = ({ accounts, showValues = true }) => {
     data.other = { count: 0, value: 0, config: { id: 'other', name: 'Other', color: 'gray' } };
 
     accounts.forEach(account => {
-      const categoryId = getCategoryFromType(account.account_type) || 'other';
+      // Use account.category directly if available, otherwise try to derive from type
+      let categoryId = account.category || getCategoryFromType(account.type || account.account_type) || 'other';
+
+      // Normalize category ID
+      categoryId = categoryId.toLowerCase().replace(/\s+/g, '_');
+
       if (data[categoryId]) {
         data[categoryId].count += 1;
         data[categoryId].value += parseFloat(account.totalValue || account.total_value || 0);
