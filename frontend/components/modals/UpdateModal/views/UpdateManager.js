@@ -3,7 +3,7 @@ import React, { useMemo, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft, RefreshCw, Database, Building2, Loader2,
-  ArrowUpDown, ChevronDown, ChevronRight
+  ArrowUpDown, ChevronDown, ChevronRight, Info
 } from 'lucide-react';
 import { formatCurrency } from '@/utils/formatters';
 import StatsBar from '../components/StatsBar';
@@ -122,6 +122,10 @@ const UpdateManager = ({
   setShowValues,
   selectedInstitution,
 
+  // Drilldown data
+  positionsByInstitution,
+  liabilitiesByInstitution,
+
   // Submit
   isSubmitting,
   progress,
@@ -236,6 +240,7 @@ const UpdateManager = ({
   const tableHeaders = [
     { key: 'institution', label: 'Institution', sortable: true },
     { key: 'name', label: 'Name', sortable: true },
+    { key: 'identifier', label: 'Identifier', sortable: true },
     { key: 'type', label: 'Type', sortable: true },
     { key: 'updated', label: 'Updated', sortable: true },
     { key: 'value', label: 'Current', sortable: true, align: 'right' },
@@ -410,7 +415,7 @@ const UpdateManager = ({
               className="bg-gray-900/70 rounded-xl border border-gray-800 overflow-hidden"
             >
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[900px]">
+                <table className="w-full min-w-[1000px]">
                   {renderTableHeader()}
                   {renderTableBody(filteredRows)}
                 </table>
@@ -441,7 +446,7 @@ const UpdateManager = ({
                     showValues={showValues}
                   >
                     <div className="overflow-x-auto">
-                      <table className="w-full min-w-[900px]">
+                      <table className="w-full min-w-[1000px]">
                         {renderTableHeader()}
                         {renderTableBody(items, startIndex)}
                       </table>
@@ -452,6 +457,115 @@ const UpdateManager = ({
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* Drilldown section when institution selected */}
+        {selectedInstitution && positionsByInstitution && liabilitiesByInstitution && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mt-6 rounded-xl border border-gray-800 overflow-hidden bg-gray-900/50"
+          >
+            <div className="flex items-center gap-2 px-5 py-3 bg-gray-800/50 border-b border-gray-800">
+              <Info className="w-4 h-4 text-gray-400" />
+              <span className="text-sm font-semibold text-white">
+                Detailed positions in {selectedInstitution}
+              </span>
+              <span className="ml-auto text-xs text-gray-400">
+                {positionsByInstitution.get(selectedInstitution)?.length || 0} positions
+                {' • '}
+                {liabilitiesByInstitution.get(selectedInstitution)?.length || 0} liabilities
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-gray-800">
+              {/* Positions */}
+              <div className="min-h-[180px]">
+                <div className="px-5 py-2.5 text-xs uppercase text-gray-400 bg-gray-800/30 font-semibold">
+                  Positions (Cash & Other)
+                </div>
+                <div className="max-h-[32vh] overflow-auto">
+                  <table className="w-full">
+                    <thead className="bg-gray-800/30 sticky top-0">
+                      <tr className="text-xs uppercase text-gray-500">
+                        <th className="px-4 py-2 text-left">Name</th>
+                        <th className="px-3 py-2 text-left">Identifier</th>
+                        <th className="px-3 py-2 text-left">Type</th>
+                        <th className="px-3 py-2 text-right">Value</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-800/50">
+                      {(positionsByInstitution.get(selectedInstitution) || []).map(p => (
+                        <tr key={p.id} className="hover:bg-gray-800/30">
+                          <td className="px-4 py-2.5 text-sm text-gray-200">
+                            {p.name}
+                            {p.accountName && (
+                              <div className="text-xs text-gray-500 mt-0.5">{p.accountName}</div>
+                            )}
+                          </td>
+                          <td className="px-3 py-2.5 text-sm text-gray-400">{p.identifier || '-'}</td>
+                          <td className="px-3 py-2.5 text-sm text-gray-400">{p.type || '-'}</td>
+                          <td className="px-3 py-2.5 text-sm text-gray-200 text-right tabular-nums">
+                            {showValues ? formatCurrency(p.value) : '••••'}
+                          </td>
+                        </tr>
+                      ))}
+                      {(positionsByInstitution.get(selectedInstitution) || []).length === 0 && (
+                        <tr>
+                          <td colSpan={4} className="px-4 py-6 text-sm text-gray-500 text-center">
+                            No positions
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Liabilities */}
+              <div className="min-h-[180px]">
+                <div className="px-5 py-2.5 text-xs uppercase text-gray-400 bg-gray-800/30 font-semibold">
+                  Liabilities
+                </div>
+                <div className="max-h-[32vh] overflow-auto">
+                  <table className="w-full">
+                    <thead className="bg-gray-800/30 sticky top-0">
+                      <tr className="text-xs uppercase text-gray-500">
+                        <th className="px-4 py-2 text-left">Name</th>
+                        <th className="px-3 py-2 text-left">Identifier</th>
+                        <th className="px-3 py-2 text-left">Type</th>
+                        <th className="px-3 py-2 text-right">Balance</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-800/50">
+                      {(liabilitiesByInstitution.get(selectedInstitution) || []).map(l => (
+                        <tr key={l.id} className="hover:bg-gray-800/30">
+                          <td className="px-4 py-2.5 text-sm text-gray-200">
+                            {l.name}
+                            {l.accountName && (
+                              <div className="text-xs text-gray-500 mt-0.5">{l.accountName}</div>
+                            )}
+                          </td>
+                          <td className="px-3 py-2.5 text-sm text-gray-400">{l.identifier || '-'}</td>
+                          <td className="px-3 py-2.5 text-sm text-gray-400">{l.type || '-'}</td>
+                          <td className="px-3 py-2.5 text-sm text-gray-200 text-right tabular-nums">
+                            {showValues ? formatCurrency(l.value) : '••••'}
+                          </td>
+                        </tr>
+                      ))}
+                      {(liabilitiesByInstitution.get(selectedInstitution) || []).length === 0 && (
+                        <tr>
+                          <td colSpan={4} className="px-4 py-6 text-sm text-gray-500 text-center">
+                            No liabilities
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
       </div>
 
       {/* Sticky action bar */}

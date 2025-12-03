@@ -145,6 +145,13 @@ const UpdateRow = memo(({
         )}
       </td>
 
+      {/* Identifier */}
+      <td className="px-3 py-3">
+        <span className="text-sm text-gray-400 truncate max-w-[100px] block">
+          {row.identifier || '-'}
+        </span>
+      </td>
+
       {/* Type badge */}
       <td className="px-3 py-3">
         <span className={`

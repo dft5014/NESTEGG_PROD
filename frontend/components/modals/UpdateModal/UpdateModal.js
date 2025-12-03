@@ -50,6 +50,8 @@ const UpdateModal = ({
     rows,
     institutionSummaries,
     totals,
+    positionsByInstitution,
+    liabilitiesByInstitution,
     loading,
     refreshAllData,
     getInstitutionLogo
@@ -206,6 +208,10 @@ const UpdateModal = ({
                 // Display
                 showValues={showValues}
                 setShowValues={setShowValues}
+
+                // Drilldown data
+                positionsByInstitution={positionsByInstitution}
+                liabilitiesByInstitution={liabilitiesByInstitution}
 
                 // Submit
                 isSubmitting={submit.isSubmitting}
