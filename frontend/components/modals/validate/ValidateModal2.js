@@ -308,8 +308,8 @@ export default function ValidateModal2({ isOpen, onClose }) {
         size="max-w-7xl"
         disableBackdropClose={state.isDirty}
       >
-        {/* Main content container - removed negative margin, uses FixedModal's built-in padding */}
-        <div className="h-[80vh] flex flex-col overflow-hidden -m-6 -mt-6">
+        {/* Main content container - proper edge spacing */}
+        <div className="h-[80vh] flex flex-col overflow-hidden -mx-6 -mb-6">
           {/* View Content - full height for scrollable area */}
           <AnimatePresence mode="wait">
             <motion.div
@@ -325,7 +325,7 @@ export default function ValidateModal2({ isOpen, onClose }) {
           </AnimatePresence>
 
           {/* Footer - Progress bar and actions */}
-          <div className="px-6 py-3 bg-gray-900/70 border-t border-gray-800 flex items-center justify-between flex-shrink-0">
+          <div className="px-6 py-4 bg-gray-900/70 border-t border-gray-800 flex items-center justify-between flex-shrink-0">
             <ProgressBar stats={stats} />
             <div className="flex items-center gap-3">
               {state.currentView !== VIEWS.overview && (
