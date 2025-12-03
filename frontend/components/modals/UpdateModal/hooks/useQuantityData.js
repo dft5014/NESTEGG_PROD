@@ -42,6 +42,8 @@ const createRowKey = (position) => {
 export const useQuantityData = (isOpen) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTypes, setSelectedTypes] = useState(['security', 'crypto', 'metal']);
+  const [sortBy, setSortBy] = useState('identifier'); // 'identifier' | 'purchaseDate' | 'totalQuantity' | 'totalValue'
+  const [sortDir, setSortDir] = useState('asc'); // 'asc' | 'desc'
 
   const {
     positions: rawPositions = [],
@@ -72,7 +74,8 @@ export const useQuantityData = (isOpen) => {
           lotKey: createLotKey(p),
           rowKey: createRowKey(p),
 
-          // Position info
+          // Position info - preserve both ticker (symbol) and identifier
+          ticker: p.ticker || p.inv_ticker || p.identifier || '', // Actual ticker symbol
           identifier: p.identifier || '',
           name: p.name || p.identifier || 'Unknown',
           assetType,
@@ -116,11 +119,27 @@ export const useQuantityData = (isOpen) => {
     return map;
   }, [accounts]);
 
-  // Get unique accounts that have quantity positions
+  // Get all accounts that could have positions (investment/brokerage type accounts)
+  // Include all accounts so users can add positions to any account via the grid
   const relevantAccounts = useMemo(() => {
-    const accountIds = new Set(quantityPositions.map(p => p.accountId));
+    // Account types that can hold securities/crypto/metals
+    const positionAccountTypes = new Set([
+      'brokerage', 'taxable', '401k', '403b', 'ira', 'roth_ira',
+      'sep_ira', 'simple_ira', '457b', 'hsa', 'trust', 'custodial',
+      'crypto_exchange', 'crypto_wallet', 'investment', 'retirement',
+      'other_investment', 'other_retirement', 'other_crypto'
+    ]);
+
     return accounts
-      .filter(acc => accountIds.has(acc.id))
+      .filter(acc => {
+        // Include account if it has positions OR if it's a type that can hold positions
+        const accType = (acc.accountType || acc.account_type || '').toLowerCase();
+        const accCategory = (acc.accountCategory || acc.category || '').toLowerCase();
+        return positionAccountTypes.has(accType) ||
+               accCategory === 'investment' ||
+               accCategory === 'retirement' ||
+               accCategory === 'crypto';
+      })
       .sort((a, b) => {
         // Sort by institution, then by name
         const instCmp = (a.institution || '').localeCompare(b.institution || '');
@@ -149,6 +168,7 @@ export const useQuantityData = (isOpen) => {
       if (!rowMap.has(rowKey)) {
         rowMap.set(rowKey, {
           rowKey,
+          ticker: pos.ticker, // Actual symbol for QuickStart seeding
           identifier: pos.identifier,
           name: pos.name,
           assetType: pos.assetType,
@@ -172,15 +192,28 @@ export const useQuantityData = (isOpen) => {
     // Convert to array and sort
     return Array.from(rowMap.values())
       .sort((a, b) => {
-        // Sort by identifier, then by purchase date (newest first)
-        const idCmp = a.identifier.localeCompare(b.identifier);
-        if (idCmp !== 0) return idCmp;
+        const dir = sortDir === 'asc' ? 1 : -1;
 
-        const dateA = a.purchaseDate ? new Date(a.purchaseDate).getTime() : 0;
-        const dateB = b.purchaseDate ? new Date(b.purchaseDate).getTime() : 0;
-        return dateB - dateA; // Newest first
+        // Sort by selected column
+        switch (sortBy) {
+          case 'identifier':
+            return dir * a.identifier.localeCompare(b.identifier);
+          case 'purchaseDate': {
+            const dateA = a.purchaseDate ? new Date(a.purchaseDate).getTime() : 0;
+            const dateB = b.purchaseDate ? new Date(b.purchaseDate).getTime() : 0;
+            return dir * (dateA - dateB);
+          }
+          case 'totalQuantity':
+            return dir * (a.totalQuantity - b.totalQuantity);
+          case 'totalValue':
+            return dir * (a.totalValue - b.totalValue);
+          case 'assetType':
+            return dir * a.assetType.localeCompare(b.assetType);
+          default:
+            return dir * a.identifier.localeCompare(b.identifier);
+        }
       });
-  }, [quantityPositions, selectedTypes, searchQuery]);
+  }, [quantityPositions, selectedTypes, searchQuery, sortBy, sortDir]);
 
   // Build the full grid matrix
   const gridMatrix = useMemo(() => {
@@ -280,6 +313,20 @@ export const useQuantityData = (isOpen) => {
     });
   }, []);
 
+  // Toggle sort column
+  const toggleSort = useCallback((column) => {
+    setSortBy(prev => {
+      if (prev === column) {
+        // Toggle direction if same column
+        setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+        return column;
+      }
+      // New column - default to ascending
+      setSortDir('asc');
+      return column;
+    });
+  }, []);
+
   return {
     // Grid data
     gridRows,
@@ -299,6 +346,11 @@ export const useQuantityData = (isOpen) => {
     setSelectedTypes,
     toggleAssetType,
     resetFilters,
+
+    // Sorting
+    sortBy,
+    sortDir,
+    toggleSort,
 
     // Loading states
     loading: positionsLoading || accountsLoading,

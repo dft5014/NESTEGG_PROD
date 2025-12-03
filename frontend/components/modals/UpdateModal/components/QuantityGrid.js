@@ -3,7 +3,7 @@ import React, { useRef, useCallback, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   TrendingUp, Coins, CircleDollarSign, Calendar,
-  Building2
+  Building2, ChevronUp, ChevronDown, ChevronsUpDown
 } from 'lucide-react';
 import QuantityCell from './QuantityCell';
 
@@ -48,6 +48,18 @@ const formatCurrency = (value) => {
 };
 
 /**
+ * Sort indicator component
+ */
+const SortIndicator = ({ column, sortBy, sortDir }) => {
+  if (sortBy !== column) {
+    return <ChevronsUpDown className="w-3 h-3 text-gray-600" />;
+  }
+  return sortDir === 'asc'
+    ? <ChevronUp className="w-3 h-3 text-cyan-400" />
+    : <ChevronDown className="w-3 h-3 text-cyan-400" />;
+};
+
+/**
  * QuantityGrid Component
  * Displays a pivot table with freeze panes for row and column headers
  */
@@ -61,6 +73,10 @@ const QuantityGrid = ({
   newPositions = {},
   onNewPositionChange,
   getNewPositionValue,
+  // Sorting props
+  sortBy = 'identifier',
+  sortDir = 'asc',
+  onSort,
   loading = false,
   showFullPrecision = false
 }) => {
@@ -123,16 +139,52 @@ const QuantityGrid = ({
           className="flex-shrink-0 flex flex-col bg-gray-900 border-r border-gray-700"
           style={{ width: ROW_HEADER_WIDTH }}
         >
-          {/* Corner cell (frozen both ways) */}
+          {/* Corner cell (frozen both ways) - sortable headers */}
           <div
-            className="flex-shrink-0 bg-gray-800 border-b border-gray-700 px-3 flex items-center"
+            className="flex-shrink-0 bg-gray-800 border-b border-gray-700 px-2 flex items-center gap-1"
             style={{ height: HEADER_HEIGHT }}
           >
-            <div className="flex items-center gap-2 text-sm font-semibold text-gray-300">
-              <span>Position</span>
-              <span className="text-gray-500">/</span>
+            {/* Sort by Ticker */}
+            <button
+              onClick={() => onSort?.('identifier')}
+              className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors ${
+                sortBy === 'identifier'
+                  ? 'bg-cyan-500/20 text-cyan-400'
+                  : 'text-gray-400 hover:text-gray-200 hover:bg-gray-700/50'
+              }`}
+              title="Sort by ticker"
+            >
+              <span>Ticker</span>
+              <SortIndicator column="identifier" sortBy={sortBy} sortDir={sortDir} />
+            </button>
+            <span className="text-gray-600">/</span>
+            {/* Sort by Date */}
+            <button
+              onClick={() => onSort?.('purchaseDate')}
+              className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors ${
+                sortBy === 'purchaseDate'
+                  ? 'bg-cyan-500/20 text-cyan-400'
+                  : 'text-gray-400 hover:text-gray-200 hover:bg-gray-700/50'
+              }`}
+              title="Sort by purchase date"
+            >
               <span>Date</span>
-            </div>
+              <SortIndicator column="purchaseDate" sortBy={sortBy} sortDir={sortDir} />
+            </button>
+            <span className="text-gray-600">/</span>
+            {/* Sort by Qty */}
+            <button
+              onClick={() => onSort?.('totalQuantity')}
+              className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors ${
+                sortBy === 'totalQuantity'
+                  ? 'bg-cyan-500/20 text-cyan-400'
+                  : 'text-gray-400 hover:text-gray-200 hover:bg-gray-700/50'
+              }`}
+              title="Sort by total quantity"
+            >
+              <span>Qty</span>
+              <SortIndicator column="totalQuantity" sortBy={sortBy} sortDir={sortDir} />
+            </button>
           </div>
 
           {/* Row headers - scrollable vertically, synced with data */}
@@ -272,6 +324,7 @@ const QuantityGrid = ({
                           newPositionValue={newPosValue}
                           onNewPositionChange={onNewPositionChange}
                           rowData={{
+                            ticker: row.ticker, // Actual symbol for QuickStart seeding
                             identifier: row.identifier,
                             name: row.name,
                             purchaseDate: row.purchaseDate,
