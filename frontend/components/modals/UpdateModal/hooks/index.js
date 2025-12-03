@@ -9,3 +9,4 @@ export { useMessage } from './useMessage';
 export { useQuantityData } from './useQuantityData';
 export { useQuantityDrafts } from './useQuantityDrafts';
 export { useQuantitySubmit } from './useQuantitySubmit';
+export { useNewPositions } from './useNewPositions';

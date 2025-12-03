@@ -14,15 +14,30 @@ export const UpdateButton = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [showQuickStart, setShowQuickStart] = useState(false);
+  const [seededPositions, setSeededPositions] = useState(null);
 
   const handleAddPosition = useCallback(() => {
-    // Open QuickStart modal for adding new positions
+    // Open QuickStart modal for adding new positions (no seeding)
+    setSeededPositions(null);
+    setShowQuickStart(true);
+  }, []);
+
+  // Handle import of new positions from the quantity grid
+  const handleImportPositions = useCallback((positions) => {
+    // Set seeded positions and open QuickStart modal
+    setSeededPositions(positions);
     setShowQuickStart(true);
   }, []);
 
   const handleQuickStartSuccess = useCallback(() => {
     setShowQuickStart(false);
+    setSeededPositions(null);
     // Data will refresh automatically through DataStore
+  }, []);
+
+  const handleQuickStartClose = useCallback(() => {
+    setShowQuickStart(false);
+    setSeededPositions(null);
   }, []);
 
   return (
@@ -41,13 +56,15 @@ export const UpdateButton = ({
         isOpen={isOpen}
         onClose={() => setIsOpen(false)}
         onAddPosition={handleAddPosition}
+        onImportPositions={handleImportPositions}
       />
 
       {/* QuickStart modal for adding new positions */}
       <QuickStartModalV2
         isOpen={showQuickStart}
-        onClose={() => setShowQuickStart(false)}
+        onClose={handleQuickStartClose}
         onSuccess={handleQuickStartSuccess}
+        initialPositions={seededPositions}
       />
     </>
   );
@@ -62,15 +79,30 @@ export const UpdateButtonV2 = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [showQuickStart, setShowQuickStart] = useState(false);
+  const [seededPositions, setSeededPositions] = useState(null);
 
   const handleAddPosition = useCallback(() => {
-    // Open QuickStart modal for adding new positions
+    // Open QuickStart modal for adding new positions (no seeding)
+    setSeededPositions(null);
+    setShowQuickStart(true);
+  }, []);
+
+  // Handle import of new positions from the quantity grid
+  const handleImportPositions = useCallback((positions) => {
+    // Set seeded positions and open QuickStart modal
+    setSeededPositions(positions);
     setShowQuickStart(true);
   }, []);
 
   const handleQuickStartSuccess = useCallback(() => {
     setShowQuickStart(false);
+    setSeededPositions(null);
     // Data will refresh automatically through DataStore
+  }, []);
+
+  const handleQuickStartClose = useCallback(() => {
+    setShowQuickStart(false);
+    setSeededPositions(null);
   }, []);
 
   return (
@@ -89,13 +121,15 @@ export const UpdateButtonV2 = ({
         isOpen={isOpen}
         onClose={() => setIsOpen(false)}
         onAddPosition={handleAddPosition}
+        onImportPositions={handleImportPositions}
       />
 
       {/* QuickStart modal for adding new positions */}
       <QuickStartModalV2
         isOpen={showQuickStart}
-        onClose={() => setShowQuickStart(false)}
+        onClose={handleQuickStartClose}
         onSuccess={handleQuickStartSuccess}
+        initialPositions={seededPositions}
       />
     </>
   );

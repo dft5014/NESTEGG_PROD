@@ -57,7 +57,10 @@ const QuantityGrid = ({
   columnTotals,
   drafts,
   setDraft,
-  onAddPosition,
+  // New position props
+  newPositions = {},
+  onNewPositionChange,
+  getNewPositionValue,
   loading = false,
   showFullPrecision = false
 }) => {
@@ -240,24 +243,49 @@ const QuantityGrid = ({
                   className="flex border-b border-gray-700/30"
                   style={{ height: ROW_HEIGHT }}
                 >
-                  {row.cells.map((cell, cellIndex) => (
-                    <div
-                      key={cell.accountId}
-                      className="flex-shrink-0 relative"
-                      style={{ width: CELL_WIDTH, height: ROW_HEIGHT }}
-                    >
-                      <QuantityCell
-                        position={cell.position}
-                        draftValue={getDraftValue(cell.position)}
-                        onDraftChange={setDraft}
-                        onAddPosition={() => onAddPosition?.(row, cell)}
-                        hasPosition={cell.hasPosition}
-                        showFullPrecision={showFullPrecision}
-                        rowIndex={rowIndex}
-                        cellIndex={cellIndex}
-                      />
-                    </div>
-                  ))}
+                  {row.cells.map((cell, cellIndex) => {
+                    // Get account data for this column
+                    const account = relevantAccounts.find(a => a.id === cell.accountId);
+
+                    // Get new position value if any
+                    const newPosValue = getNewPositionValue?.(
+                      row.identifier,
+                      row.purchaseDate,
+                      cell.accountId
+                    );
+
+                    return (
+                      <div
+                        key={cell.accountId}
+                        className="flex-shrink-0 relative"
+                        style={{ width: CELL_WIDTH, height: ROW_HEIGHT }}
+                      >
+                        <QuantityCell
+                          position={cell.position}
+                          draftValue={getDraftValue(cell.position)}
+                          onDraftChange={setDraft}
+                          hasPosition={cell.hasPosition}
+                          showFullPrecision={showFullPrecision}
+                          rowIndex={rowIndex}
+                          cellIndex={cellIndex}
+                          // New position props
+                          newPositionValue={newPosValue}
+                          onNewPositionChange={onNewPositionChange}
+                          rowData={{
+                            identifier: row.identifier,
+                            name: row.name,
+                            purchaseDate: row.purchaseDate,
+                            assetType: row.assetType
+                          }}
+                          accountData={account ? {
+                            id: account.id,
+                            name: account.name,
+                            institution: account.institution
+                          } : null}
+                        />
+                      </div>
+                    );
+                  })}
                 </div>
               ))}
 
