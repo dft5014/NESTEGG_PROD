@@ -13,7 +13,7 @@ const createNewPositionKey = (identifier, purchaseDate, accountId) => {
  * These are positions that don't exist yet but will be created via QuickStart
  */
 export const useNewPositions = () => {
-  // Map of newPositionKey -> { identifier, name, purchaseDate, assetType, accountId, accountName, institution, quantity }
+  // Map of newPositionKey -> { ticker, identifier, name, purchaseDate, assetType, accountId, accountName, institution, quantity }
   const [newPositions, setNewPositions] = useState({});
 
   // Set or update a new position
@@ -102,6 +102,7 @@ export const useNewPositions = () => {
       accountId: pos.accountId,
       accountName: pos.accountName,
       institution: pos.institution,
+      ticker: pos.ticker || pos.identifier, // Use ticker (symbol) for QuickStart seeding
       identifier: pos.identifier,
       name: pos.name || pos.identifier,
       assetType: pos.assetType,

@@ -99,6 +99,7 @@ const QuantityCell = ({
     const newValue = parseInput(localValue);
     if (onNewPositionChange && rowData && accountData) {
       onNewPositionChange({
+        ticker: rowData.ticker, // Actual symbol for QuickStart seeding
         identifier: rowData.identifier,
         name: rowData.name,
         purchaseDate: rowData.purchaseDate,

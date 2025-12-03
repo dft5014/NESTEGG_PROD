@@ -139,6 +139,11 @@ const QuantityManager = ({
   toggleAssetType,
   resetFilters,
 
+  // Sorting
+  sortBy,
+  sortDir,
+  toggleSort,
+
   // Submit
   isSubmitting,
   progress,
@@ -477,6 +482,9 @@ const QuantityManager = ({
           newPositions={newPositions}
           onNewPositionChange={setNewPosition}
           getNewPositionValue={getNewPositionValue}
+          sortBy={sortBy}
+          sortDir={sortDir}
+          onSort={toggleSort}
           loading={loading}
         />
       </div>

@@ -93,6 +93,9 @@ const UpdateModal = ({
     selectedTypes,
     toggleAssetType,
     resetFilters: resetQtyFilters,
+    sortBy: qtySortBy,
+    sortDir: qtySortDir,
+    toggleSort: qtyToggleSort,
     loading: quantityLoading,
     refreshAllData: refreshQuantityData
   } = useQuantityData(isOpen);
@@ -460,6 +463,11 @@ const UpdateModal = ({
                 selectedTypes={selectedTypes}
                 toggleAssetType={toggleAssetType}
                 resetFilters={resetQtyFilters}
+
+                // Sorting
+                sortBy={qtySortBy}
+                sortDir={qtySortDir}
+                toggleSort={qtyToggleSort}
 
                 // Submit
                 isSubmitting={quantitySubmit.isSubmitting}

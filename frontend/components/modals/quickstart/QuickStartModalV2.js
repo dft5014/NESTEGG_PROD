@@ -190,8 +190,8 @@ export default function QuickStartModalV2({ isOpen, onClose, onSuccess, initialP
       if (assetType === 'security') {
         positionData = {
           account_id: pos.accountId,
-          ticker: pos.identifier,
-          name: pos.name || pos.identifier,
+          ticker: pos.ticker || pos.identifier, // Use ticker (symbol) for search/hydration
+          name: pos.name || pos.ticker || pos.identifier,
           shares: pos.quantity,
           purchase_date: pos.purchaseDate,
           // cost_basis will need to be filled by user or fetched
@@ -199,8 +199,8 @@ export default function QuickStartModalV2({ isOpen, onClose, onSuccess, initialP
       } else if (assetType === 'crypto') {
         positionData = {
           account_id: pos.accountId,
-          symbol: pos.identifier,
-          name: pos.name || pos.identifier,
+          symbol: pos.ticker || pos.identifier, // Use ticker (symbol) for search/hydration
+          name: pos.name || pos.ticker || pos.identifier,
           quantity: pos.quantity,
           purchase_date: pos.purchaseDate,
           // purchase_price will need to be filled by user
@@ -208,7 +208,7 @@ export default function QuickStartModalV2({ isOpen, onClose, onSuccess, initialP
       } else if (assetType === 'metal') {
         positionData = {
           account_id: pos.accountId,
-          metal_type: pos.identifier,
+          metal_type: pos.ticker || pos.identifier, // Metal type code
           quantity: pos.quantity,
           purchase_date: pos.purchaseDate,
           // purchase_price will need to be filled by user
