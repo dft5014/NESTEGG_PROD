@@ -1,7 +1,8 @@
 // Update Button Component - Navbar integration
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { RefreshCw } from 'lucide-react';
 import UpdateModal from './UpdateModal';
+import QuickStartModalV2 from '../quickstart/QuickStartModalV2';
 
 /**
  * Button component to open the UpdateModal
@@ -12,6 +13,17 @@ export const UpdateButton = ({
   className = ''
 }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [showQuickStart, setShowQuickStart] = useState(false);
+
+  const handleAddPosition = useCallback(() => {
+    // Open QuickStart modal for adding new positions
+    setShowQuickStart(true);
+  }, []);
+
+  const handleQuickStartSuccess = useCallback(() => {
+    setShowQuickStart(false);
+    // Data will refresh automatically through DataStore
+  }, []);
 
   return (
     <>
@@ -28,6 +40,14 @@ export const UpdateButton = ({
       <UpdateModal
         isOpen={isOpen}
         onClose={() => setIsOpen(false)}
+        onAddPosition={handleAddPosition}
+      />
+
+      {/* QuickStart modal for adding new positions */}
+      <QuickStartModalV2
+        isOpen={showQuickStart}
+        onClose={() => setShowQuickStart(false)}
+        onSuccess={handleQuickStartSuccess}
       />
     </>
   );
@@ -41,6 +61,17 @@ export const UpdateButtonV2 = ({
   className = ''
 }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [showQuickStart, setShowQuickStart] = useState(false);
+
+  const handleAddPosition = useCallback(() => {
+    // Open QuickStart modal for adding new positions
+    setShowQuickStart(true);
+  }, []);
+
+  const handleQuickStartSuccess = useCallback(() => {
+    setShowQuickStart(false);
+    // Data will refresh automatically through DataStore
+  }, []);
 
   return (
     <>
@@ -57,6 +88,14 @@ export const UpdateButtonV2 = ({
       <UpdateModal
         isOpen={isOpen}
         onClose={() => setIsOpen(false)}
+        onAddPosition={handleAddPosition}
+      />
+
+      {/* QuickStart modal for adding new positions */}
+      <QuickStartModalV2
+        isOpen={showQuickStart}
+        onClose={() => setShowQuickStart(false)}
+        onSuccess={handleQuickStartSuccess}
       />
     </>
   );
