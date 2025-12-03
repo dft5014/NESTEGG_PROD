@@ -162,8 +162,8 @@ export default function OverviewView({
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      {/* Compact Filter Bar - Fixed at top */}
-      <div className="px-6 py-3 border-b border-gray-800 bg-gray-900/50 flex-shrink-0">
+      {/* Compact Filter Bar - Fixed at top with proper spacing */}
+      <div className="px-6 py-4 border-b border-gray-800 bg-gray-900/50 flex-shrink-0">
         <FilterBar
           searchQuery={state.searchQuery}
           onSearchChange={(q) => dispatch(actions.setSearchQuery(q))}
