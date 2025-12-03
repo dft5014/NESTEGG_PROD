@@ -7,3 +7,7 @@ export { default as UpdateRow } from './UpdateRow';
 export { default as ActionBar } from './ActionBar';
 export { default as MessageToast } from './MessageToast';
 export { default as FilterBar } from './FilterBar';
+
+// Quantity grid components
+export { default as QuantityCell } from './QuantityCell';
+export { default as QuantityGrid } from './QuantityGrid';

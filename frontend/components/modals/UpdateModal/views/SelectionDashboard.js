@@ -3,7 +3,7 @@ import React, { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import {
   RefreshCw, TrendingUp, TrendingDown, Banknote, CreditCard,
-  Package, BarChart3, ArrowRight, Sparkles
+  Package, BarChart3, ArrowRight, ArrowLeft, Sparkles, Wallet
 } from 'lucide-react';
 import { formatCurrency } from '@/utils/formatters';
 import InstitutionCard from '../components/InstitutionCard';
@@ -59,6 +59,7 @@ const SelectionDashboard = ({
   selectedInstitution,
   onSelectInstitution,
   onContinue,
+  onBack,
   showValues = true,
   onRefresh,
   loading
@@ -84,12 +85,21 @@ const SelectionDashboard = ({
           className="flex items-center justify-between"
         >
           <div className="flex items-center gap-4">
-            <div className="p-3 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-2xl shadow-lg shadow-cyan-500/25">
-              <RefreshCw className="w-6 h-6 text-white" />
+            {/* Back button */}
+            {onBack && (
+              <button
+                onClick={onBack}
+                className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </button>
+            )}
+            <div className="p-3 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl shadow-lg shadow-emerald-500/25">
+              <Wallet className="w-6 h-6 text-white" />
             </div>
             <div>
               <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                Quick Update
+                Manual Balances
                 <Sparkles className="w-5 h-5 text-amber-400" />
               </h2>
               <p className="text-sm text-gray-400">
