@@ -1,6 +1,6 @@
 // Hook for submitting quantity updates in the Update Modal
 import { useState, useCallback } from 'react';
-import { updatePosition } from '@/utils/apimethods/positions';
+import { updatePosition } from '@/utils/apimethods/positionMethods';
 
 /**
  * Prepare the API payload based on asset type
