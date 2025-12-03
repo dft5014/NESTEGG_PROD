@@ -1,7 +1,7 @@
 import React, { useMemo, useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  ArrowLeft, Search, X, Eye, EyeOff, RefreshCw, Grid3x3,
+  Search, X, Grid3x3,
   Loader2, Database, Building2, CreditCard, ArrowUpDown,
   Download, Trash2, Layers, Wallet, FilterX, Check
 } from 'lucide-react';
@@ -465,57 +465,12 @@ const EntityManager = ({
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header */}
+      {/* Stats bar - now at the top */}
+      <StatsBar stats={stats} currentView={currentView} showValues={showValues} />
+
+      {/* Search and filters bar */}
       <div className="flex-shrink-0 border-b border-gray-800">
-        {/* Title bar */}
-        <div className="flex items-center justify-between px-6 py-4">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={onBack}
-              className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-all"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </button>
-            <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-xl bg-gradient-to-br ${
-                config.color === 'blue' ? 'from-blue-600 to-indigo-700' :
-                config.color === 'purple' ? 'from-purple-600 to-pink-700' :
-                'from-rose-600 to-orange-700'
-              }`}>
-                <IconComponent className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <h2 className="text-lg font-bold text-white">{config.title}</h2>
-                <p className="text-xs text-gray-400">{stats.total} total items</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Header actions */}
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setShowValues(!showValues)}
-              className={`p-2 rounded-lg transition-all ${
-                showValues ? 'bg-indigo-500/20 text-indigo-400' : 'bg-gray-800 text-gray-400 hover:text-white'
-              }`}
-              title={showValues ? 'Hide values' : 'Show values'}
-            >
-              {showValues ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-            </button>
-
-            <button
-              onClick={onRefresh}
-              disabled={loading}
-              className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-all disabled:opacity-50"
-              title="Refresh"
-            >
-              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-            </button>
-          </div>
-        </div>
-
-        {/* Search and filters bar */}
-        <div className="px-6 py-3 bg-gray-900/50 border-t border-gray-800/50">
+        <div className="px-6 py-3 bg-gray-900/50">
           <div className="flex items-center gap-4">
             {/* Search */}
             <div className="relative flex-1 max-w-xs">

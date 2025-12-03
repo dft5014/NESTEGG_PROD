@@ -1,7 +1,7 @@
 import React, { useMemo, useEffect, useState, useRef } from 'react';
 import { motion } from 'framer-motion';
 import {
-  Edit3, Wallet, Layers, CreditCard, ChevronRight,
+  Wallet, Layers, CreditCard, ChevronRight,
   Building2, BarChart3, TrendingUp, DollarSign
 } from 'lucide-react';
 import { ASSET_TYPES, normalizeAssetType } from '../config';
@@ -133,7 +133,7 @@ const SelectionCard = ({ icon: Icon, title, subtitle, count, color, onClick, del
 /**
  * Stats bar component
  */
-const StatsBar = ({ portfolioSummary }) => {
+const StatsBar = ({ portfolioSummary, showValues = true }) => {
   const stats = [
     {
       label: 'Net Worth',
@@ -193,7 +193,7 @@ const StatsBar = ({ portfolioSummary }) => {
           <div className="inline-flex items-center justify-center w-10 h-10 bg-gray-800 rounded-lg mb-1">
             <p className={`text-lg font-black bg-gradient-to-r ${colorClasses[stat.color]} bg-clip-text text-transparent`}>
               {stat.format === 'currency'
-                ? formatCurrency(stat.value).replace(/\.\d{2}$/, '')
+                ? (showValues ? formatCurrency(stat.value).replace(/\.\d{2}$/, '') : '••••')
                 : <AnimatedStat value={stat.value} />
               }
             </p>
@@ -276,29 +276,13 @@ const AssetBreakdown = ({ positions }) => {
 const SelectionScreen = ({
   portfolioSummary,
   positions,
-  onSelectView
+  onSelectView,
+  showValues = true
 }) => {
   return (
     <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="flex-shrink-0 p-6 border-b border-gray-800">
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex items-center gap-4"
-        >
-          <div className="p-3 bg-gradient-to-br from-purple-600 to-pink-600 rounded-xl shadow-lg shadow-purple-500/25">
-            <Edit3 className="w-6 h-6 text-white" />
-          </div>
-          <div>
-            <h2 className="text-xl font-bold text-white">Edit & Delete Manager</h2>
-            <p className="text-sm text-gray-400">Select what you'd like to manage</p>
-          </div>
-        </motion.div>
-      </div>
-
-      {/* Stats Bar */}
-      <StatsBar portfolioSummary={portfolioSummary} />
+      {/* Stats Bar - Now at the top */}
+      <StatsBar portfolioSummary={portfolioSummary} showValues={showValues} />
 
       {/* Main Content */}
       <div className="flex-1 overflow-auto p-6">
