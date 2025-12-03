@@ -441,7 +441,9 @@ const EditDeleteModal = ({
         {!currentView ? (
           <SelectionScreen
             portfolioSummary={portfolioSummary}
+            accounts={accounts}
             positions={positions}
+            liabilities={liabilities}
             onSelectView={handleSelectView}
             showValues={showValues}
           />

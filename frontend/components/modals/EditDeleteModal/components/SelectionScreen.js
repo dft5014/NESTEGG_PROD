@@ -5,6 +5,8 @@ import {
   Building2, BarChart3, TrendingUp, DollarSign
 } from 'lucide-react';
 import { ASSET_TYPES, normalizeAssetType } from '../config';
+import { ACCOUNT_CATEGORIES, getCategoryFromType } from '../config/accountCategories';
+import { LIABILITY_TYPES } from '../config/liabilityTypes';
 import { formatCurrency } from '@/utils/formatters';
 
 /**
@@ -46,7 +48,7 @@ const AnimatedStat = ({ value, prefix = '', suffix = '', duration = 500 }) => {
 /**
  * Selection card component
  */
-const SelectionCard = ({ icon: Icon, title, subtitle, count, color, onClick, delay = 0 }) => {
+const SelectionCard = ({ icon: Icon, title, subtitle, count, totalValue, color, onClick, delay = 0, showValues = true }) => {
   const colorClasses = {
     blue: {
       bg: 'from-blue-600 to-indigo-700',
@@ -109,15 +111,21 @@ const SelectionCard = ({ icon: Icon, title, subtitle, count, color, onClick, del
         {/* Subtitle */}
         <p className="text-xs text-gray-400 mb-2">{subtitle}</p>
 
-        {/* Count badge */}
-        <div className={`
-          inline-flex items-center px-2.5 py-0.5 rounded-full
-          ${c.iconBg} border border-${color}-500/20
-          mb-2
-        `}>
-          <span className={`text-xs font-semibold ${c.text}`}>
-            <AnimatedStat value={count} /> items
-          </span>
+        {/* Count and Value badges */}
+        <div className="flex flex-col items-center gap-1 mb-2">
+          <div className={`
+            inline-flex items-center px-2.5 py-0.5 rounded-full
+            ${c.iconBg} border border-${color}-500/20
+          `}>
+            <span className={`text-xs font-semibold ${c.text}`}>
+              <AnimatedStat value={count} /> items
+            </span>
+          </div>
+          {totalValue !== undefined && (
+            <span className="text-xs text-gray-400">
+              {showValues ? formatCurrency(totalValue) : '••••••'}
+            </span>
+          )}
         </div>
 
         {/* Action hint */}
@@ -205,66 +213,269 @@ const StatsBar = ({ portfolioSummary, showValues = true }) => {
   );
 };
 
+// Color map for progress bars
+const PROGRESS_COLORS = {
+  blue: '#3B82F6',
+  indigo: '#6366F1',
+  purple: '#8B5CF6',
+  pink: '#EC4899',
+  rose: '#F43F5E',
+  red: '#EF4444',
+  orange: '#F97316',
+  amber: '#F59E0B',
+  yellow: '#EAB308',
+  lime: '#84CC16',
+  green: '#22C55E',
+  emerald: '#10B981',
+  teal: '#14B8A6',
+  cyan: '#06B6D4',
+  sky: '#0EA5E9',
+  gray: '#6B7280'
+};
+
 /**
- * Asset type breakdown component
+ * Account breakdown by category component
  */
-const AssetBreakdown = ({ positions }) => {
+const AccountBreakdown = ({ accounts, showValues = true }) => {
   const breakdown = useMemo(() => {
-    const counts = {};
-    Object.keys(ASSET_TYPES).forEach(type => {
-      counts[type] = positions.filter(p => {
-        const assetType = normalizeAssetType(p.asset_type || p.item_type);
-        return assetType === type;
-      }).length;
+    const data = {};
+
+    ACCOUNT_CATEGORIES.forEach(category => {
+      data[category.id] = { count: 0, value: 0, config: category };
     });
-    return counts;
+
+    // Add 'other' for uncategorized
+    data.other = { count: 0, value: 0, config: { id: 'other', name: 'Other', color: 'gray' } };
+
+    accounts.forEach(account => {
+      const categoryId = getCategoryFromType(account.account_type) || 'other';
+      if (data[categoryId]) {
+        data[categoryId].count += 1;
+        data[categoryId].value += parseFloat(account.totalValue || account.total_value || 0);
+      } else {
+        data.other.count += 1;
+        data.other.value += parseFloat(account.totalValue || account.total_value || 0);
+      }
+    });
+
+    return data;
+  }, [accounts]);
+
+  const total = Object.values(breakdown).reduce((sum, d) => sum + d.value, 0);
+  const hasData = Object.values(breakdown).some(d => d.count > 0);
+
+  if (!hasData) return null;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.3, delay: 0.15 }}
+      className="bg-gray-800/50 rounded-xl p-3 border border-gray-700/50"
+    >
+      <h4 className="text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wide">By Category</h4>
+      <div className="space-y-2">
+        {Object.entries(breakdown)
+          .filter(([_, data]) => data.count > 0)
+          .sort((a, b) => b[1].value - a[1].value)
+          .map(([key, data]) => {
+            const percentage = total > 0 ? (data.value / total) * 100 : 0;
+            const IconComponent = data.config.icon || Wallet;
+            const colorHex = PROGRESS_COLORS[data.config.color] || PROGRESS_COLORS.gray;
+
+            return (
+              <div key={key} className="flex items-center gap-2">
+                <div
+                  className="w-5 h-5 rounded flex items-center justify-center flex-shrink-0"
+                  style={{ backgroundColor: `${colorHex}20` }}
+                >
+                  <IconComponent
+                    className="w-3 h-3"
+                    style={{ color: colorHex }}
+                  />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between mb-0.5">
+                    <span className="text-[11px] text-gray-300 font-medium truncate">{data.config.name}</span>
+                    <span className="text-[11px] text-gray-400 ml-2">
+                      {data.count} • {showValues ? formatCurrency(data.value) : '••••'}
+                    </span>
+                  </div>
+                  <div className="h-1 bg-gray-700 rounded-full overflow-hidden">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${percentage}%` }}
+                      transition={{ duration: 0.5, delay: 0.2 }}
+                      className="h-full rounded-full"
+                      style={{ backgroundColor: colorHex }}
+                    />
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+      </div>
+    </motion.div>
+  );
+};
+
+/**
+ * Asset type breakdown component - now shows VALUES not just counts
+ */
+const AssetBreakdown = ({ positions, showValues = true }) => {
+  const breakdown = useMemo(() => {
+    const data = {};
+    Object.keys(ASSET_TYPES).forEach(type => {
+      data[type] = { count: 0, value: 0 };
+    });
+
+    positions.forEach(p => {
+      const assetType = normalizeAssetType(p.asset_type || p.item_type);
+      if (data[assetType]) {
+        data[assetType].count += 1;
+        data[assetType].value += parseFloat(p.current_value || p.currentValue || 0);
+      }
+    });
+    return data;
   }, [positions]);
 
-  const total = Object.values(breakdown).reduce((sum, count) => sum + count, 0);
+  const totalValue = Object.values(breakdown).reduce((sum, d) => sum + d.value, 0);
+  const hasData = Object.values(breakdown).some(d => d.count > 0);
+
+  if (!hasData) return null;
 
   return (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.3, delay: 0.2 }}
-      className="bg-gray-800/50 rounded-xl p-4 border border-gray-700/50"
+      className="bg-gray-800/50 rounded-xl p-3 border border-gray-700/50"
     >
-      <h4 className="text-sm font-semibold text-gray-300 mb-3">Position Breakdown</h4>
+      <h4 className="text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wide">By Asset Type</h4>
       <div className="space-y-2">
-        {Object.entries(ASSET_TYPES).map(([key, config]) => {
-          const count = breakdown[key] || 0;
-          const percentage = total > 0 ? (count / total) * 100 : 0;
-          const IconComponent = config.icon;
+        {Object.entries(ASSET_TYPES)
+          .filter(([key]) => breakdown[key]?.count > 0)
+          .sort((a, b) => (breakdown[b[0]]?.value || 0) - (breakdown[a[0]]?.value || 0))
+          .map(([key, config]) => {
+            const data = breakdown[key];
+            const percentage = totalValue > 0 ? (data.value / totalValue) * 100 : 0;
+            const IconComponent = config.icon;
+            const colorHex = config.color?.primary || PROGRESS_COLORS.purple;
 
-          return (
-            <div key={key} className="flex items-center gap-3">
-              <div
-                className="w-6 h-6 rounded-lg flex items-center justify-center"
-                style={{ backgroundColor: `${config.color.primary}20` }}
-              >
-                <IconComponent
-                  className="w-3.5 h-3.5"
-                  style={{ color: config.color.primary }}
-                />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs text-gray-300 font-medium">{config.name}</span>
-                  <span className="text-xs text-gray-400">{count}</span>
-                </div>
-                <div className="h-1.5 bg-gray-700 rounded-full overflow-hidden">
-                  <motion.div
-                    initial={{ width: 0 }}
-                    animate={{ width: `${percentage}%` }}
-                    transition={{ duration: 0.5, delay: 0.3 }}
-                    className="h-full rounded-full"
-                    style={{ backgroundColor: config.color.primary }}
+            return (
+              <div key={key} className="flex items-center gap-2">
+                <div
+                  className="w-5 h-5 rounded flex items-center justify-center flex-shrink-0"
+                  style={{ backgroundColor: `${colorHex}20` }}
+                >
+                  <IconComponent
+                    className="w-3 h-3"
+                    style={{ color: colorHex }}
                   />
                 </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between mb-0.5">
+                    <span className="text-[11px] text-gray-300 font-medium truncate">{config.name}</span>
+                    <span className="text-[11px] text-gray-400 ml-2">
+                      {data.count} • {showValues ? formatCurrency(data.value) : '••••'}
+                    </span>
+                  </div>
+                  <div className="h-1 bg-gray-700 rounded-full overflow-hidden">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${percentage}%` }}
+                      transition={{ duration: 0.5, delay: 0.3 }}
+                      className="h-full rounded-full"
+                      style={{ backgroundColor: colorHex }}
+                    />
+                  </div>
+                </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
+      </div>
+    </motion.div>
+  );
+};
+
+/**
+ * Liability breakdown by type component
+ */
+const LiabilityBreakdown = ({ liabilities, showValues = true }) => {
+  const breakdown = useMemo(() => {
+    const data = {};
+
+    Object.keys(LIABILITY_TYPES).forEach(type => {
+      data[type] = { count: 0, balance: 0, config: LIABILITY_TYPES[type] };
+    });
+
+    liabilities.forEach(liability => {
+      const liabilityType = liability.liability_type || 'other';
+      if (data[liabilityType]) {
+        data[liabilityType].count += 1;
+        data[liabilityType].balance += parseFloat(liability.current_balance || liability.total_current_balance || 0);
+      } else if (data.other) {
+        data.other.count += 1;
+        data.other.balance += parseFloat(liability.current_balance || liability.total_current_balance || 0);
+      }
+    });
+
+    return data;
+  }, [liabilities]);
+
+  const totalBalance = Object.values(breakdown).reduce((sum, d) => sum + d.balance, 0);
+  const hasData = Object.values(breakdown).some(d => d.count > 0);
+
+  if (!hasData) return null;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.3, delay: 0.25 }}
+      className="bg-gray-800/50 rounded-xl p-3 border border-gray-700/50"
+    >
+      <h4 className="text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wide">By Debt Type</h4>
+      <div className="space-y-2">
+        {Object.entries(breakdown)
+          .filter(([_, data]) => data.count > 0)
+          .sort((a, b) => b[1].balance - a[1].balance)
+          .map(([key, data]) => {
+            const percentage = totalBalance > 0 ? (data.balance / totalBalance) * 100 : 0;
+            const IconComponent = data.config.icon || CreditCard;
+            const colorHex = PROGRESS_COLORS[data.config.color] || PROGRESS_COLORS.rose;
+
+            return (
+              <div key={key} className="flex items-center gap-2">
+                <div
+                  className="w-5 h-5 rounded flex items-center justify-center flex-shrink-0"
+                  style={{ backgroundColor: `${colorHex}20` }}
+                >
+                  <IconComponent
+                    className="w-3 h-3"
+                    style={{ color: colorHex }}
+                  />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between mb-0.5">
+                    <span className="text-[11px] text-gray-300 font-medium truncate">{data.config.label}</span>
+                    <span className="text-[11px] text-gray-400 ml-2">
+                      {data.count} • {showValues ? formatCurrency(data.balance) : '••••'}
+                    </span>
+                  </div>
+                  <div className="h-1 bg-gray-700 rounded-full overflow-hidden">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${percentage}%` }}
+                      transition={{ duration: 0.5, delay: 0.35 }}
+                      className="h-full rounded-full"
+                      style={{ backgroundColor: colorHex }}
+                    />
+                  </div>
+                </div>
+              </div>
+            );
+          })}
       </div>
     </motion.div>
   );
@@ -275,50 +486,85 @@ const AssetBreakdown = ({ positions }) => {
  */
 const SelectionScreen = ({
   portfolioSummary,
-  positions,
+  accounts = [],
+  positions = [],
+  liabilities = [],
   onSelectView,
   showValues = true
 }) => {
+  // Calculate totals for cards
+  const accountTotal = useMemo(() =>
+    accounts.reduce((sum, a) => sum + parseFloat(a.totalValue || a.total_value || 0), 0),
+    [accounts]
+  );
+
+  const positionTotal = useMemo(() =>
+    positions.reduce((sum, p) => sum + parseFloat(p.current_value || p.currentValue || 0), 0),
+    [positions]
+  );
+
+  const liabilityTotal = useMemo(() =>
+    liabilities.reduce((sum, l) => sum + parseFloat(l.current_balance || l.total_current_balance || 0), 0),
+    [liabilities]
+  );
+
   return (
     <div className="flex flex-col h-full">
-      {/* Stats Bar - Now at the top */}
+      {/* Stats Bar */}
       <StatsBar portfolioSummary={portfolioSummary} showValues={showValues} />
 
-      {/* Main Content */}
+      {/* Main Content - Scrollable */}
       <div className="flex-1 overflow-auto p-4">
-        {/* Selection Cards */}
-        <div className="grid md:grid-cols-3 gap-3 mb-4">
-          <SelectionCard
-            icon={Wallet}
-            title="Accounts"
-            subtitle="Edit or delete accounts"
-            count={portfolioSummary?.accountCount || 0}
-            color="blue"
-            onClick={() => onSelectView('accounts')}
-            delay={0}
-          />
-          <SelectionCard
-            icon={Layers}
-            title="Positions"
-            subtitle="Edit or delete positions"
-            count={portfolioSummary?.positionCount || 0}
-            color="purple"
-            onClick={() => onSelectView('positions')}
-            delay={0.1}
-          />
-          <SelectionCard
-            icon={CreditCard}
-            title="Liabilities"
-            subtitle="Edit or delete debts"
-            count={portfolioSummary?.liabilityCount || 0}
-            color="rose"
-            onClick={() => onSelectView('liabilities')}
-            delay={0.2}
-          />
-        </div>
+        {/* Three columns: each with card + breakdown */}
+        <div className="grid md:grid-cols-3 gap-4">
+          {/* Accounts Column */}
+          <div className="space-y-3">
+            <SelectionCard
+              icon={Wallet}
+              title="Accounts"
+              subtitle="Edit or delete accounts"
+              count={portfolioSummary?.accountCount || accounts.length || 0}
+              totalValue={accountTotal}
+              color="blue"
+              onClick={() => onSelectView('accounts')}
+              delay={0}
+              showValues={showValues}
+            />
+            <AccountBreakdown accounts={accounts} showValues={showValues} />
+          </div>
 
-        {/* Asset Breakdown */}
-        <AssetBreakdown positions={positions} />
+          {/* Positions Column */}
+          <div className="space-y-3">
+            <SelectionCard
+              icon={Layers}
+              title="Positions"
+              subtitle="Edit or delete positions"
+              count={portfolioSummary?.positionCount || positions.length || 0}
+              totalValue={positionTotal}
+              color="purple"
+              onClick={() => onSelectView('positions')}
+              delay={0.1}
+              showValues={showValues}
+            />
+            <AssetBreakdown positions={positions} showValues={showValues} />
+          </div>
+
+          {/* Liabilities Column */}
+          <div className="space-y-3">
+            <SelectionCard
+              icon={CreditCard}
+              title="Liabilities"
+              subtitle="Edit or delete debts"
+              count={portfolioSummary?.liabilityCount || liabilities.length || 0}
+              totalValue={liabilityTotal}
+              color="rose"
+              onClick={() => onSelectView('liabilities')}
+              delay={0.2}
+              showValues={showValues}
+            />
+            <LiabilityBreakdown liabilities={liabilities} showValues={showValues} />
+          </div>
+        </div>
       </div>
 
       {/* Footer hint */}
