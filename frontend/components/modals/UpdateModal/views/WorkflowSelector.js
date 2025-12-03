@@ -88,13 +88,27 @@ const WorkflowSelector = ({
 }) => {
   return (
     <div className="flex flex-col h-full">
+      {/* Context & Guidance */}
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+        className="flex-shrink-0 px-6 pt-6"
+      >
+        <div className="max-w-3xl mx-auto text-center mb-2">
+          <p className="text-gray-300 text-sm leading-relaxed">
+            Keep your portfolio accurate with quick batch updates. Choose a workflow below based on what you need to update today.
+          </p>
+        </div>
+      </motion.div>
+
       {/* Workflow selection */}
-      <div className="flex-1 p-6 flex items-center justify-center">
+      <div className="flex-1 p-6 pt-4 flex items-center justify-center">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl w-full">
           {/* Manual Balances */}
           <WorkflowCard
             title="Manual Balances"
-            description="Update cash accounts, credit cards, loans, and other asset values"
+            description="Quickly refresh account balances for cash, credit cards, loans, and other assets. Filter by institution and update multiple accounts at once."
             icon={Wallet}
             gradient="from-emerald-600/10 to-teal-600/10"
             iconBg="from-emerald-500 to-teal-600"
@@ -110,7 +124,7 @@ const WorkflowSelector = ({
           {/* Position Quantities */}
           <WorkflowCard
             title="Position Quantities"
-            description="Update share counts and quantities for securities, crypto, and metals"
+            description="Adjust share counts and units across your investment accounts. Perfect for recording trades, splits, or reconciling broker statements."
             icon={Grid3x3}
             gradient="from-blue-600/10 to-indigo-600/10"
             iconBg="from-blue-500 to-indigo-600"

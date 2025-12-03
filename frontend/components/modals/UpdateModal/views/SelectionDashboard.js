@@ -114,6 +114,46 @@ const SelectionDashboard = ({
         </div>
       </div>
 
+      {/* Action bar - freeze pane at top */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.3 }}
+        className="flex-shrink-0 px-6 pb-4"
+      >
+        <div className="flex items-center justify-between p-3 rounded-xl bg-gray-800/60 border border-gray-700/50">
+          <div className="flex items-center gap-6 text-xs text-gray-400">
+            <span className="flex items-center gap-1.5">
+              <Banknote className="w-3.5 h-3.5 text-emerald-500" />
+              <span className="font-medium">{counts.cash}</span> cash
+            </span>
+            <span className="flex items-center gap-1.5">
+              <CreditCard className="w-3.5 h-3.5 text-rose-500" />
+              <span className="font-medium">{counts.liab}</span> liabilities
+            </span>
+            <span className="flex items-center gap-1.5">
+              <Package className="w-3.5 h-3.5 text-violet-500" />
+              <span className="font-medium">{counts.other}</span> other
+            </span>
+          </div>
+
+          <button
+            onClick={onContinue}
+            className="
+              inline-flex items-center gap-2 px-5 py-2.5
+              text-sm font-semibold text-white
+              bg-gradient-to-r from-cyan-600 to-blue-600
+              hover:from-cyan-500 hover:to-blue-500
+              rounded-xl shadow-lg shadow-cyan-500/25
+              transition-all duration-200
+            "
+          >
+            Continue to Update
+            <ArrowRight className="w-4 h-4" />
+          </button>
+        </div>
+      </motion.div>
+
       {/* Institution selection */}
       <div className="flex-1 overflow-y-auto px-6 pb-6">
         <div className="flex items-center justify-between mb-4">
@@ -162,46 +202,6 @@ const SelectionDashboard = ({
           ))}
         </div>
       </div>
-
-      {/* Footer with action */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.3 }}
-        className="flex-shrink-0 p-4 border-t border-gray-800 bg-gray-900/50"
-      >
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-6 text-xs text-gray-500">
-            <span className="flex items-center gap-1.5">
-              <Banknote className="w-3.5 h-3.5 text-emerald-500" />
-              {counts.cash} cash
-            </span>
-            <span className="flex items-center gap-1.5">
-              <CreditCard className="w-3.5 h-3.5 text-rose-500" />
-              {counts.liab} liabilities
-            </span>
-            <span className="flex items-center gap-1.5">
-              <Package className="w-3.5 h-3.5 text-violet-500" />
-              {counts.other} other
-            </span>
-          </div>
-
-          <button
-            onClick={onContinue}
-            className="
-              inline-flex items-center gap-2 px-5 py-2.5
-              text-sm font-semibold text-white
-              bg-gradient-to-r from-cyan-600 to-blue-600
-              hover:from-cyan-500 hover:to-blue-500
-              rounded-xl shadow-lg shadow-cyan-500/25
-              transition-all duration-200
-            "
-          >
-            Continue to Update
-            <ArrowRight className="w-4 h-4" />
-          </button>
-        </div>
-      </motion.div>
     </div>
   );
 };

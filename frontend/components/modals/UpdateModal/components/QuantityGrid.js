@@ -3,7 +3,8 @@ import React, { useRef, useCallback, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   TrendingUp, Coins, CircleDollarSign, Calendar,
-  Building2, ChevronUp, ChevronDown, ChevronsUpDown
+  Building2, ChevronUp, ChevronDown, ChevronsUpDown,
+  ChevronLeft, ChevronRight
 } from 'lucide-react';
 import QuantityCell from './QuantityCell';
 
@@ -96,6 +97,26 @@ const QuantityGrid = ({
     }
   }, []);
 
+  // Calculate max scroll position
+  const CELL_WIDTH = 110;
+  const getMaxScroll = useCallback(() => {
+    if (!dataContainerRef.current) return 0;
+    const containerWidth = dataContainerRef.current.clientWidth;
+    const contentWidth = relevantAccounts.length * CELL_WIDTH;
+    return Math.max(0, contentWidth - containerWidth);
+  }, [relevantAccounts.length]);
+
+  // Scroll navigation
+  const scrollBy = useCallback((amount) => {
+    if (!dataContainerRef.current) return;
+    const newScrollLeft = Math.max(0, Math.min(getMaxScroll(), scrollLeft + amount));
+    dataContainerRef.current.scrollLeft = newScrollLeft;
+    setScrollLeft(newScrollLeft);
+  }, [scrollLeft, getMaxScroll]);
+
+  const canScrollLeft = scrollLeft > 0;
+  const canScrollRight = scrollLeft < getMaxScroll();
+
   // Get draft value for a cell
   const getDraftValue = useCallback((position) => {
     if (!position) return undefined;
@@ -104,7 +125,7 @@ const QuantityGrid = ({
 
   // Fixed dimensions
   const ROW_HEADER_WIDTH = 280;
-  const CELL_WIDTH = 110;
+  // CELL_WIDTH is defined earlier (110)
   const ROW_HEIGHT = 40;
   const HEADER_HEIGHT = 40;
 
@@ -148,7 +169,7 @@ const QuantityGrid = ({
             className="flex-shrink-0 bg-gray-850 border-b border-gray-700 px-2 flex items-center gap-1"
             style={{ height: 28 }}
           >
-            <span className="text-xs text-gray-500 mr-1">Sort rows:</span>
+            <span className="text-xs text-gray-500 mr-1">Sort:</span>
             <button
               onClick={() => onSort?.('identifier')}
               className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium transition-colors ${
@@ -191,22 +212,40 @@ const QuantityGrid = ({
                 sortDir === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />
               )}
             </button>
+            <button
+              onClick={() => onSort?.('totalValue')}
+              className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium transition-colors ${
+                sortBy === 'totalValue'
+                  ? 'bg-emerald-500/20 text-emerald-400'
+                  : 'text-gray-400 hover:text-gray-200 hover:bg-gray-700/50'
+              }`}
+              title="Sort by total value"
+            >
+              <span>Value</span>
+              {sortBy === 'totalValue' && (
+                sortDir === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />
+              )}
+            </button>
           </div>
 
           {/* Column header placeholder (aligns with account headers on right) */}
           <div
-            className="flex-shrink-0 bg-gray-800 border-b border-gray-700 px-3 flex items-center"
+            className="flex-shrink-0 bg-gray-800 border-b border-gray-700 px-3 flex items-center justify-between"
             style={{ height: HEADER_HEIGHT }}
           >
             <span className="text-xs font-medium text-gray-400 uppercase tracking-wider">Position / Date</span>
+            <span className="text-xs font-medium text-gray-400 uppercase tracking-wider">Total Value</span>
           </div>
 
           {/* Totals row label (aligns with totals row on right) */}
           <div
-            className="flex-shrink-0 bg-gray-800/90 border-b-2 border-emerald-600/30 px-3 flex items-center"
+            className="flex-shrink-0 bg-gray-800/90 border-b-2 border-emerald-600/30 px-3 flex items-center justify-between"
             style={{ height: ROW_HEIGHT }}
           >
             <span className="text-sm font-semibold text-emerald-400">Totals</span>
+            <span className="text-sm font-semibold text-emerald-400">
+              {formatCurrency(gridMatrix.reduce((sum, row) => sum + (row.totalValue || 0), 0))}
+            </span>
           </div>
 
           {/* Row headers - scrollable vertically, synced with data */}
@@ -246,13 +285,15 @@ const QuantityGrid = ({
                       <div className="flex items-center gap-1.5 text-xs text-gray-500">
                         <Calendar className="w-3 h-3" />
                         <span>{formatDate(row.purchaseDate)}</span>
+                        <span className="text-gray-600">·</span>
+                        <span>{row.totalQuantity.toLocaleString(undefined, { maximumFractionDigits: 2 })} units</span>
                       </div>
                     </div>
 
-                    {/* Row total quantity */}
-                    <div className="flex-shrink-0 text-right">
-                      <div className="text-xs text-gray-400">
-                        {row.totalQuantity.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                    {/* Row total value */}
+                    <div className="flex-shrink-0 text-right min-w-[70px]">
+                      <div className="text-sm font-medium text-emerald-400">
+                        {formatCurrency(row.totalValue)}
                       </div>
                     </div>
                   </div>
@@ -264,54 +305,88 @@ const QuantityGrid = ({
 
         {/* Scrollable data area */}
         <div className="flex-1 flex flex-col overflow-hidden">
-          {/* Account sort controls row */}
+          {/* Account sort controls row with scroll navigation */}
           <div
-            className="flex-shrink-0 bg-gray-850 border-b border-gray-700 px-2 py-1.5 flex items-center gap-1"
+            className="flex-shrink-0 bg-gray-850 border-b border-gray-700 px-2 py-1.5 flex items-center justify-between"
             style={{ height: 28 }}
           >
-            <span className="text-xs text-gray-500 mr-1">Sort accounts:</span>
-            <button
-              onClick={() => onAccountSort?.('value')}
-              className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium transition-colors ${
-                accountSortBy === 'value'
-                  ? 'bg-emerald-500/20 text-emerald-400'
-                  : 'text-gray-400 hover:text-gray-200 hover:bg-gray-700/50'
-              }`}
-              title="Sort accounts by balance"
-            >
-              <span>Value</span>
-              {accountSortBy === 'value' && (
-                accountSortDir === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />
-              )}
-            </button>
-            <button
-              onClick={() => onAccountSort?.('name')}
-              className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium transition-colors ${
-                accountSortBy === 'name'
-                  ? 'bg-blue-500/20 text-blue-400'
-                  : 'text-gray-400 hover:text-gray-200 hover:bg-gray-700/50'
-              }`}
-              title="Sort accounts alphabetically"
-            >
-              <span>A-Z</span>
-              {accountSortBy === 'name' && (
-                accountSortDir === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />
-              )}
-            </button>
-            <button
-              onClick={() => onAccountSort?.('institution')}
-              className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium transition-colors ${
-                accountSortBy === 'institution'
-                  ? 'bg-violet-500/20 text-violet-400'
-                  : 'text-gray-400 hover:text-gray-200 hover:bg-gray-700/50'
-              }`}
-              title="Sort accounts by institution"
-            >
-              <span>Institution</span>
-              {accountSortBy === 'institution' && (
-                accountSortDir === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />
-              )}
-            </button>
+            {/* Sort controls */}
+            <div className="flex items-center gap-1">
+              <span className="text-xs text-gray-500 mr-1">Sort:</span>
+              <button
+                onClick={() => onAccountSort?.('value')}
+                className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium transition-colors ${
+                  accountSortBy === 'value'
+                    ? 'bg-emerald-500/20 text-emerald-400'
+                    : 'text-gray-400 hover:text-gray-200 hover:bg-gray-700/50'
+                }`}
+                title="Sort accounts by balance"
+              >
+                <span>Value</span>
+                {accountSortBy === 'value' && (
+                  accountSortDir === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />
+                )}
+              </button>
+              <button
+                onClick={() => onAccountSort?.('name')}
+                className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium transition-colors ${
+                  accountSortBy === 'name'
+                    ? 'bg-blue-500/20 text-blue-400'
+                    : 'text-gray-400 hover:text-gray-200 hover:bg-gray-700/50'
+                }`}
+                title="Sort accounts alphabetically"
+              >
+                <span>A-Z</span>
+                {accountSortBy === 'name' && (
+                  accountSortDir === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />
+                )}
+              </button>
+              <button
+                onClick={() => onAccountSort?.('institution')}
+                className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium transition-colors ${
+                  accountSortBy === 'institution'
+                    ? 'bg-violet-500/20 text-violet-400'
+                    : 'text-gray-400 hover:text-gray-200 hover:bg-gray-700/50'
+                }`}
+                title="Sort accounts by institution"
+              >
+                <span>Inst</span>
+                {accountSortBy === 'institution' && (
+                  accountSortDir === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />
+                )}
+              </button>
+            </div>
+
+            {/* Scroll navigation */}
+            <div className="flex items-center gap-1">
+              <span className="text-xs text-gray-500 mr-1">
+                {relevantAccounts.length} accounts
+              </span>
+              <button
+                onClick={() => scrollBy(-CELL_WIDTH * 3)}
+                disabled={!canScrollLeft}
+                className={`p-1 rounded transition-colors ${
+                  canScrollLeft
+                    ? 'text-gray-300 hover:bg-gray-700 hover:text-white'
+                    : 'text-gray-600 cursor-not-allowed'
+                }`}
+                title="Scroll left"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => scrollBy(CELL_WIDTH * 3)}
+                disabled={!canScrollRight}
+                className={`p-1 rounded transition-colors ${
+                  canScrollRight
+                    ? 'text-gray-300 hover:bg-gray-700 hover:text-white'
+                    : 'text-gray-600 cursor-not-allowed'
+                }`}
+                title="Scroll right"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
           </div>
 
           {/* Column headers (frozen row, scrolls horizontally) */}
