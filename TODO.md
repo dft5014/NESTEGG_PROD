@@ -1,6 +1,6 @@
 # NestEgg TODO List
 
-**Last Updated:** 2025-11-26
+**Last Updated:** 2025-12-04
 
 This document tracks all outstanding tasks, improvements, and known issues for the NestEgg project. This list should be reviewed and updated regularly by Claude Code sessions as work progresses or new issues are identified.
 
@@ -140,7 +140,8 @@ This document tracks all outstanding tasks, improvements, and known issues for t
 ### User Experience
 - [ ] **UX improvements**
   - [ ] Add loading states to all async operations
-  - [ ] Design and implement empty states (command-center.js done, others pending)
+  - [x] Design and implement empty states (command-center.js, portfolio.js done with welcome banner)
+  - [x] Add tutorial/getting started page (/tutorial)
   - [ ] Improve error messages and error states
   - [ ] Add success notifications for user actions
   - [ ] Implement confirmation dialogs for destructive actions
