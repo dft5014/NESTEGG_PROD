@@ -1,6 +1,7 @@
 // pages/analytics.js - Premium Analytics Studio (Complete & Fully Functional)
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import Head from 'next/head';
+import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   AreaChart, Area, BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
@@ -15,7 +16,8 @@ import {
   Grid, List, Settings, Search, X, ChevronDown, ChevronUp, ArrowUpRight,
   ArrowDownRight, Sparkles, Gauge, Droplets, Flame, Wind, Building2,
   Wallet, Gift, Package, Home, Coins, Banknote, MinusCircle, Info,
-  Calculator, TrendingUpDown, PiggyBank, Receipt, Repeat, Loader2
+  Calculator, TrendingUpDown, PiggyBank, Receipt, Repeat, Loader2, Plus,
+  Briefcase, LineChart as LineChartIcon
 } from 'lucide-react';
 
 import { useDataStore } from '@/store/DataStore';
@@ -755,6 +757,116 @@ export default function Analytics() {
             Retry
           </button>
         </motion.div>
+      </div>
+    );
+  }
+
+  // Empty state - check if user has no data
+  const hasData = summary && (
+    summary.totalAssets > 0 ||
+    summary.netWorth !== 0 ||
+    (summary.positionStats && summary.positionStats.totalCount > 0)
+  );
+  const hasAccounts = accounts && accounts.length > 0;
+
+  if (!isLoading && !hasData && !hasAccounts) {
+    console.log('RENDERING: Empty state - no data');
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-black text-white">
+        <Head>
+          <title>NestEgg | Analytics Studio</title>
+          <meta name="description" content="Premium portfolio analytics and insights" />
+        </Head>
+
+        <div className="container mx-auto px-4 py-8 max-w-[1800px]">
+          {/* Header */}
+          <div className="flex items-center gap-3 mb-8">
+            <div className="p-3 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600">
+              <Sparkles className="w-8 h-8 text-white" />
+            </div>
+            <h1 className="text-4xl font-bold bg-gradient-to-r from-white via-gray-100 to-gray-300 bg-clip-text text-transparent">
+              Analytics Studio
+            </h1>
+          </div>
+
+          {/* Empty State Content */}
+          <div className="max-w-3xl mx-auto text-center py-16">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5 }}
+            >
+              <div className="inline-flex items-center justify-center w-28 h-28 bg-gradient-to-br from-indigo-500/20 to-purple-600/20 rounded-full mb-8">
+                <BarChart3 className="w-14 h-14 text-indigo-400" />
+              </div>
+              <h2 className="text-3xl font-bold mb-4">Welcome to Analytics Studio</h2>
+              <p className="text-gray-400 text-lg mb-8 max-w-xl mx-auto">
+                Add accounts and positions to unlock powerful portfolio analytics, performance tracking, and insights tailored to your financial journey.
+              </p>
+
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12">
+                <Link
+                  href="/accounts"
+                  className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 rounded-xl text-white font-medium transition-all shadow-lg shadow-indigo-500/25"
+                >
+                  <Plus className="w-5 h-5" />
+                  Add Your First Account
+                </Link>
+                <Link
+                  href="/portfolio"
+                  className="inline-flex items-center gap-2 px-6 py-3 bg-gray-800 hover:bg-gray-700 rounded-xl text-gray-300 hover:text-white font-medium transition-colors"
+                >
+                  <Target className="w-5 h-5" />
+                  View Portfolio
+                </Link>
+              </div>
+
+              {/* Feature Preview Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
+                <div className="bg-gray-900/50 backdrop-blur-xl rounded-2xl p-6 border border-gray-800/50">
+                  <div className="inline-flex items-center justify-center w-12 h-12 bg-emerald-500/10 rounded-xl mb-4">
+                    <TrendingUp className="w-6 h-6 text-emerald-400" />
+                  </div>
+                  <h3 className="font-semibold text-lg mb-2">Performance Tracking</h3>
+                  <p className="text-sm text-gray-400">Monitor gains, losses, and returns across all your investments over time.</p>
+                </div>
+                <div className="bg-gray-900/50 backdrop-blur-xl rounded-2xl p-6 border border-gray-800/50">
+                  <div className="inline-flex items-center justify-center w-12 h-12 bg-blue-500/10 rounded-xl mb-4">
+                    <PieChartIcon className="w-6 h-6 text-blue-400" />
+                  </div>
+                  <h3 className="font-semibold text-lg mb-2">Asset Allocation</h3>
+                  <p className="text-sm text-gray-400">Visualize portfolio diversification by asset class, sector, and institution.</p>
+                </div>
+                <div className="bg-gray-900/50 backdrop-blur-xl rounded-2xl p-6 border border-gray-800/50">
+                  <div className="inline-flex items-center justify-center w-12 h-12 bg-purple-500/10 rounded-xl mb-4">
+                    <Shield className="w-6 h-6 text-purple-400" />
+                  </div>
+                  <h3 className="font-semibold text-lg mb-2">Risk Analysis</h3>
+                  <p className="text-sm text-gray-400">Understand concentration risks and optimize your investment strategy.</p>
+                </div>
+              </div>
+
+              {/* Additional guidance */}
+              <div className="mt-12 p-6 bg-gray-900/30 rounded-2xl border border-gray-800/30">
+                <h4 className="text-lg font-medium text-gray-200 mb-3">Getting Started</h4>
+                <div className="flex flex-col md:flex-row items-center justify-center gap-6 text-sm text-gray-400">
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-full bg-indigo-500/20 flex items-center justify-center text-indigo-400 text-xs font-bold">1</div>
+                    <span>Create accounts for your brokerages and banks</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-full bg-indigo-500/20 flex items-center justify-center text-indigo-400 text-xs font-bold">2</div>
+                    <span>Add your investment positions</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-full bg-indigo-500/20 flex items-center justify-center text-indigo-400 text-xs font-bold">3</div>
+                    <span>Explore analytics and insights</span>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        </div>
       </div>
     );
   }
