@@ -1,5 +1,6 @@
 // components/Navbar.js
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import Link from 'next/link';
 import PeriodSummaryChips from '@/components/PeriodSummaryChips';
 import { motion } from 'framer-motion';
 
@@ -14,7 +15,7 @@ import { useDataStore } from '@/store/DataStore';
 
 import {
   TrendingUp, TrendingDown,
-  HelpCircle, X, ArrowRight, ArrowLeft
+  HelpCircle, X, ArrowRight, ArrowLeft, BookOpen
 } from 'lucide-react';
 import { formatCurrency, formatStockPrice } from '@/utils/formatters';
 
@@ -549,34 +550,36 @@ const Navbar = () => {
   const editRef     = useRef(null);
   const recRef      = useRef(null);
   const validateRef = useRef(null);
+  const importRef   = useRef(null);
   const summaryRef  = useRef(null);
   const tickerRef   = useRef(null);
 
   // Keep center behavior on scroll
   useRafScroll(() => setScrolled(window.scrollY > 10));
 
-  // Steps: Add, Edit, Update, Validate, Summary (chips), Ticker (right-pinned card), Final summary
+  // Steps: Add, Edit, Update, Validate, Import, Summary (chips), Ticker (right-pinned card), Final summary
   const steps = useMemo(() => ([
-    { title: "Add to NestEgg", desc: "Create accounts, add positions, and track liabilities." },
-    { title: "Edit & Delete",  desc: "Update entries quickly—inline edits and clean removals." },
-    { title: "Update Manual",  desc: "Refresh non-market items like cash, loans, or other assets." },
-    { title: "Validate Accounts", desc: "Reconcile your accounts against statements to ensure accuracy." },
-    { title: "Portfolio Summary", desc: "Your key totals and changes for the selected period (top right)." },
-    { title: "Live Ticker", desc: "Quick view of top holdings, prices, and 1D/1W/YTD moves.", placement: "right" },
+    { title: "Add to NestEgg", desc: "Create accounts, add positions, and track liabilities using the guided wizard." },
+    { title: "Edit & Delete",  desc: "Modify existing positions, update account details, or remove holdings you've sold." },
+    { title: "Update Values",  desc: "Refresh market prices and update manual balances for cash, real estate, and other non-market assets." },
+    { title: "Reconcile Accounts", desc: "Compare your NestEgg data against actual statements to verify accuracy and catch discrepancies." },
+    { title: "Import Statements", desc: "Upload CSV or Excel files from your brokerage to automatically populate positions. Great for bulk data entry." },
+    { title: "Portfolio Summary", desc: "Your key totals and performance changes at a glance. Select different time periods to see how your wealth has grown." },
+    { title: "Live Ticker", desc: "Real-time view of your top holdings with current prices and recent performance.", placement: "right" },
     {
       title: "You're All Set!",
       desc: "You now know the essentials. Here's your quick workflow:",
       extra: (
         <>
           <ul className="list-disc pl-5 space-y-1">
-            <li>Add your primary accounts (brokerage, retirement, cash, loans).</li>
-            <li>Enter positions or import balances for manual tracking.</li>
-            <li>Use Edit to correct mistakes or update values.</li>
-            <li>Run Validate periodically to reconcile with statements.</li>
-            <li>Monitor your Summary to track portfolio changes over time.</li>
+            <li>Add your accounts (brokerage, retirement, bank, property).</li>
+            <li>Enter positions manually or import from statements.</li>
+            <li>Use Update to refresh prices and manual balances.</li>
+            <li>Run Reconcile monthly to verify against statements.</li>
+            <li>Check the Portfolio Summary to track your progress.</li>
           </ul>
           <div className="mt-3 text-blue-200 text-xs">
-            💡 Tip: Use keyboard shortcuts and export features for faster workflows!
+            📖 For detailed guidance, visit the Tutorial page (book icon above).
           </div>
         </>
       )
@@ -584,7 +587,7 @@ const Navbar = () => {
   ]), []);
 
   const { step, setStep, rect } = useCoachMarks(
-    [addRef, editRef, recRef, validateRef, summaryRef, tickerRef, { current: null }], // last step is centered card only
+    [addRef, editRef, recRef, validateRef, importRef, summaryRef, tickerRef, { current: null }], // last step is centered card only
     showTour,
     () => setShowTour(false)
   );
@@ -653,14 +656,30 @@ const Navbar = () => {
                   </div>
 
                   {/* 5. Import Statements */}
-                  <div className={`${NAVBAR_BTN_BASE} ${BTN_ACCENT.import}`}>
+                  <div ref={importRef} className={`${NAVBAR_BTN_BASE} ${BTN_ACCENT.import}`}>
                     <QuickStatementImportButton label="Import" />
                   </div>
                 </div>
               </div>
 
-              {/* Right: "?" then Summary */}
+              {/* Right: Tutorial, "?" then Summary */}
               <div className="justify-self-end shrink-0 flex items-center gap-2">
+                {/* Tutorial link */}
+                <Link
+                  href="/tutorial"
+                  className={[
+                    "inline-flex items-center justify-center w-9 h-9 rounded-lg",
+                    "bg-gray-800/70 border border-white/[0.08] backdrop-blur-sm",
+                    "shadow-[0_1px_2px_rgba(0,0,0,0.3),inset_0_1px_0_rgba(255,255,255,0.05)]",
+                    "hover:-translate-y-0.5 hover:shadow-[0_4px_12px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.08)]",
+                    "hover:border-white/[0.12] hover:bg-gray-700/80",
+                    "transition-all duration-200 ease-out",
+                  ].join(' ')}
+                  title="Getting Started Guide"
+                >
+                  <BookOpen className="w-4 h-4 text-gray-400" aria-hidden="true" />
+                </Link>
+
                 {/* Orientation toggle */}
                 <button
                   type="button"
@@ -674,7 +693,7 @@ const Navbar = () => {
                     "transition-all duration-200 ease-out",
                   ].join(' ')}
                   aria-pressed={showTour}
-                  title="Orientation"
+                  title="Quick Orientation"
                 >
                   <HelpCircle className="w-4 h-4 text-gray-400" aria-hidden="true" />
                 </button>

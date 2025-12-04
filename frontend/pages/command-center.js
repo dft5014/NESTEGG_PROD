@@ -2,6 +2,7 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
+import QuickStartModalV2 from '@/components/modals/quickstart/QuickStartModalV2';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   AreaChart, Area, BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
@@ -769,6 +770,9 @@ export default function Analytics() {
   );
   const hasAccounts = accounts && accounts.length > 0;
 
+  // State for QuickStart modal in empty state
+  const [showQuickStartEmpty, setShowQuickStartEmpty] = useState(false);
+
   if (!isLoading && !hasData && !hasAccounts) {
     console.log('RENDERING: Empty state - no data');
     return (
@@ -805,19 +809,19 @@ export default function Analytics() {
               </p>
 
               <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12">
-                <Link
-                  href="/accounts"
+                <button
+                  onClick={() => setShowQuickStartEmpty(true)}
                   className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 rounded-xl text-white font-medium transition-all shadow-lg shadow-indigo-500/25"
                 >
                   <Plus className="w-5 h-5" />
-                  Add Your First Account
-                </Link>
+                  Get Started
+                </button>
                 <Link
-                  href="/portfolio"
+                  href="/tutorial"
                   className="inline-flex items-center gap-2 px-6 py-3 bg-gray-800 hover:bg-gray-700 rounded-xl text-gray-300 hover:text-white font-medium transition-colors"
                 >
                   <Target className="w-5 h-5" />
-                  View Portfolio
+                  View Tutorial
                 </Link>
               </div>
 
@@ -867,6 +871,16 @@ export default function Analytics() {
             </motion.div>
           </div>
         </div>
+
+        {/* QuickStart Modal */}
+        <QuickStartModalV2
+          isOpen={showQuickStartEmpty}
+          onClose={() => setShowQuickStartEmpty(false)}
+          onSuccess={() => {
+            setShowQuickStartEmpty(false);
+            refreshSummary();
+          }}
+        />
       </div>
     );
   }
