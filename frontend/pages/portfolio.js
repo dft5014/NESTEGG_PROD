@@ -1,6 +1,7 @@
 // pages/portfolio.js
 import { useMemo, useState } from 'react';
 import Head from 'next/head';
+import Link from 'next/link';
 import {
   AreaChart, Area, LineChart, Line,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine,
@@ -11,11 +12,12 @@ import {
   RefreshCw, DollarSign, ArrowUpRight, ArrowDownRight, TrendingUp,
   Wallet, Gift, Droplet, Shield, Home, Building2, BarChart3,
   Banknote, Coins, Package, MinusCircle, Layers, Gauge, Activity, PieChart as PieChartIcon,
-  Expand, X
+  Expand, X, Plus, BookOpen, Sparkles
 } from 'lucide-react';
 
 import { useDataStore } from '@/store/DataStore';
-import { usePortfolioSummary, usePortfolioTrends } from '@/store/hooks';
+import { usePortfolioSummary, usePortfolioTrends, useAccounts } from '@/store/hooks';
+import QuickStartModalV2 from '@/components/modals/quickstart/QuickStartModalV2';
 
 // -----------------------------------------------------------------------------
 // Constants
@@ -245,6 +247,10 @@ export default function Portfolio() {
   const [modalAssetKey, setModalAssetKey] = useState(null);
   const [cashflowOpen, setCashflowOpen] = useState(false);
 
+  // Welcome banner state
+  const [showQuickStart, setShowQuickStart] = useState(false);
+  const [welcomeBannerDismissed, setWelcomeBannerDismissed] = useState(false);
+
   const {
     summary,
     topPositions,
@@ -266,6 +272,12 @@ export default function Portfolio() {
   } = usePortfolioSummary();
 
   const { trends } = usePortfolioTrends();
+  const { accounts } = useAccounts();
+
+  // Determine if user is new (no accounts/data)
+  const hasAccounts = accounts && accounts.length > 0;
+  const hasData = summary && (summary.totalAssets > 0 || summary.netWorth !== 0);
+  const isNewUser = !hasAccounts && !hasData;
 
   // Timeseries ------------------------------------------------------------------
   const chartData = useMemo(() => {
@@ -512,6 +524,89 @@ export default function Portfolio() {
             </button>
           </div>
         </div>
+
+        {/* Welcome Banner for New Users */}
+        {isNewUser && !welcomeBannerDismissed && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-6 bg-gradient-to-r from-indigo-900/50 via-purple-900/40 to-indigo-900/50 border border-indigo-500/30 rounded-2xl p-6 relative overflow-hidden"
+          >
+            {/* Background decoration */}
+            <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-indigo-500/10 to-purple-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+
+            <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              <div className="flex-1">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="p-2 bg-indigo-500/20 rounded-xl">
+                    <Sparkles className="w-5 h-5 text-indigo-400" />
+                  </div>
+                  <h2 className="text-xl font-bold text-white">Welcome to NestEgg</h2>
+                </div>
+                <p className="text-gray-300 text-sm md:text-base max-w-2xl">
+                  Your personal financial command center is ready. Start by adding your accounts and positions to see your complete financial picture, track performance, and gain insights into your wealth.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-3 shrink-0">
+                <button
+                  onClick={() => setShowQuickStart(true)}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 rounded-xl text-white font-medium transition-all shadow-lg shadow-indigo-500/25"
+                >
+                  <Plus className="w-4 h-4" />
+                  Get Started
+                </button>
+                <Link
+                  href="/tutorial"
+                  className="inline-flex items-center gap-2 px-4 py-2.5 bg-gray-800/80 hover:bg-gray-700 rounded-xl text-gray-300 hover:text-white font-medium transition-colors"
+                >
+                  <BookOpen className="w-4 h-4" />
+                  Tutorial
+                </Link>
+                <button
+                  onClick={() => setWelcomeBannerDismissed(true)}
+                  className="p-2 text-gray-400 hover:text-white hover:bg-gray-800/50 rounded-lg transition-colors"
+                  aria-label="Dismiss banner"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Quick tips */}
+            <div className="relative z-10 mt-4 pt-4 border-t border-gray-700/50">
+              <div className="flex flex-wrap gap-4 text-sm text-gray-400">
+                <div className="flex items-center gap-2">
+                  <div className="w-5 h-5 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400 text-xs font-bold">1</div>
+                  <span>Add your accounts</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-5 h-5 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400 text-xs font-bold">2</div>
+                  <span>Enter your positions</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-5 h-5 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400 text-xs font-bold">3</div>
+                  <span>Or import from a statement</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-5 h-5 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400 text-xs font-bold">4</div>
+                  <span>Track your wealth over time</span>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* QuickStart Modal */}
+        <QuickStartModalV2
+          isOpen={showQuickStart}
+          onClose={() => setShowQuickStart(false)}
+          onSuccess={() => {
+            setShowQuickStart(false);
+            setWelcomeBannerDismissed(true);
+            refreshData();
+          }}
+        />
 
         {/* KPI Row */}
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
