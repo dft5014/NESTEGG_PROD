@@ -161,10 +161,10 @@ const Sidebar = () => {
   if (!mounted) return null;
 
   const getInitials = () => {
-    if (user?.first_name && user?.last_name) return `${user.first_name[0]}${user.last_name[0]}`.toUpperCase();
-    if (user?.email) return user.email[0].toUpperCase();
+    if (user?.firstName && user?.lastName) return `${user.firstName[0]}${user.lastName[0]}`.toUpperCase();
+    if (user?.primaryEmailAddress?.emailAddress) return user.primaryEmailAddress.emailAddress[0].toUpperCase();
     return 'U';
-    };
+  };
 
   return (
     <>
@@ -371,9 +371,11 @@ const Sidebar = () => {
                 {!sidebarCollapsed && (
                   <div className="flex flex-col text-left">
                     <span className="text-sm font-medium">
-                      {user?.first_name && user?.last_name
-                        ? `${user.first_name} ${user.last_name}`
-                        : (user?.email || 'User')}
+                      {user?.firstName && user?.lastName
+                        ? `${user.firstName} ${user.lastName}`
+                        : user?.firstName
+                        ? user.firstName
+                        : (user?.primaryEmailAddress?.emailAddress || 'User')}
                     </span>
                     <span className="text-[11px] text-gray-400">Account</span>
                   </div>
@@ -389,8 +391,12 @@ const Sidebar = () => {
                 className="absolute left-20 ml-2 px-3 py-2 bg-gray-800 rounded-lg shadow-xl
                           border border-gray-700 whitespace-nowrap z-50"
               >
-                <p className="text-sm font-medium">Account</p>
-                <p className="text-xs text-gray-400 mt-1">{user?.email}</p>
+                <p className="text-sm font-medium">
+                  {user?.firstName && user?.lastName
+                    ? `${user.firstName} ${user.lastName}`
+                    : user?.firstName || 'Account'}
+                </p>
+                <p className="text-xs text-gray-400 mt-1">{user?.primaryEmailAddress?.emailAddress}</p>
               </motion.div>
             )}
           </motion.div>
