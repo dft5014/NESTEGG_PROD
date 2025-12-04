@@ -13,6 +13,21 @@ const isSecurityish = /(stock|equity|etf|fund|mutual|option|bond|crypto|security
 const isCashLikeWord = /(cash|checking|savings|mm|money\s?market|hysa|cd|certificate|sweep|settlement|brokerage\s?cash)/i;
 const isLiabilityish = /(loan|mortgage|credit|debt|liab|card|payable|auto|student|heloc|loc)/i;
 
+// Asset types that should NEVER be treated as cash
+const NON_CASH_ASSET_TYPES = new Set([
+  'security', 'stock', 'equity', 'etf', 'fund', 'mutual_fund', 'option', 'bond',
+  'crypto', 'cryptocurrency',
+  'metal', 'precious_metal', 'gold', 'silver',
+  'real_estate', 'property',
+  'vehicle', 'collectible', 'art', 'jewelry', 'business', 'other'
+]);
+
+// Types that ARE cash
+const CASH_TYPES = new Set([
+  'cash', 'checking', 'savings', 'money_market', 'mm', 'sweep', 'deposit',
+  'hysa', 'cd', 'certificate_of_deposit', 'settlement'
+]);
+
 const OTHER_ITEM_TYPES = new Set([
   'other', 'vehicle', 'real_estate', 'collectible', 'art', 'jewelry', 'business'
 ]);
@@ -77,19 +92,40 @@ export const useUpdateData = (isOpen) => {
   // Determine if position is cash-like
   const isCashLike = useCallback((pos) => {
     const t = String(pos.type || '').toLowerCase();
-    const n = `${pos.name || ''} ${pos.identifier || ''} ${pos.inv_account_name || ''}`.toLowerCase();
-    if (isSecurityish.test(n)) return false;
-    if (['cash', 'checking', 'savings', 'money_market', 'mm', 'sweep', 'deposit'].includes(t)) return true;
-    return isCashLikeWord.test(n);
+
+    // FIRST: If type is explicitly a non-cash asset type, it's NOT cash
+    // This catches securities, crypto, metals, etc. regardless of account name
+    if (NON_CASH_ASSET_TYPES.has(t)) return false;
+
+    // Check name and identifier for security-like patterns
+    // But DON'T include inv_account_name here - account names like "Brokerage Cash"
+    // should not affect whether a security is classified as cash
+    const nameAndId = `${pos.name || ''} ${pos.identifier || ''}`.toLowerCase();
+    if (isSecurityish.test(nameAndId)) return false;
+
+    // If type is explicitly a cash type, it's cash
+    if (CASH_TYPES.has(t)) return true;
+
+    // For items with no clear type, check if name/identifier matches cash patterns
+    // Still don't include inv_account_name to avoid false positives
+    return isCashLikeWord.test(nameAndId);
   }, []);
 
   // Determine if position is "other asset"
   const isOtherAsset = useCallback((p) => {
     const t = String(p.type || '').toLowerCase();
+
+    // If type is security, crypto, metal, or cash - it's NOT "other"
+    if (['security', 'crypto', 'metal', 'cash'].includes(t) || CASH_TYPES.has(t)) {
+      return false;
+    }
+
     const ds = String(p.data_source || '').toLowerCase();
     if (ds === 'other_asset') return true;
     if (OTHER_ITEM_TYPES.has(t)) return true;
+
     const nm = `${p.name || ''} ${p.identifier || ''}`.toLowerCase();
+    // Only classify as "other" if no type AND doesn't look like a security
     if (!t && !isSecurityish.test(nm)) return true;
     return false;
   }, []);
