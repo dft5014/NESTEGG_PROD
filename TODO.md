@@ -140,7 +140,7 @@ This document tracks all outstanding tasks, improvements, and known issues for t
 ### User Experience
 - [ ] **UX improvements**
   - [ ] Add loading states to all async operations
-  - [ ] Design and implement empty states
+  - [ ] Design and implement empty states (command-center.js done, others pending)
   - [ ] Improve error messages and error states
   - [ ] Add success notifications for user actions
   - [ ] Implement confirmation dialogs for destructive actions
