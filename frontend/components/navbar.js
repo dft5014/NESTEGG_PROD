@@ -175,10 +175,18 @@ const StockTicker = ({ outerRef }) => {
   const shouldAnimate = !prefersReducedMotion.current && !isLoading && items.length > 0;
 
   // Render list 3x for seamless loop only when animating
-  const tickerContent = useMemo(
-    () => (shouldAnimate ? [...items, ...items, ...items] : items),
-    [items, shouldAnimate]
-  );
+  // Add sample data message when showing sample stocks
+  const tickerContent = useMemo(() => {
+    if (!hasPositions) {
+      // Insert a sample data notice item at the start of each repetition
+      const sampleNotice = { _isSampleNotice: true };
+      const itemsWithNotice = [sampleNotice, ...items];
+      return shouldAnimate
+        ? [...itemsWithNotice, ...itemsWithNotice, ...itemsWithNotice]
+        : itemsWithNotice;
+    }
+    return shouldAnimate ? [...items, ...items, ...items] : items;
+  }, [items, shouldAnimate, hasPositions]);
 
   // Measure one loop width
   const measure = useCallback(() => {
@@ -291,6 +299,15 @@ const StockTicker = ({ outerRef }) => {
         style={{ transform: 'translateX(0px)' }}
       >
         {tickerContent.map((stock, index) => (
+          stock._isSampleNotice ? (
+            <div
+              key={`sample-notice-${index}`}
+              className="inline-flex items-center gap-3 px-6 border-r border-gray-800"
+            >
+              <span className="text-amber-400 font-semibold text-sm">Sample Data</span>
+              <span className="text-gray-400 text-sm">Add positions to make it your own</span>
+            </div>
+          ) : (
           <div
             key={`${stock.symbol}-${index}`}
             className="inline-flex items-center gap-4 px-6 border-r border-gray-800"
@@ -383,6 +400,7 @@ const StockTicker = ({ outerRef }) => {
             )}
 
           </div>
+          )
         ))}
       </div>
 
