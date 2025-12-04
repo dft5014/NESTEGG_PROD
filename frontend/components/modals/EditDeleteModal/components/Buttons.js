@@ -32,6 +32,7 @@ export const QuickEditDeleteButton = ({ className = '', mobileView = false, labe
       <button
         onClick={() => setIsModalOpen(true)}
         className={`group relative flex items-center text-white py-1 px-4 transition-all duration-300 ${className}`}
+        title="Edit or delete accounts, positions, and liabilities"
       >
         <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
         <div className="relative flex items-center">
