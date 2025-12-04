@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import {
   TrendingUp, Coins, CircleDollarSign, Calendar,
   Building2, ChevronUp, ChevronDown, ChevronsUpDown,
-  ChevronLeft, ChevronRight
+  ChevronLeft, ChevronRight, Plus
 } from 'lucide-react';
 import QuantityCell from './QuantityCell';
 
@@ -83,7 +83,9 @@ const QuantityGrid = ({
   accountSortDir = 'desc',
   onAccountSort,
   loading = false,
-  showFullPrecision = false
+  showFullPrecision = false,
+  // Add position callback
+  onAddPosition
 }) => {
   const rowHeadersRef = useRef(null);
   const dataContainerRef = useRef(null);
@@ -144,11 +146,32 @@ const QuantityGrid = ({
   if (!gridMatrix?.length) {
     return (
       <div className="flex flex-col items-center justify-center h-64 text-gray-500">
-        <TrendingUp className="w-12 h-12 mb-3 opacity-50" />
-        <p className="text-lg font-medium">No positions found</p>
-        <p className="text-sm text-gray-600 mt-1">
-          Adjust filters or add positions to see data
+        <div className="p-4 rounded-2xl bg-gray-800/50 mb-4">
+          <TrendingUp className="w-12 h-12 text-gray-600" />
+        </div>
+        <p className="text-lg font-medium text-gray-300">No positions found</p>
+        <p className="text-sm text-gray-500 mt-1 mb-4 text-center max-w-xs">
+          {onAddPosition
+            ? "Get started by adding your first securities, crypto, or metals positions."
+            : "Adjust filters to see positions, or add new ones to get started."
+          }
         </p>
+        {onAddPosition && (
+          <button
+            onClick={() => onAddPosition()}
+            className="
+              inline-flex items-center gap-2 px-5 py-2.5
+              text-sm font-semibold text-white
+              bg-gradient-to-r from-cyan-600 to-blue-600
+              hover:from-cyan-500 hover:to-blue-500
+              rounded-xl shadow-lg shadow-cyan-500/25
+              transition-all duration-200
+            "
+          >
+            <Plus className="w-4 h-4" />
+            Add New Position
+          </button>
+        )}
       </div>
     );
   }

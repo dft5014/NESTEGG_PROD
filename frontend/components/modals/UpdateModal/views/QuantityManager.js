@@ -159,6 +159,7 @@ const QuantityManager = ({
   // Navigation
   onBack,
   onRefresh,
+  onAddPosition,
   loading,
 
   // Messages
@@ -461,6 +462,7 @@ const QuantityManager = ({
           accountSortDir={accountSortDir}
           onAccountSort={toggleAccountSort}
           loading={loading}
+          onAddPosition={onAddPosition}
         />
       </div>
 
