@@ -260,8 +260,19 @@ const QuantityManager = ({
             </button>
           </div>
 
-          {/* Right side: Save/Import buttons */}
+          {/* Right side: Add/Save/Import buttons */}
           <div className="flex items-center gap-2">
+            {/* Add New Position - always visible */}
+            {onAddPosition && (
+              <button
+                onClick={() => onAddPosition()}
+                className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-cyan-400 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 rounded-lg transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                Add Position
+              </button>
+            )}
+
             {/* Import New Positions */}
             {newPositionsCount > 0 && (
               <motion.button
