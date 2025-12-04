@@ -24,7 +24,14 @@ function LayoutWrapper({ children }) {
   const [mounted, setMounted] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
 
-  const hideNavigation = ["/", "/login", "/signup"];
+  // Check if navigation should be hidden (landing, login, signup pages)
+  // Use asPath to handle catch-all routes like /login/sso-callback
+  const shouldHideNavigation = () => {
+    const path = router.asPath.split('?')[0]; // Remove query params
+    return path === "/" || path.startsWith("/login") || path.startsWith("/signup");
+  };
+
+  const hideNav = shouldHideNavigation();
 
   useEffect(() => setMounted(true), []);
 
@@ -41,7 +48,7 @@ function LayoutWrapper({ children }) {
   return (
     <SidebarContext.Provider value={{ sidebarCollapsed, setSidebarCollapsed }}>
       <div className="min-h-screen bg-gray-950">
-        {!hideNavigation.includes(router.pathname) && mounted && (
+        {!hideNav && mounted && (
           <>
             <Sidebar />
             <div
@@ -55,11 +62,11 @@ function LayoutWrapper({ children }) {
 
         <div
           className={`min-h-screen transition-all duration-300 ${
-            !hideNavigation.includes(router.pathname) && mounted ? "pt-24" : ""
+            !hideNav && mounted ? "pt-24" : ""
           }`}
           style={{
             paddingLeft:
-              !hideNavigation.includes(router.pathname) && mounted
+              !hideNav && mounted
                 ? sidebarCollapsed
                   ? "80px"
                   : "256px"
