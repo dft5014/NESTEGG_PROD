@@ -111,7 +111,7 @@ export const UpdateButtonV2 = ({
         type="button"
         onClick={() => setIsOpen(true)}
         className={`flex items-center gap-2 ${className}`}
-        title="Update balances (new version)"
+        title="Update manual account balances"
       >
         <RefreshCw className="w-4 h-4" />
         <span>{label}</span>

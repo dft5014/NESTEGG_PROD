@@ -524,7 +524,7 @@ export function ValidateButton2({ className = '', label = 'Validate V2' }) {
         type="button"
         onClick={() => setIsOpen(true)}
         className={`flex items-center gap-2 ${className}`}
-        title="Validate accounts against statements (V2)"
+        title="Reconcile accounts against statements"
       >
         <Target className="w-4 h-4" />
         <span>{label}</span>
