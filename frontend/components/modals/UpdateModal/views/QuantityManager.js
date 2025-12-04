@@ -67,7 +67,7 @@ const FilterToggle = ({ type, config, active, onClick, count = 0 }) => {
 };
 
 /**
- * Info tooltip component
+ * Info tooltip component - positioned to the right of the button
  */
 const InfoTooltip = ({ show, onClose }) => {
   if (!show) return null;
@@ -77,7 +77,7 @@ const InfoTooltip = ({ show, onClose }) => {
       initial={{ opacity: 0, y: -10 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -10 }}
-      className="absolute right-0 top-full mt-2 w-80 p-4 bg-gray-800 border border-gray-700 rounded-xl shadow-xl z-50"
+      className="absolute left-0 top-full mt-2 w-80 p-4 bg-gray-800 border border-gray-700 rounded-xl shadow-xl z-50"
     >
       <button
         onClick={onClose}
@@ -98,6 +98,10 @@ const InfoTooltip = ({ show, onClose }) => {
         <div className="flex gap-2">
           <Plus className="w-3 h-3 text-gray-500 flex-shrink-0 mt-0.5" />
           <p><span className="text-gray-300 font-medium">+ buttons:</span> Click to add a new position in that account for the selected ticker/date.</p>
+        </div>
+        <div className="flex gap-2">
+          <ClipboardPaste className="w-3 h-3 text-gray-500 flex-shrink-0 mt-0.5" />
+          <p><span className="text-gray-300 font-medium">Paste button:</span> Bulk update quantities by pasting data from a spreadsheet. Format: ticker and quantity per line, separated by tab or comma.</p>
         </div>
       </div>
     </motion.div>
@@ -254,6 +258,7 @@ const QuantityManager = ({
                   : 'text-gray-300 hover:text-white bg-gray-800 hover:bg-gray-700'
                 }
               `}
+              title="Bulk update quantities by pasting data from a spreadsheet (ticker, quantity per line)"
             >
               <ClipboardPaste className="w-4 h-4" />
               Paste
