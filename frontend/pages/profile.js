@@ -48,6 +48,7 @@ import {
   Package,
   FileText,
   BarChart3,
+  RefreshCw,
 } from "lucide-react";
 
 /** ----------------------------
@@ -942,76 +943,67 @@ function ManageDataSection({ dataStats, onDataDeleted }) {
       {/* Delete Modals */}
       {deleteModal === "positions" && (
         <DeletePositionsModal
-          onClose={() => setDeleteModal(null)}
+          onClose={() => {
+            setDeleteModal(null);
+            onDataDeleted?.();
+          }}
           onConfirm={async (selectedTypes) => {
-            try {
-              const res = await fetchWithAuth("/user/data/positions", {
-                method: "DELETE",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ position_types: selectedTypes }),
-              });
-              if (!res.ok) {
-                const err = await res.json().catch(() => ({}));
-                throw new Error(err?.detail || `Failed to delete positions (${res.status})`);
-              }
-              const result = await res.json();
-              toast.success(result.message || `Successfully deleted positions for: ${selectedTypes.join(", ")}`);
-              setDeleteModal(null);
-              onDataDeleted?.();
-            } catch (e) {
-              toast.error(e.message || "Failed to delete positions");
-              throw e;
+            const res = await fetchWithAuth("/user/data/positions", {
+              method: "DELETE",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ position_types: selectedTypes }),
+            });
+            if (!res.ok) {
+              const err = await res.json().catch(() => ({}));
+              toast.error(err?.detail || `Failed to delete positions (${res.status})`);
+              throw new Error(err?.detail || `Failed to delete positions (${res.status})`);
             }
+            const result = await res.json();
+            return result;
           }}
         />
       )}
 
       {deleteModal === "accounts" && (
         <DeleteAccountsModal
-          onClose={() => setDeleteModal(null)}
+          onClose={() => {
+            setDeleteModal(null);
+            onDataDeleted?.();
+          }}
           onConfirm={async (includePositions) => {
-            try {
-              const res = await fetchWithAuth("/user/data/accounts", {
-                method: "DELETE",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ include_positions: includePositions }),
-              });
-              if (!res.ok) {
-                const err = await res.json().catch(() => ({}));
-                throw new Error(err?.detail || `Failed to delete accounts (${res.status})`);
-              }
-              const result = await res.json();
-              toast.success(result.message || "Successfully deleted all accounts");
-              setDeleteModal(null);
-              onDataDeleted?.();
-            } catch (e) {
-              toast.error(e.message || "Failed to delete accounts");
-              throw e;
+            const res = await fetchWithAuth("/user/data/accounts", {
+              method: "DELETE",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ include_positions: includePositions }),
+            });
+            if (!res.ok) {
+              const err = await res.json().catch(() => ({}));
+              toast.error(err?.detail || `Failed to delete accounts (${res.status})`);
+              throw new Error(err?.detail || `Failed to delete accounts (${res.status})`);
             }
+            const result = await res.json();
+            return result;
           }}
         />
       )}
 
       {deleteModal === "history" && (
         <DeleteHistoryModal
-          onClose={() => setDeleteModal(null)}
+          onClose={() => {
+            setDeleteModal(null);
+            onDataDeleted?.();
+          }}
           onConfirm={async () => {
-            try {
-              const res = await fetchWithAuth("/user/data/history", {
-                method: "DELETE",
-              });
-              if (!res.ok) {
-                const err = await res.json().catch(() => ({}));
-                throw new Error(err?.detail || `Failed to delete historical data (${res.status})`);
-              }
-              const result = await res.json();
-              toast.success(result.message || "Successfully deleted historical data");
-              setDeleteModal(null);
-              onDataDeleted?.();
-            } catch (e) {
-              toast.error(e.message || "Failed to delete historical data");
-              throw e;
+            const res = await fetchWithAuth("/user/data/history", {
+              method: "DELETE",
+            });
+            if (!res.ok) {
+              const err = await res.json().catch(() => ({}));
+              toast.error(err?.detail || `Failed to delete historical data (${res.status})`);
+              throw new Error(err?.detail || `Failed to delete historical data (${res.status})`);
             }
+            const result = await res.json();
+            return result;
           }}
         />
       )}
@@ -1021,10 +1013,11 @@ function ManageDataSection({ dataStats, onDataDeleted }) {
 
 /** ------- Delete Positions Modal ------- */
 function DeletePositionsModal({ onClose, onConfirm }) {
-  const [step, setStep] = useState(1); // 1: Select types, 2: Confirm, 3: Final confirmation
+  const [step, setStep] = useState(1); // 1: Select types, 2: Confirm, 3: Final confirmation, 4: Success
   const [selectedTypes, setSelectedTypes] = useState([]);
   const [confirmText, setConfirmText] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteResult, setDeleteResult] = useState(null);
 
   const toggleType = (typeId) => {
     setSelectedTypes((prev) =>
@@ -1036,10 +1029,18 @@ function DeletePositionsModal({ onClose, onConfirm }) {
     if (confirmText !== "DELETE MY DATA") return;
     setIsDeleting(true);
     try {
-      await onConfirm(selectedTypes);
+      const result = await onConfirm(selectedTypes);
+      setDeleteResult(result);
+      setStep(4); // Move to success step
+    } catch (e) {
+      // Error is handled in parent, stay on current step
     } finally {
       setIsDeleting(false);
     }
+  };
+
+  const handleRefreshPage = () => {
+    window.location.reload();
   };
 
   return (
@@ -1059,25 +1060,27 @@ function DeletePositionsModal({ onClose, onConfirm }) {
           </button>
         </div>
 
-        {/* Step Indicator */}
-        <div className="px-6 pt-4">
-          <div className="flex items-center justify-center gap-2 mb-4">
-            {[1, 2, 3].map((s) => (
-              <div
-                key={s}
-                className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors ${
-                  step === s
-                    ? "bg-red-600 text-white"
-                    : step > s
-                    ? "bg-red-600/30 text-red-300"
-                    : "bg-gray-700 text-gray-400"
-                }`}
-              >
-                {s}
-              </div>
-            ))}
+        {/* Step Indicator - hide on success */}
+        {step < 4 && (
+          <div className="px-6 pt-4">
+            <div className="flex items-center justify-center gap-2 mb-4">
+              {[1, 2, 3].map((s) => (
+                <div
+                  key={s}
+                  className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors ${
+                    step === s
+                      ? "bg-red-600 text-white"
+                      : step > s
+                      ? "bg-red-600/30 text-red-300"
+                      : "bg-gray-700 text-gray-400"
+                  }`}
+                >
+                  {s}
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Step 1: Select Position Types */}
         {step === 1 && (
@@ -1225,6 +1228,47 @@ function DeletePositionsModal({ onClose, onConfirm }) {
             </div>
           </div>
         )}
+
+        {/* Step 4: Success */}
+        {step === 4 && (
+          <div className="p-6">
+            <div className="text-center py-6">
+              <div className="mx-auto w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mb-4">
+                <CheckCircle className="h-8 w-8 text-green-400" />
+              </div>
+              <h4 className="text-xl font-semibold text-gray-100 mb-2">Positions Deleted Successfully</h4>
+              <p className="text-gray-400 mb-6">
+                The selected position types have been permanently removed from your account.
+              </p>
+              <div className="bg-amber-900/20 border border-amber-700/50 rounded-lg p-4 mb-6">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="h-5 w-5 text-amber-400 flex-shrink-0 mt-0.5" />
+                  <div className="text-left">
+                    <p className="text-amber-300 text-sm font-medium">Please refresh the page</p>
+                    <p className="text-amber-200/70 text-xs mt-1">
+                      To see the updated data throughout the app, please refresh the page.
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div className="flex gap-3 justify-center">
+                <button
+                  onClick={onClose}
+                  className="px-4 py-2 bg-gray-700 text-gray-200 rounded-lg hover:bg-gray-600 transition-colors"
+                >
+                  Close
+                </button>
+                <button
+                  onClick={handleRefreshPage}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors inline-flex items-center"
+                >
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Refresh Page
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1232,7 +1276,7 @@ function DeletePositionsModal({ onClose, onConfirm }) {
 
 /** ------- Delete Accounts Modal ------- */
 function DeleteAccountsModal({ onClose, onConfirm }) {
-  const [step, setStep] = useState(1); // 1: Warning, 2: Confirm checkbox, 3: Final confirmation
+  const [step, setStep] = useState(1); // 1: Warning, 2: Confirm checkbox, 3: Final confirmation, 4: Success
   const [understood, setUnderstood] = useState(false);
   const [deletePositions, setDeletePositions] = useState(true);
   const [confirmText, setConfirmText] = useState("");
@@ -1243,9 +1287,16 @@ function DeleteAccountsModal({ onClose, onConfirm }) {
     setIsDeleting(true);
     try {
       await onConfirm(deletePositions);
+      setStep(4); // Move to success step
+    } catch (e) {
+      // Error is handled in parent
     } finally {
       setIsDeleting(false);
     }
+  };
+
+  const handleRefreshPage = () => {
+    window.location.reload();
   };
 
   return (
@@ -1265,25 +1316,27 @@ function DeleteAccountsModal({ onClose, onConfirm }) {
           </button>
         </div>
 
-        {/* Step Indicator */}
-        <div className="px-6 pt-4">
-          <div className="flex items-center justify-center gap-2 mb-4">
-            {[1, 2, 3].map((s) => (
-              <div
-                key={s}
-                className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors ${
-                  step === s
-                    ? "bg-red-600 text-white"
-                    : step > s
-                    ? "bg-red-600/30 text-red-300"
-                    : "bg-gray-700 text-gray-400"
-                }`}
-              >
-                {s}
-              </div>
-            ))}
+        {/* Step Indicator - hide on success */}
+        {step < 4 && (
+          <div className="px-6 pt-4">
+            <div className="flex items-center justify-center gap-2 mb-4">
+              {[1, 2, 3].map((s) => (
+                <div
+                  key={s}
+                  className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors ${
+                    step === s
+                      ? "bg-red-600 text-white"
+                      : step > s
+                      ? "bg-red-600/30 text-red-300"
+                      : "bg-gray-700 text-gray-400"
+                  }`}
+                >
+                  {s}
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Step 1: Warning */}
         {step === 1 && (
@@ -1421,6 +1474,47 @@ function DeleteAccountsModal({ onClose, onConfirm }) {
             </div>
           </div>
         )}
+
+        {/* Step 4: Success */}
+        {step === 4 && (
+          <div className="p-6">
+            <div className="text-center py-6">
+              <div className="mx-auto w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mb-4">
+                <CheckCircle className="h-8 w-8 text-green-400" />
+              </div>
+              <h4 className="text-xl font-semibold text-gray-100 mb-2">Accounts Deleted Successfully</h4>
+              <p className="text-gray-400 mb-6">
+                All your accounts have been permanently removed from your profile.
+              </p>
+              <div className="bg-amber-900/20 border border-amber-700/50 rounded-lg p-4 mb-6">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="h-5 w-5 text-amber-400 flex-shrink-0 mt-0.5" />
+                  <div className="text-left">
+                    <p className="text-amber-300 text-sm font-medium">Please refresh the page</p>
+                    <p className="text-amber-200/70 text-xs mt-1">
+                      To see the updated data throughout the app, please refresh the page.
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div className="flex gap-3 justify-center">
+                <button
+                  onClick={onClose}
+                  className="px-4 py-2 bg-gray-700 text-gray-200 rounded-lg hover:bg-gray-600 transition-colors"
+                >
+                  Close
+                </button>
+                <button
+                  onClick={handleRefreshPage}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors inline-flex items-center"
+                >
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Refresh Page
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1428,7 +1522,7 @@ function DeleteAccountsModal({ onClose, onConfirm }) {
 
 /** ------- Delete History Modal ------- */
 function DeleteHistoryModal({ onClose, onConfirm }) {
-  const [step, setStep] = useState(1); // 1: Info, 2: Final confirmation
+  const [step, setStep] = useState(1); // 1: Info, 2: Final confirmation, 3: Success
   const [confirmText, setConfirmText] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -1437,9 +1531,16 @@ function DeleteHistoryModal({ onClose, onConfirm }) {
     setIsDeleting(true);
     try {
       await onConfirm();
+      setStep(3); // Move to success step
+    } catch (e) {
+      // Error is handled in parent
     } finally {
       setIsDeleting(false);
     }
+  };
+
+  const handleRefreshPage = () => {
+    window.location.reload();
   };
 
   return (
@@ -1459,25 +1560,27 @@ function DeleteHistoryModal({ onClose, onConfirm }) {
           </button>
         </div>
 
-        {/* Step Indicator */}
-        <div className="px-6 pt-4">
-          <div className="flex items-center justify-center gap-2 mb-4">
-            {[1, 2].map((s) => (
-              <div
-                key={s}
-                className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors ${
-                  step === s
-                    ? "bg-red-600 text-white"
-                    : step > s
-                    ? "bg-red-600/30 text-red-300"
-                    : "bg-gray-700 text-gray-400"
-                }`}
-              >
-                {s}
-              </div>
-            ))}
+        {/* Step Indicator - hide on success */}
+        {step < 3 && (
+          <div className="px-6 pt-4">
+            <div className="flex items-center justify-center gap-2 mb-4">
+              {[1, 2].map((s) => (
+                <div
+                  key={s}
+                  className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors ${
+                    step === s
+                      ? "bg-red-600 text-white"
+                      : step > s
+                      ? "bg-red-600/30 text-red-300"
+                      : "bg-gray-700 text-gray-400"
+                  }`}
+                >
+                  {s}
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Step 1: Info */}
         {step === 1 && (
@@ -1570,6 +1673,47 @@ function DeleteHistoryModal({ onClose, onConfirm }) {
                   </>
                 )}
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* Step 3: Success */}
+        {step === 3 && (
+          <div className="p-6">
+            <div className="text-center py-6">
+              <div className="mx-auto w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mb-4">
+                <CheckCircle className="h-8 w-8 text-green-400" />
+              </div>
+              <h4 className="text-xl font-semibold text-gray-100 mb-2">Historical Data Deleted Successfully</h4>
+              <p className="text-gray-400 mb-6">
+                All your historical portfolio snapshots and balance tracking data have been removed.
+              </p>
+              <div className="bg-amber-900/20 border border-amber-700/50 rounded-lg p-4 mb-6">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="h-5 w-5 text-amber-400 flex-shrink-0 mt-0.5" />
+                  <div className="text-left">
+                    <p className="text-amber-300 text-sm font-medium">Please refresh the page</p>
+                    <p className="text-amber-200/70 text-xs mt-1">
+                      To see the updated data throughout the app, please refresh the page.
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div className="flex gap-3 justify-center">
+                <button
+                  onClick={onClose}
+                  className="px-4 py-2 bg-gray-700 text-gray-200 rounded-lg hover:bg-gray-600 transition-colors"
+                >
+                  Close
+                </button>
+                <button
+                  onClick={handleRefreshPage}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors inline-flex items-center"
+                >
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Refresh Page
+                </button>
+              </div>
             </div>
           </div>
         )}
