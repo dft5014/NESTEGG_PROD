@@ -61,7 +61,7 @@ const Sidebar = () => {
   // Current route
   const isActive = (path) => router.pathname === path || router.pathname.startsWith(`${path}/`);
 
-  // ORDER: Dashboard, Accounts, Positions, Liabilities, Mobile App, **Command Center**, **Planning**
+  // ORDER: Dashboard, Accounts, Positions, Liabilities, Mobile App, Profile, **Command Center**, **Planning**
   const menuItems = [
     {
       href: "/portfolio",
@@ -92,6 +92,12 @@ const Sidebar = () => {
       label: "Mobile App",
       icon: <Smartphone className="w-5 h-5" />,
       description: "iOS/Android setup, features, and install"
+    },
+    {
+      href: "/profile",
+      label: "Profile",
+      icon: <User className="w-5 h-5" />,
+      description: "Manage your account, subscription, and data"
     },
     // Premium items grouped together at the bottom
     {
