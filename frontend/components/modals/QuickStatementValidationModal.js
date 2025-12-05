@@ -654,14 +654,6 @@ const QuickStatementValidationModal = ({ isOpen, onClose }) => {
 
   const loading = accountsLoading || summaryLoading || positionsLoading;
 
-  // Debug: Log accounts to verify data
-  useEffect(() => {
-    if (accounts && accounts.length > 0) {
-      console.log('Accounts loaded:', accounts.length);
-      console.log('Sample account:', accounts[0]);
-    }
-  }, [accounts]);
-
   // Group accounts by institution
   const accountsByInstitution = useMemo(() => {
     const grouped = new Map();

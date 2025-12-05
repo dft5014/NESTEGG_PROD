@@ -370,7 +370,6 @@ export default function AddPositionsModalV2({ isOpen, onClose, onSuccess, seedPo
     saveTimeoutRef.current = setTimeout(() => {
       try {
         localStorage.setItem('positions_draft_v2', JSON.stringify(state.positions));
-        console.log('💾 Draft auto-saved');
       } catch (e) {
         console.error('Failed to save draft:', e);
       }
@@ -494,8 +493,6 @@ export default function AddPositionsModalV2({ isOpen, onClose, onSuccess, seedPo
       });
 
       if (needsHydration.length === 0) return;
-
-      console.log(`💧 Hydrating ${needsHydration.length} positions...`);
 
       for (const pos of needsHydration) {
         try {

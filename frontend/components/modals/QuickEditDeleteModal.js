@@ -1709,16 +1709,6 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
     // Get additional actions from DataStore for refreshing related data
     const { actions } = useDataStore();
 
-    // Debug: Log the first account to see field names
-    useEffect(() => {
-      if (dataStoreAccounts && dataStoreAccounts.length > 0) {
-        console.log('Account fields from data store:', {
-          firstAccount: dataStoreAccounts[0],
-          fieldNames: Object.keys(dataStoreAccounts[0])
-        });
-      }
-    }, [dataStoreAccounts]);
-
     const { 
       positions: dataStorePositions, 
       loading: positionsLoading, 
@@ -1805,18 +1795,12 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
 
     const loadLiabilities = useCallback(() => {
       if (dataStoreLiabilities && Array.isArray(dataStoreLiabilities)) {
-        console.log('Loading liabilities from dataStore:', dataStoreLiabilities);
-        
         // Map individual liabilities with proper ID field from liability_details
         const unifiedLiabilities = dataStoreLiabilities.map(liability => {
           // Extract the liability_id from the liability_details JSON object
           const liabilityDetails = liability.liability_details || {};
           const liabilityId = liabilityDetails.liability_id || liabilityDetails.item_id;
-          
-          if (!liabilityId) {
-            console.warn('No ID found for liability:', liability.name, 'Details:', liabilityDetails);
-          }
-          
+
           return {
             id: liabilityId,  // Get ID from the details object
             name: liability.name,
@@ -1831,8 +1815,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
             notes: liability.notes || ''
           };
         });
-        
-        console.log('Unified liabilities with IDs:', unifiedLiabilities);
+
         setLiabilities(unifiedLiabilities);
         setFilteredLiabilities(unifiedLiabilities);
       }
@@ -2111,28 +2094,15 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
 
       // Positive filtering - show ONLY selected items when filters are active
       if (selectedCategories.size > 0) {
-        filtered = filtered.filter(acc => {
-          const matches = selectedCategories.has(acc.category);
-          console.log('Category filter:', acc.name, acc.category, 'matches:', matches);
-          console.log('Selected categories Set:', Array.from(selectedCategories));
-          return matches;
-        });
+        filtered = filtered.filter(acc => selectedCategories.has(acc.category));
       }
 
       if (selectedInstitutionFilter.size > 0) {
-        filtered = filtered.filter(acc => {
-          const matches = selectedInstitutionFilter.has(acc.institution);
-          console.log('Institution filter:', acc.name, acc.institution, 'matches:', matches);
-          return matches;
-        });
+        filtered = filtered.filter(acc => selectedInstitutionFilter.has(acc.institution));
       }
 
       if (selectedAccountTypes.size > 0) {
-        filtered = filtered.filter(acc => {
-          const matches = selectedAccountTypes.has(acc.type);
-          console.log('Type filter:', acc.name, acc.type, 'matches:', matches);
-          return matches;
-        });
+        filtered = filtered.filter(acc => selectedAccountTypes.has(acc.type));
       }
       if (sortConfig.key) {
         filtered.sort((a, b) => {
@@ -2333,9 +2303,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
         
         // Use the item_id directly - it's already available
         const positionId = updatedPosition.item_id;
-        
-        console.log('Updating position with item_id:', positionId);
-        
+
         // Normalize asset type for other assets
         let assetType = updatedPosition.asset_type;
         if (assetType === 'other_asset' || 
@@ -2405,9 +2373,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
                 console.error('Unknown asset type:', updatedPosition.asset_type);
                 throw new Error(`Unsupported asset type: ${updatedPosition.asset_type}`);
             }
-            
-            console.log(`Sending ${updatedPosition.asset_type} update data:`, updateData);
-            
+
             await updatePosition(positionId, updateData, updatedPosition.asset_type);
           }
         

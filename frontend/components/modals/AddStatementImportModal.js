@@ -215,14 +215,6 @@ const categorizeImportedPositions = (importedRows, existingPositions, columnMapp
     }
   });
 
-  console.log('[categorizeImportedPositions] Aggregated existing positions:',
-    Object.entries(existingByTicker).map(([ticker, data]) => ({
-      ticker,
-      totalShares: data.totalShares,
-      lotCount: data.lots.length
-    }))
-  );
-
   // Process each imported row
   importedRows.forEach((row, index) => {
     const ticker = (row[columnMappings.symbol] || '').toString().toUpperCase().trim();
@@ -1572,36 +1564,13 @@ const AddStatementImportModal = ({ isOpen, onClose }) => {
     refresh: refreshAccounts
   } = useAccounts();
 
-  // DEBUG: Log accounts data
-  useEffect(() => {
-    console.log('[AddStatementImportModal] Accounts Debug:', {
-      existingAccounts,
-      isLoadingAccounts,
-      accountsError,
-      lastFetched,
-      isOpen,
-      currentStep,
-      existingAccountsLength: existingAccounts?.length,
-      existingAccountsIsArray: Array.isArray(existingAccounts),
-      firstAccount: existingAccounts?.[0]
-    });
-  }, [existingAccounts, isLoadingAccounts, accountsError, lastFetched, isOpen, currentStep]);
-
   // Bootstrap fetch exactly once if we've never fetched accounts yet
   const bootstrapRef = useRef(false);
   useEffect(() => {
-    console.log('[AddStatementImportModal] Bootstrap check:', {
-      isOpen,
-      bootstrapRefCurrent: bootstrapRef.current,
-      isLoadingAccounts,
-      lastFetched
-    });
-
     if (!isOpen) return; // don't run when modal is closed
     if (bootstrapRef.current) return;
     // Only trigger if we have NEVER fetched accounts in this session
     if (!isLoadingAccounts && lastFetched == null) {
-      console.log('[AddStatementImportModal] Triggering refreshAccounts()');
       bootstrapRef.current = true;
       refreshAccounts();
     }
@@ -1611,39 +1580,17 @@ const AddStatementImportModal = ({ isOpen, onClose }) => {
   // Filter accounts to only brokerage, retirement, and crypto
   const filteredAccounts = useMemo(() => {
     const accounts = Array.isArray(existingAccounts) ? existingAccounts : [];
-    console.log('[AddStatementImportModal] Filtering accounts:', {
-      totalAccounts: accounts.length,
-      accountTypes: accounts.map(a => ({ id: a.id, name: a.name, type: a.type, category: a.category }))
-    });
 
-    const filtered = accounts.filter(acc => {
+    return accounts.filter(acc => {
       // Use 'category' field (not 'type') - category is brokerage/retirement/crypto
       // 'type' contains specific types like 'Traditional IRA', 'Roth IRA', etc.
       const accountCategory = (acc?.category || '').toLowerCase();
-      const isMatch = (
+      return (
         accountCategory === 'brokerage' ||
         accountCategory === 'retirement' ||
         accountCategory === 'cryptocurrency'
       );
-
-      console.log('[AddStatementImportModal] Account filter:', {
-        id: acc.id,
-        name: acc.name,
-        type: acc.type,
-        category: acc.category,
-        accountCategory,
-        isMatch
-      });
-
-      return isMatch;
     });
-
-    console.log('[AddStatementImportModal] Filtered accounts:', {
-      filteredCount: filtered.length,
-      filteredAccounts: filtered.map(a => ({ id: a.id, name: a.name, type: a.type, category: a.category }))
-    });
-
-    return filtered;
   }, [existingAccounts]);
 
   // Handle file selection - now uses header row detection
@@ -1812,15 +1759,6 @@ const AddStatementImportModal = ({ isOpen, onClose }) => {
       const positions = await fetchPositions(selectedAccount);
       setExistingPositions(positions);
 
-      console.log('[AddStatementImportModal] Fetched account positions (tax lots):', {
-        count: positions.length,
-        sample: positions.slice(0, 5).map(p => ({
-          ticker: p.ticker,
-          shares: p.shares,
-          id: p.id
-        }))
-      });
-
       // Aggregate all imported rows from all files
       const allImportedRows = parsedData.flatMap(fileData => fileData.data);
 
@@ -1837,13 +1775,6 @@ const AddStatementImportModal = ({ isOpen, onClose }) => {
       setSelectedNew(new Set(categorized.new.map(item => item.index)));
       // Don't auto-select differs - let user decide
       setSelectedDiffers(new Set());
-
-      console.log('[AddStatementImportModal] Insights loaded:', {
-        existingPositions: positions.length,
-        new: categorized.new.length,
-        differs: categorized.differs.length,
-        matches: categorized.matches.length
-      });
     } catch (error) {
       console.error('[AddStatementImportModal] Error loading insights:', error);
       toast.error('Failed to analyze positions. Please try again.');
@@ -1903,8 +1834,6 @@ const AddStatementImportModal = ({ isOpen, onClose }) => {
         }
 
         if (newPositionsToAdd.length > 0) {
-          console.log('[AddStatementImportModal] Adding new positions:', newPositionsToAdd.length);
-          console.log('[AddStatementImportModal] Sample validated position:', newPositionsToAdd[0]);
           try {
             await addSecurityPositionBulk(selectedAccount, newPositionsToAdd);
             addedCount = newPositionsToAdd.length;
@@ -1959,12 +1888,6 @@ const AddStatementImportModal = ({ isOpen, onClose }) => {
           }
         }
       }
-
-      console.log('[AddStatementImportModal] Import complete:', {
-        added: addedCount,
-        updated: updatedCount,
-        failed: failedCount
-      });
 
       setImportResults({
         success: failedCount === 0,
@@ -2069,12 +1992,6 @@ const AddStatementImportModal = ({ isOpen, onClose }) => {
         );
 
       case 2:
-        console.log('[AddStatementImportModal] Rendering step 2 (account selection):', {
-          isLoadingAccounts,
-          filteredAccountsLength: filteredAccounts.length,
-          filteredAccounts: filteredAccounts.map(a => ({ id: a.id, name: a.name, type: a.type, category: a.category }))
-        });
-
         // Handler for when a new account is created
         const handleAccountCreated = async (newAccount) => {
           setShowCreateAccount(false);
