@@ -107,9 +107,14 @@ const tutorialSections = [
           title: 'Track Liabilities',
           description: 'Don\'t forget the other side of your balance sheet. Add mortgages, credit cards, loans, and other debts to see your true net worth.',
           tip: 'Include credit card balances even if you pay them off monthly—it helps track spending patterns'
+        },
+        {
+          title: 'Bulk Entry with Excel Templates',
+          description: 'Need to add many accounts or positions at once? Download NestEgg\'s Excel templates for accounts or positions, fill them out offline, and upload for instant bulk creation.',
+          tip: 'Excel templates are perfect for initial setup when migrating from another tool or entering historical data'
         }
       ],
-      whenToUse: 'Use the Add button when you\'re setting up NestEgg for the first time, opening a new account, or purchasing new investments.'
+      whenToUse: 'Use the Add button when you\'re setting up NestEgg for the first time, opening a new account, purchasing new investments, or bulk importing via Excel templates.'
     }
   },
   {
@@ -149,25 +154,30 @@ const tutorialSections = [
     content: {
       headline: 'The Update Button: Refresh Your Numbers',
       buttonLocation: 'Located in the navigation bar with a cyan refresh icon',
-      description: `The Update button provides quick access to refresh market prices and update manual balances. It's designed for fast, routine maintenance of your portfolio data.`,
+      description: `The Update button provides quick access to refresh market prices and update manual balances. Regular updates are essential—NestEgg captures snapshots of your portfolio over time, and consistent updates ensure your historical trends and performance charts accurately reflect your financial journey.`,
       features: [
         {
           title: 'Refresh Market Prices',
           description: 'Pull the latest stock, ETF, crypto, and commodity prices from market data providers. This updates the current value of all your market-priced holdings.',
-          tip: 'Market prices update automatically throughout the day, but you can force a refresh anytime'
+          tip: 'Market prices update automatically, but manual refresh ensures you see the latest before making decisions'
         },
         {
           title: 'Update Manual Balances',
-          description: 'For cash accounts, real estate, and other non-market assets, quickly update current values without opening the full edit interface.',
-          tip: 'Update cash balances monthly or when you notice significant changes'
+          description: 'For cash accounts, real estate, and other non-market assets, quickly update current values without opening the full edit interface. These values don\'t update automatically, so regular manual updates are essential.',
+          tip: 'Set a monthly calendar reminder to update all manual balances—this keeps your net worth history accurate'
         },
         {
           title: 'Seed New Positions',
           description: 'When updating existing positions reveals new holdings, you can quickly add them to your portfolio from the update interface.',
           tip: 'Use this after dividend reinvestments create fractional shares'
+        },
+        {
+          title: 'Why Frequency Matters',
+          description: 'NestEgg records daily snapshots of your portfolio. If manual balances go weeks without updates, your historical charts and trend analysis will show stale data. Monthly updates at minimum ensure your wealth tracking remains meaningful.',
+          tip: 'The more frequently you update, the more accurate your "Net Worth Over Time" charts will be'
         }
       ],
-      whenToUse: 'Use the Update button daily or weekly to keep your portfolio values current, especially before reviewing performance.'
+      whenToUse: 'Update at least monthly, ideally weekly. Always update before reviewing performance reports or making financial decisions based on your NestEgg data.'
     }
   },
   {
@@ -205,19 +215,29 @@ const tutorialSections = [
     icon: Upload,
     color: 'amber',
     content: {
-      headline: 'The Import Button: Bulk Data Entry',
+      headline: 'The Import Button: Smart Statement Processing',
       buttonLocation: 'Located in the navigation bar with an amber upload icon',
-      description: `The Import button lets you upload brokerage statements or spreadsheets to automatically populate your positions. This dramatically speeds up initial setup and ongoing maintenance.`,
+      description: `The Import button is your Swiss Army knife for statement data. Upload brokerage statements or spreadsheets and NestEgg intelligently determines what to do—whether you're adding brand new positions, updating existing balances, or reconciling your current holdings against a statement. It adapts to your needs automatically.`,
       features: [
         {
-          title: 'Statement Parsing',
-          description: 'Upload CSV or Excel files exported from your brokerage. NestEgg recognizes common formats and extracts position data automatically.',
-          tip: 'Most brokerages offer CSV export in their "Download" or "Export" menus'
+          title: 'Smart Detection',
+          description: 'NestEgg analyzes your uploaded statement and compares it against your existing data. It automatically identifies which positions are new (to be added), which already exist (to be updated), and flags any discrepancies for your review.',
+          tip: 'The same import tool works whether you have zero positions or hundreds—it figures out what needs to happen'
         },
         {
-          title: 'Bulk Position Entry',
-          description: 'Import dozens or hundreds of positions at once, complete with quantities, prices, and cost basis information when available.',
-          tip: 'Review parsed data before confirming—column mapping sometimes needs adjustment'
+          title: 'Add New Positions',
+          description: 'When importing positions that don\'t exist in NestEgg yet, they\'re queued for creation. Perfect for initial setup or when you\'ve opened new holdings.',
+          tip: 'Great for setting up a new account—import the statement and all positions are created at once'
+        },
+        {
+          title: 'Update Existing Balances',
+          description: 'For positions that already exist, import can update quantities and values to match your statement. This is a fast way to sync your data monthly without manual edits.',
+          tip: 'Use this monthly when you receive statements—one upload keeps everything current'
+        },
+        {
+          title: 'Reconcile & Validate',
+          description: 'Import also serves as a validation tool. See side-by-side comparisons of what your statement shows versus what NestEgg has, helping you catch and correct any differences.',
+          tip: 'This is especially useful for catching missed transactions or data entry errors'
         },
         {
           title: 'Template Support',
@@ -225,7 +245,7 @@ const tutorialSections = [
           tip: 'Download the template, fill in your data, and re-upload for clean imports'
         }
       ],
-      whenToUse: 'Use the Import button when setting up new accounts with many positions, or after receiving detailed statements you want to capture completely.'
+      whenToUse: 'Use Import anytime you have a statement file—for initial setup, monthly updates, or validating your data. It\'s versatile enough to handle all these scenarios from one interface.'
     }
   },
   {
