@@ -207,6 +207,25 @@ export default function AccountsPage() {
     }));
   }, [institutionBreakdown, portfolioSummary?.totalAssets]);
 
+  // Loading state - show spinner on initial load
+  if (isLoading && accounts.length === 0) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-950 to-slate-900 text-white flex items-center justify-center">
+        <Head>
+          <title>NestEgg - Accounts</title>
+        </Head>
+        <div className="text-center">
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+            className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full mx-auto mb-4"
+          />
+          <p className="text-gray-400 text-lg">Loading accounts...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-950 to-slate-900 text-white">
       <Head>

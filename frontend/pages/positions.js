@@ -5,8 +5,10 @@ import {
   DollarSign, TrendingUp, TrendingDown,
   Target, Flame, RefreshCw, Eye, EyeOff,
   BarChart3, LineChart, PieChart, ArrowUpRight,
-  Layers, Droplet, Shield, Wallet, Activity, Package
+  Layers, Droplet, Shield, Wallet, Activity, Package,
+  AlertCircle, Plus
 } from 'lucide-react';
+import Link from 'next/link';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from 'recharts';
@@ -169,6 +171,96 @@ export default function PositionsPage() {
     }
     return null;
   };
+
+  // Loading state - show spinner on initial load
+  if (isLoading && !hasPositions) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-950 to-slate-900 text-white flex items-center justify-center">
+        <Head>
+          <title>NestEgg - Positions</title>
+        </Head>
+        <div className="text-center">
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+            className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full mx-auto mb-4"
+          />
+          <p className="text-gray-400 text-lg">Loading positions...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Empty state - no positions
+  if (!isLoading && !hasPositions) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-950 to-slate-900 text-white">
+        <Head>
+          <title>NestEgg - Positions</title>
+          <meta name="description" content="Track your investment positions" />
+        </Head>
+
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          {/* Header */}
+          <header className="mb-8">
+            <div className="flex justify-between items-center">
+              <div>
+                <h1 className="text-3xl font-bold flex items-center gap-3">
+                  <BarChart3 className="w-8 h-8 text-indigo-400" />
+                  Your Positions
+                </h1>
+                <p className="text-gray-400 mt-2">
+                  Track performance across all your investments
+                </p>
+              </div>
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={handleRefresh}
+                disabled={isLoading}
+                className="p-2 rounded-lg bg-gray-800/50 hover:bg-gray-700/50 transition-colors disabled:opacity-50"
+              >
+                <RefreshCw className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
+              </motion.button>
+            </div>
+          </header>
+
+          {/* Empty State Content */}
+          <div className="max-w-2xl mx-auto text-center py-16">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5 }}
+            >
+              <div className="inline-flex items-center justify-center w-24 h-24 bg-indigo-500/20 rounded-full mb-6">
+                <Layers className="w-12 h-12 text-indigo-400" />
+              </div>
+              <h2 className="text-2xl font-bold mb-3">No Positions Yet</h2>
+              <p className="text-gray-400 text-lg mb-8 max-w-md mx-auto">
+                Start tracking your investments by adding positions to your accounts.
+              </p>
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+                <Link
+                  href="/accounts"
+                  className="inline-flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 rounded-xl text-white font-medium transition-colors"
+                >
+                  <Plus className="w-5 h-5" />
+                  Add Positions
+                </Link>
+                <Link
+                  href="/tutorial"
+                  className="inline-flex items-center gap-2 px-6 py-3 bg-gray-800 hover:bg-gray-700 rounded-xl text-gray-300 hover:text-white font-medium transition-colors"
+                >
+                  <Target className="w-5 h-5" />
+                  View Tutorial
+                </Link>
+              </div>
+            </motion.div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>

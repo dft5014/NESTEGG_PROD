@@ -804,6 +804,23 @@ const FinancialPlanning = () => {
     </div>
   );
 
+  // Loading state - show spinner on initial load
+  const isLoading = portfolioLoading || trendsLoading;
+  if (isLoading && !summary) {
+    return (
+      <div className="min-h-screen bg-gray-950 text-white flex items-center justify-center">
+        <div className="text-center">
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+            className="w-12 h-12 border-4 border-purple-500 border-t-transparent rounded-full mx-auto mb-4"
+          />
+          <p className="text-gray-400 text-lg">Loading planning tools...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <Protect
       condition={(has) => has({ feature: 'feature_dynamic_planning' })}
