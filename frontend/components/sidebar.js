@@ -366,9 +366,9 @@ const Sidebar = () => {
                     },
                   }}
                 />
-                
+
                 {!sidebarCollapsed && (
-                  <div className="flex flex-col text-left">
+                  <Link href="/profile" className="flex flex-col text-left hover:opacity-80 transition-opacity">
                     <span className="text-sm font-medium">
                       {user?.firstName && user?.lastName
                         ? `${user.firstName} ${user.lastName}`
@@ -376,8 +376,8 @@ const Sidebar = () => {
                         ? user.firstName
                         : (user?.primaryEmailAddress?.emailAddress || 'User')}
                     </span>
-                    <span className="text-[11px] text-gray-400">Account</span>
-                  </div>
+                    <span className="text-[11px] text-gray-400">View Profile</span>
+                  </Link>
                 )}
               </div>
             </div>
@@ -390,12 +390,14 @@ const Sidebar = () => {
                 className="absolute left-20 ml-2 px-3 py-2 bg-gray-800 rounded-lg shadow-xl
                           border border-gray-700 whitespace-nowrap z-50"
               >
-                <p className="text-sm font-medium">
-                  {user?.firstName && user?.lastName
-                    ? `${user.firstName} ${user.lastName}`
-                    : user?.firstName || 'Account'}
-                </p>
-                <p className="text-xs text-gray-400 mt-1">{user?.primaryEmailAddress?.emailAddress}</p>
+                <Link href="/profile" className="block hover:text-blue-400 transition-colors">
+                  <p className="text-sm font-medium">
+                    {user?.firstName && user?.lastName
+                      ? `${user.firstName} ${user.lastName}`
+                      : user?.firstName || 'Account'}
+                  </p>
+                  <p className="text-xs text-gray-400 mt-1">View Profile</p>
+                </Link>
               </motion.div>
             )}
           </motion.div>
