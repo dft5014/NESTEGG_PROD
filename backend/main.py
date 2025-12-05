@@ -1478,6 +1478,187 @@ async def update_notification_preferences(
         logger.error(f"Error updating notification preferences: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to update notification preferences")
 
+# ----- USER DATA MANAGEMENT (BULK DELETE) -----
+# These endpoints allow users to delete their own data in bulk
+
+class BulkDeletePositionsRequest(BaseModel):
+    """Request body for bulk position deletion"""
+    position_types: List[str]  # securities, cash, crypto, metals, realestate, otherassets, liabilities
+
+@app.delete("/user/data/positions")
+async def bulk_delete_positions(
+    request: BulkDeletePositionsRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Delete positions by type for the current user.
+
+    Supported types: securities, cash, crypto, metals, realestate, otherassets, liabilities
+    """
+    try:
+        user_id = current_user["id"]
+        deleted_counts = {}
+
+        # Map of type names to table/query info
+        type_mapping = {
+            "securities": {
+                "table": "positions",
+                "join_accounts": True,
+                "id_field": "id"
+            },
+            "cash": {
+                "table": "cash_positions",
+                "join_accounts": True,
+                "id_field": "id"
+            },
+            "crypto": {
+                "table": "crypto_positions",
+                "join_accounts": True,
+                "id_field": "id"
+            },
+            "metals": {
+                "table": "metal_positions",
+                "join_accounts": True,
+                "id_field": "id"
+            },
+            "realestate": {
+                "table": "real_estate_positions",
+                "join_accounts": True,
+                "id_field": "id"
+            },
+            "otherassets": {
+                "table": "other_assets",
+                "join_accounts": False,  # Has user_id directly
+                "id_field": "id"
+            },
+            "liabilities": {
+                "table": "liabilities",
+                "join_accounts": False,  # Has user_id directly
+                "id_field": "id"
+            }
+        }
+
+        for pos_type in request.position_types:
+            pos_type_lower = pos_type.lower()
+            if pos_type_lower not in type_mapping:
+                logger.warning(f"Unknown position type requested for deletion: {pos_type}")
+                continue
+
+            config = type_mapping[pos_type_lower]
+            table_name = config["table"]
+
+            if config["join_accounts"]:
+                # Delete via join with accounts table
+                delete_query = f"""
+                    DELETE FROM {table_name}
+                    WHERE account_id IN (
+                        SELECT id FROM accounts WHERE user_id = :user_id
+                    )
+                """
+            else:
+                # Direct delete via user_id
+                delete_query = f"""
+                    DELETE FROM {table_name}
+                    WHERE user_id = :user_id
+                """
+
+            result = await database.execute(query=delete_query, values={"user_id": user_id})
+            deleted_counts[pos_type_lower] = result if result else 0
+            logger.info(f"User {user_id} deleted {result} {pos_type_lower} positions")
+
+        return {
+            "message": "Positions deleted successfully",
+            "deleted_counts": deleted_counts
+        }
+    except Exception as e:
+        logger.error(f"Error in bulk delete positions: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to delete positions: {str(e)}")
+
+
+class BulkDeleteAccountsRequest(BaseModel):
+    """Request body for bulk account deletion"""
+    include_positions: bool = True  # Whether to also delete positions (they cascade anyway)
+
+@app.delete("/user/data/accounts")
+async def bulk_delete_accounts(
+    request: BulkDeleteAccountsRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Delete all accounts for the current user.
+    Positions will cascade delete automatically.
+    Also deletes other_assets and liabilities which are tied to user_id directly.
+    """
+    try:
+        user_id = current_user["id"]
+        deleted_counts = {}
+
+        # First, delete other_assets and liabilities (not tied to accounts)
+        if request.include_positions:
+            # Delete other_assets
+            other_assets_query = "DELETE FROM other_assets WHERE user_id = :user_id"
+            other_result = await database.execute(query=other_assets_query, values={"user_id": user_id})
+            deleted_counts["other_assets"] = other_result if other_result else 0
+
+            # Delete liabilities
+            liabilities_query = "DELETE FROM liabilities WHERE user_id = :user_id"
+            liabilities_result = await database.execute(query=liabilities_query, values={"user_id": user_id})
+            deleted_counts["liabilities"] = liabilities_result if liabilities_result else 0
+
+        # Delete all accounts (positions will cascade)
+        accounts_query = "DELETE FROM accounts WHERE user_id = :user_id"
+        accounts_result = await database.execute(query=accounts_query, values={"user_id": user_id})
+        deleted_counts["accounts"] = accounts_result if accounts_result else 0
+
+        logger.info(f"User {user_id} deleted all accounts: {deleted_counts}")
+
+        return {
+            "message": "All accounts deleted successfully",
+            "deleted_counts": deleted_counts
+        }
+    except Exception as e:
+        logger.error(f"Error in bulk delete accounts: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to delete accounts: {str(e)}")
+
+
+@app.delete("/user/data/history")
+async def bulk_delete_history(
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Delete all historical portfolio data for the current user.
+    This removes data from rept_all_items_net_worth_history table.
+    Current positions and accounts remain intact.
+    """
+    try:
+        user_id = current_user["id"]
+        deleted_counts = {}
+
+        # Delete from rept_all_items_net_worth_history
+        history_query = "DELETE FROM rept_all_items_net_worth_history WHERE user_id = :user_id"
+        history_result = await database.execute(query=history_query, values={"user_id": user_id})
+        deleted_counts["history_records"] = history_result if history_result else 0
+
+        # Also delete from portfolio_snapshots if it exists
+        try:
+            snapshots_query = "DELETE FROM portfolio_snapshots WHERE user_id = :user_id"
+            snapshots_result = await database.execute(query=snapshots_query, values={"user_id": user_id})
+            deleted_counts["portfolio_snapshots"] = snapshots_result if snapshots_result else 0
+        except Exception as snapshot_err:
+            logger.warning(f"Could not delete from portfolio_snapshots: {snapshot_err}")
+            deleted_counts["portfolio_snapshots"] = 0
+
+        logger.info(f"User {user_id} deleted historical data: {deleted_counts}")
+
+        return {
+            "message": "Historical data deleted successfully",
+            "deleted_counts": deleted_counts
+        }
+    except Exception as e:
+        logger.error(f"Error in bulk delete history: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to delete historical data: {str(e)}")
+
+
 # ----- ACCOUNT MANAGEMENT  -----
 # MANAGES ACCOUNTS FOR EACH USER AND PROVIDES ABILITY TO EXTRACT
 # Account Management
