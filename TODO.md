@@ -1,6 +1,6 @@
 # NestEgg TODO List
 
-**Last Updated:** 2025-12-04
+**Last Updated:** 2025-12-05
 
 This document tracks all outstanding tasks, improvements, and known issues for the NestEgg project. This list should be reviewed and updated regularly by Claude Code sessions as work progresses or new issues are identified.
 
@@ -47,6 +47,22 @@ This document tracks all outstanding tasks, improvements, and known issues for t
   - [ ] Add tooltips or guided tour for first-time users
   - [ ] Test password reset flow
   - [ ] Review and improve error messages
+
+### Data Management Backend (Profile Page)
+- [ ] **Implement bulk data deletion APIs**
+  - UI already complete in `frontend/pages/profile.js` (Manage Data tab)
+  - [ ] Create endpoint `DELETE /user/positions/bulk` for deleting positions by type
+    - Accept array of position types: securities, cash, crypto, metals, realestate, otherassets, liabilities
+    - Delete all positions of selected types for the authenticated user
+  - [ ] Create endpoint `DELETE /user/accounts/all` for deleting all accounts
+    - Cascade delete to all associated positions
+    - Optional query param to preserve positions
+  - [ ] Create endpoint `DELETE /user/history` for deleting historical snapshots
+    - Delete all portfolio_snapshots for the user
+    - Keep current positions and accounts intact
+  - [ ] Add proper authorization checks (user can only delete their own data)
+  - [ ] Add audit logging for data deletion events
+  - [ ] Consider soft-delete with grace period for recovery
 
 ---
 
@@ -372,6 +388,25 @@ When a bug is discovered, add it to the "Known Bugs" section with:
 ## ✅ Completed Tasks
 
 *Move completed items here to track progress while keeping the main list focused*
+
+### 2025-12-05: Profile Page Production Optimization
+- [x] Removed placeholder data (random loginStreak, fake notification save)
+- [x] Removed Developer tab (debug-only, not production appropriate)
+- [x] Replaced with "Manage Data" tab for user data management
+- [x] Updated Portfolio Stats sidebar with real data metrics
+- [x] Fixed notification save to use actual API call
+- [x] Cleaned up Settings tab (removed non-functional toggle checkboxes)
+- [x] Added comprehensive "Manage Data" section with:
+  - Data summary showing accounts, positions, securities, liabilities
+  - Delete Positions by type (securities, cash, crypto, metals, real estate, other assets, liabilities)
+  - Delete All Accounts option
+  - Delete Historical Data option
+- [x] Implemented multi-step confirmation modals with:
+  - Step indicators for progress
+  - Type-to-confirm safety (e.g., "DELETE MY DATA", "DELETE ALL ACCOUNTS", "DELETE HISTORY")
+  - Clear warnings about what will be deleted
+  - Back buttons at each step
+- Note: Backend APIs for data deletion still need implementation (documented above)
 
 ### 2025-11-26: Full UI Review
 - [x] Reviewed all main pages (portfolio, accounts, positions, liabilities)
