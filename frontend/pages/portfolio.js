@@ -52,13 +52,18 @@ const sectorColors = {
 // -----------------------------------------------------------------------------
 // Utilities
 // -----------------------------------------------------------------------------
-const formatCurrency = (value, inThousands = false) => {
+const formatCurrency = (value, displayFormat = 'full') => {
   if (value === null || value === undefined) return '—';
   const v = Number(value) || 0;
-  if (inThousands) {
+  if (displayFormat === 'k' || displayFormat === true) {
     return `$${(v / 1_000).toLocaleString('en-US', {
       minimumFractionDigits: 1, maximumFractionDigits: 1,
     })}k`;
+  }
+  if (displayFormat === 'M') {
+    return `$${(v / 1_000_000).toLocaleString('en-US', {
+      minimumFractionDigits: 2, maximumFractionDigits: 2,
+    })}M`;
   }
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(v);
 };
@@ -238,7 +243,7 @@ export default function Portfolio() {
   useDataStore();
 
   const [timeframe, setTimeframe] = useState('1m');
-  const [showInThousands, setShowInThousands] = useState(true);
+  const [displayFormat, setDisplayFormat] = useState('k'); // 'full', 'k', or 'M'
 
   // Secondary performance rail: which metric are we evaluating?
   const [perfMetric, setPerfMetric] = useState('altLiquidNetWorth');
@@ -631,12 +636,19 @@ export default function Portfolio() {
             const mini = sliceForPeriod(chartData, id);
             // existing summary.periodChanges keeps netWorth deltas
             const p = periodChanges?.[id] || {};
+            // Get the ending balance from the chart data
+            const endingBalance = mini.length > 0 ? mini[mini.length - 1]?.value : netWorth;
             return (
               <motion.div key={id} whileHover={{ y: -2 }} className="bg-gray-900/70 border border-gray-800 rounded-2xl p-3 flex items-center justify-between">
                 <div>
                   <p className="text-xs text-gray-400">{label}</p>
-                  <p className="text-sm font-semibold">{formatCurrency(p?.netWorth || 0)}</p>
-                  <Delta value={toFrac(p?.netWorthPercent)} />
+                  <p className="text-base font-semibold text-gray-100">{formatCurrency(endingBalance || 0)}</p>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className={`text-xs font-medium ${(p?.netWorth || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      {(p?.netWorth || 0) >= 0 ? '+' : ''}{formatCurrency(p?.netWorth || 0)}
+                    </span>
+                    <Delta value={toFrac(p?.netWorthPercent)} />
+                  </div>
                 </div>
                 <Sparkline data={mini} dataKey="value" />
               </motion.div>
@@ -690,13 +702,20 @@ export default function Portfolio() {
               deltaPct = computed.deltaPct;
             }
 
+            // Get the ending balance from the chart data
+            const endingBalance = mini.length > 0 ? Number(mini[mini.length - 1]?.[perfMetric] ?? 0) : (summary?.[perfMetric] || 0);
+
             return (
               <motion.div key={id} whileHover={{ y: -2 }} className="bg-gray-900/70 border border-gray-800 rounded-2xl p-3 flex items-center justify-between">
                 <div>
                   <p className="text-xs text-gray-400">{label}</p>
-                  {/* Show CHANGE (Δ) instead of ending absolute value */}
-                  <p className="text-sm font-semibold">{formatCurrency(deltaAmt)}</p>
-                  <Delta value={deltaPct} />
+                  <p className="text-base font-semibold text-gray-100">{formatCurrency(endingBalance || 0)}</p>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className={`text-xs font-medium ${deltaAmt >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      {deltaAmt >= 0 ? '+' : ''}{formatCurrency(deltaAmt)}
+                    </span>
+                    <Delta value={deltaPct} />
+                  </div>
                 </div>
                 <Sparkline
                   data={mini.map(r => ({ date: r.date, value: Number(r?.[perfMetric] ?? 0) }))}
@@ -866,9 +885,16 @@ export default function Portfolio() {
               title="Net Worth Mix"
               icon={<PieChartIcon className="h-5 w-5 text-indigo-300" />}
               right={
-                <button onClick={() => setShowInThousands((s) => !s)} className="text-xs px-2 py-1 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300">
-                  {showInThousands ? 'Show $' : 'Show k'}
-                </button>
+                <select
+                  value={displayFormat}
+                  onChange={(e) => setDisplayFormat(e.target.value)}
+                  className="text-xs bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-gray-300 hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                  aria-label="Select display format"
+                >
+                  <option value="full">$</option>
+                  <option value="k">K</option>
+                  <option value="M">M</option>
+                </select>
               }>
               <div className="h-56">
                 <ResponsiveContainer width="100%" height="100%">
@@ -896,18 +922,18 @@ export default function Portfolio() {
                     <div key={i} className="grid grid-cols-12 gap-2 px-2 py-2 rounded hover:bg-gray-800/40">
                       <div className="col-span-4 flex items-center gap-2"><span className="inline-block w-2.5 h-2.5 rounded-full" style={{ background: row.color }} /> <span className="text-sm text-gray-200">{row.name}</span></div>
                       <div className="col-span-2 text-right text-indigo-300 text-sm">{row.pct.toFixed(1)}%</div>
-                      <div className="col-span-2 text-right text-white text-sm">{formatCurrency(row.value, showInThousands)}</div>
-                      <div className="col-span-2 text-right text-emerald-300 text-sm">{formatCurrency(d?.assets || 0, showInThousands)}</div>
-                      <div className="col-span-2 text-right text-rose-300 text-sm">{formatCurrency(d?.liabilities || 0, showInThousands)}</div>
+                      <div className="col-span-2 text-right text-white text-sm">{formatCurrency(row.value, displayFormat)}</div>
+                      <div className="col-span-2 text-right text-emerald-300 text-sm">{formatCurrency(d?.assets || 0, displayFormat)}</div>
+                      <div className="col-span-2 text-right text-rose-300 text-sm">{formatCurrency(d?.liabilities || 0, displayFormat)}</div>
                     </div>
                   );
                 })}
                 <div className="border-t border-gray-800 mt-2 pt-2 grid grid-cols-12 gap-2 px-2 text-sm">
                   <div className="col-span-4 font-semibold">Total</div>
                   <div className="col-span-2 text-right text-indigo-300">100%</div>
-                  <div className="col-span-2 text-right text-white">{formatCurrency(netWorth, showInThousands)}</div>
-                  <div className="col-span-2 text-right text-emerald-300">{formatCurrency(totalAssets, showInThousands)}</div>
-                  <div className="col-span-2 text-right text-rose-300">{formatCurrency(totalLiabilities, showInThousands)}</div>
+                  <div className="col-span-2 text-right text-white">{formatCurrency(netWorth, displayFormat)}</div>
+                  <div className="col-span-2 text-right text-emerald-300">{formatCurrency(totalAssets, displayFormat)}</div>
+                  <div className="col-span-2 text-right text-rose-300">{formatCurrency(totalLiabilities, displayFormat)}</div>
                 </div>
               </div>
             </Section>
@@ -960,7 +986,7 @@ export default function Portfolio() {
                   <InvestedRow
                     key={r.key}
                     {...r}
-                    showInThousands={showInThousands}
+                    displayFormat={displayFormat}
                     sparkData={sparkData}
                     onClick={() => { if (sparkData) { setModalAssetKey(r.key); setModalOpen(true); } }}
                   />
@@ -968,11 +994,11 @@ export default function Portfolio() {
               })}
               <div className="border-t border-gray-800 mt-2 pt-2 grid grid-cols-12 px-2 text-sm">
                 <div className="col-span-4 font-semibold">Total</div>
-                <div className="col-span-3 text-right text-indigo-300">{formatCurrency(summary?.totalAssets || 0, showInThousands)}</div>
-                <div className="col-span-3 text-right text-gray-300">{formatCurrency(summary?.totalCostBasis || 0, showInThousands)}</div>
+                <div className="col-span-3 text-right text-indigo-300">{formatCurrency(summary?.totalAssets || 0, displayFormat)}</div>
+                <div className="col-span-3 text-right text-gray-300">{formatCurrency(summary?.totalCostBasis || 0, displayFormat)}</div>
                 <div className="col-span-2 text-right">
                   <span className={`${(summary?.unrealizedGain || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'} font-medium`}>
-                    {formatCurrency(summary?.unrealizedGain || 0, showInThousands)} <span className="text-xs">({((summary?.unrealizedGainPercent || 0) * 100).toFixed(1)}%)</span>
+                    {formatCurrency(summary?.unrealizedGain || 0, displayFormat)} <span className="text-xs">({((summary?.unrealizedGainPercent || 0) * 100).toFixed(1)}%)</span>
                   </span>
                 </div>
               </div>
@@ -984,7 +1010,7 @@ export default function Portfolio() {
               assets={totalAssets}
               liabilities={totalLiabilities}
               netWorth={netWorth}
-              showInThousands={showInThousands}
+              displayFormat={displayFormat}
             />
 
             {/* Liquidity Analysis */}
@@ -1240,7 +1266,7 @@ function Row({ label, value }) {
   );
 }
 
-function NetWorthWidget({ assets=0, liabilities=0, netWorth=0, showInThousands=false }) {
+function NetWorthWidget({ assets=0, liabilities=0, netWorth=0, displayFormat='full' }) {
   // Calculate percentages relative to assets (the baseline)
   const liabilitiesPct = assets > 0 ? Math.min((liabilities / assets) * 100, 100) : 0;
   const netWorthPct = assets > 0 ? Math.max((netWorth / assets) * 100, 0) : 0;
@@ -1251,15 +1277,15 @@ function NetWorthWidget({ assets=0, liabilities=0, netWorth=0, showInThousands=f
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="p-4 rounded-xl bg-gray-900/70 border border-gray-800">
           <p className="text-xs text-gray-400">Total Assets</p>
-          <p className="mt-1 text-xl font-semibold text-emerald-300">{formatCurrency(assets, showInThousands)}</p>
+          <p className="mt-1 text-xl font-semibold text-emerald-300">{formatCurrency(assets, displayFormat)}</p>
         </div>
         <div className="p-4 rounded-xl bg-gray-900/70 border border-gray-800">
           <p className="text-xs text-gray-400">Total Liabilities</p>
-          <p className="mt-1 text-xl font-semibold text-rose-300">-{formatCurrency(Math.abs(liabilities), showInThousands)}</p>
+          <p className="mt-1 text-xl font-semibold text-rose-300">-{formatCurrency(Math.abs(liabilities), displayFormat)}</p>
         </div>
         <div className="p-4 rounded-xl bg-gray-900/70 border border-gray-800">
           <p className="text-xs text-gray-400">Net Worth</p>
-          <p className="mt-1 text-2xl font-bold">{formatCurrency(netWorth, showInThousands)}</p>
+          <p className="mt-1 text-2xl font-bold">{formatCurrency(netWorth, displayFormat)}</p>
         </div>
       </div>
 
@@ -1341,7 +1367,7 @@ function NetWorthWidget({ assets=0, liabilities=0, netWorth=0, showInThousands=f
 }
 
 
-function InvestedRow({ label, color, market = 0, cost = 0, gain = null, gainPct = null, showInThousands, sparkData = null, onClick }) {
+function InvestedRow({ label, color, market = 0, cost = 0, gain = null, gainPct = null, displayFormat = 'full', sparkData = null, onClick }) {
   const hasPL = gain !== null && gainPct !== null && gainPct !== undefined;
   const up = (gain || 0) >= 0;
   return (
@@ -1356,12 +1382,12 @@ function InvestedRow({ label, color, market = 0, cost = 0, gain = null, gainPct 
           {sparkData && <Expand className="h-3 w-3 text-gray-500" />}
         </span>
       </div>
-      <div className="col-span-3 text-right text-gray-100">{formatCurrency(market || 0, showInThousands)}</div>
-      <div className="col-span-3 text-right text-gray-300">{formatCurrency(cost || 0, showInThousands)}</div>
+      <div className="col-span-3 text-right text-gray-100">{formatCurrency(market || 0, displayFormat)}</div>
+      <div className="col-span-3 text-right text-gray-300">{formatCurrency(cost || 0, displayFormat)}</div>
       <div className="col-span-2 text-right">
         {hasPL ? (
           <span className={`${up ? 'text-emerald-400' : 'text-rose-400'} text-sm font-medium`}>
-            {formatCurrency(gain || 0, showInThousands)} <span className="text-xs">({((gainPct || 0) * 100).toFixed(1)}%)</span>
+            {formatCurrency(gain || 0, displayFormat)} <span className="text-xs">({((gainPct || 0) * 100).toFixed(1)}%)</span>
           </span>
         ) : <span className="text-gray-500 text-sm">—</span>}
       </div>
