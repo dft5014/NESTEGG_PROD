@@ -63,6 +63,7 @@ import {
   Package,
   FileText,
   BarChart3,
+  Monitor,
 } from "lucide-react";
 
 /** ----------------------------
@@ -137,7 +138,7 @@ function ProfileContent() {
   // DataStore hooks for stats
   const { accounts } = useAccounts();
   const { positions: detailedPositions } = useDetailedPositions();
-  const { groupedLiabilities } = useGroupedLiabilities();
+  const { liabilities, summary: liabilitySummary } = useGroupedLiabilities();
   const { dates: snapshotDates, refetch: fetchSnapshots } = useSnapshots();
   const { summary } = usePortfolioSummary();
 
@@ -145,7 +146,8 @@ function ProfileContent() {
   const dataStats = useMemo(() => {
     const accountCount = accounts?.length || 0;
     const positionCount = detailedPositions?.length || 0;
-    const liabilityCount = groupedLiabilities?.length || 0;
+    // Use liabilities array length, or fall back to summary count
+    const liabilityCount = liabilities?.length || liabilitySummary?.unique_liabilities || 0;
     const historyDays = snapshotDates?.length || 0;
 
     // Count by asset type from detailed positions
@@ -168,7 +170,7 @@ function ProfileContent() {
       realEstateCount: assetTypeCounts['real_estate'] || 0,
       otherAssetsCount: assetTypeCounts['other_asset'] || 0,
     };
-  }, [accounts, detailedPositions, groupedLiabilities, snapshotDates]);
+  }, [accounts, detailedPositions, liabilities, liabilitySummary, snapshotDates]);
 
   // Core UI state
   const [active, setActive] = useState("profile");
