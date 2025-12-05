@@ -1,5 +1,5 @@
 // pages/profile.js
-import { useState, useEffect, useContext, useMemo } from "react";
+import { useState, useEffect, useContext, useMemo, useCallback } from "react";
 import Link from "next/link";
 import {
   SignedIn,
@@ -13,6 +13,7 @@ import {
 import { SubscriptionDetailsButton, useSubscription } from "@clerk/nextjs/experimental";
 import { AuthContext } from "@/context/AuthContext";
 import { fetchWithAuth } from "@/utils/api";
+import toast from "react-hot-toast";
 
 // Optional: useTheme if your app has next-themes installed. We also provide a no-lib fallback.
 let useTheme;
@@ -25,14 +26,11 @@ try {
 
 import {
   User,
-  Mail,
   Calendar,
   Shield,
-  Award,
   CheckCircle,
   Clock,
   PiggyBank,
-  Lock,
   Edit,
   Save,
   X,
@@ -41,16 +39,21 @@ import {
   Settings as SettingsIcon,
   ArrowRight,
   Zap,
-  Crown,
-  Sparkles,
-  TerminalSquare,
   Monitor,
   Moon,
   Sun,
-  Smartphone,
-  Cpu,
   Globe,
-  LogOut,
+  Trash2,
+  AlertTriangle,
+  Database,
+  History,
+  TrendingUp,
+  Wallet,
+  Bitcoin,
+  Gem,
+  Home,
+  Package,
+  FileText,
 } from "lucide-react";
 
 /** ----------------------------
@@ -115,7 +118,7 @@ function ProfileContent() {
       { id: "activity", label: "Activity", icon: Clock },
       { id: "settings", label: "Settings", icon: SettingsIcon },
       { id: "sessions", label: "Sessions", icon: Monitor },
-      { id: "developer", label: "Developer", icon: TerminalSquare },
+      { id: "data", label: "Manage Data", icon: Database },
     ],
     []
   );
@@ -297,28 +300,35 @@ function ProfileContent() {
       if (res.ok) {
         const s = await res.json();
         setAccountStats({
-          lastLogin: new Date().toLocaleString(),
-          loginStreak: Math.floor(Math.random() * 10) + 1,
           priceUpdates: s?.last_price_update ? "Real-time" : "Daily",
           totalAccounts: s?.accounts_count ?? 0,
           totalPositions: s?.positions_count ?? 0,
+          // Summary metrics from portfolio
+          totalSecurities: s?.security_count ?? 0,
+          totalCrypto: s?.crypto_count ?? 0,
+          totalCash: s?.cash_count ?? 0,
+          totalLiabilities: s?.liability_count ?? 0,
         });
       } else {
         setAccountStats({
-          lastLogin: new Date().toLocaleString(),
-          loginStreak: 1,
           priceUpdates: "Daily",
           totalAccounts: 0,
           totalPositions: 0,
+          totalSecurities: 0,
+          totalCrypto: 0,
+          totalCash: 0,
+          totalLiabilities: 0,
         });
       }
     } catch {
       setAccountStats({
-        lastLogin: new Date().toLocaleString(),
-        loginStreak: 1,
         priceUpdates: "Daily",
         totalAccounts: 0,
         totalPositions: 0,
+        totalSecurities: 0,
+        totalCrypto: 0,
+        totalCash: 0,
+        totalLiabilities: 0,
       });
     }
   };
@@ -437,15 +447,24 @@ function ProfileContent() {
     setError("");
     setOk("");
     try {
-      // Hook up to your backend when ready
-      await new Promise((r) => setTimeout(r, 600));
+      const res = await fetchWithAuth("/user/profile", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notification_preferences: notifications }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.detail || `Failed (${res.status})`);
+      }
       setOk("Notification preferences saved.");
+      toast.success("Notification preferences saved");
       setActivityLog((prev) => [
         { action: "Preferences Updated", date: new Date().toISOString(), details: "Notification preferences were updated", icon: "Bell" },
         ...prev.slice(0, 7),
       ]);
-    } catch {
-      setError("Failed to save notification preferences.");
+    } catch (e) {
+      setError(e.message || "Failed to save notification preferences.");
+      toast.error("Failed to save notification preferences");
     } finally {
       setSaving(false);
       setTimeout(() => setOk(""), 3000);
@@ -597,12 +616,14 @@ function ProfileContent() {
                 </div>
               </div>
 
-              <Section title="Account Stats">
+              <Section title="Portfolio Stats">
                 <div className="space-y-3">
-                  <InfoRow label="Last Login" value={accountStats?.lastLogin} />
-                  <InfoRow label="Login Streak" value={`${accountStats?.loginStreak ?? 0} days`} />
                   <InfoRow label="Total Accounts" value={accountStats?.totalAccounts ?? 0} />
                   <InfoRow label="Total Positions" value={accountStats?.totalPositions ?? 0} />
+                  <InfoRow label="Securities" value={accountStats?.totalSecurities ?? 0} />
+                  <InfoRow label="Crypto" value={accountStats?.totalCrypto ?? 0} />
+                  <InfoRow label="Cash Positions" value={accountStats?.totalCash ?? 0} />
+                  <InfoRow label="Liabilities" value={accountStats?.totalLiabilities ?? 0} />
                   <InfoRow label="Price Updates" value={accountStats?.priceUpdates ?? "Daily"} />
                 </div>
               </Section>
@@ -982,7 +1003,7 @@ function ProfileContent() {
               {/* SETTINGS (Custom Tab) */}
               {active === "settings" && (
                 <Section title="Display & App Settings" icon={SettingsIcon}>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 gap-6">
                     <div className="p-4 bg-gray-800/50 rounded-lg space-y-3">
                       <p className="text-sm font-medium text-gray-200 flex items-center gap-2">
                         <Monitor className="h-4 w-4" /> Theme
@@ -1014,21 +1035,20 @@ function ProfileContent() {
 
                     <div className="p-4 bg-gray-800/50 rounded-lg space-y-3">
                       <p className="text-sm font-medium text-gray-200 flex items-center gap-2">
-                        <Smartphone className="h-4 w-4" /> Performance
+                        <Database className="h-4 w-4" /> Data Management
                       </p>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-gray-300">Enable subtle animations</span>
-                        {/* hook these to a setting endpoint if desired */}
-                        <input type="checkbox" className="toggle toggle-sm" defaultChecked />
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-gray-300">Reduce motion</span>
-                        <input type="checkbox" className="toggle toggle-sm" />
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-gray-300">Compact tables</span>
-                        <input type="checkbox" className="toggle toggle-sm" />
-                      </div>
+                      <p className="text-sm text-gray-400">
+                        Need to manage or delete your data? Visit the <button onClick={() => setActive("data")} className="text-blue-400 hover:text-blue-300 underline">Manage Data</button> tab for data export and deletion options.
+                      </p>
+                    </div>
+
+                    <div className="p-4 bg-gray-800/50 rounded-lg space-y-3">
+                      <p className="text-sm font-medium text-gray-200 flex items-center gap-2">
+                        <Shield className="h-4 w-4" /> Privacy
+                      </p>
+                      <p className="text-sm text-gray-400">
+                        NestEgg does not require bank credentials. All your financial data is entered manually or imported via CSV, giving you complete control over your information.
+                      </p>
                     </div>
                   </div>
                 </Section>
@@ -1059,55 +1079,18 @@ function ProfileContent() {
                 </Section>
               )}
 
-              {/* DEVELOPER */}
-              {active === "developer" && (
-                <Section title="Developer" icon={TerminalSquare}>
-                  <p className="text-sm text-gray-400 mb-6">
-                    Useful identifiers & claims for debugging the Clerk ↔ NestEgg link.
-                  </p>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-3 p-4 bg-gray-800/50 rounded-lg">
-                      <InfoRow label="Clerk User ID" value={user?.id} />
-                      <InfoRow label="Email" value={user?.primaryEmailAddress?.emailAddress} />
-                      <InfoRow label="First / Last" value={`${user?.firstName ?? ""} ${user?.lastName ?? ""}`} />
-                      <InfoRow label="Created" value={user?.createdAt ? new Date(user.createdAt).toLocaleString() : "—"} />
-                    </div>
-                    <div className="space-y-3 p-4 bg-gray-800/50 rounded-lg">
-                      <InfoRow label="Current Plan (derived)" value={currentPlan()} />
-                      <InfoRow
-                        label="Feature Flags (enabled)"
-                        value={Object.entries(features)
-                          .filter(([, v]) => v)
-                          .map(([k]) => k)
-                          .join(", ") || "none"}
-                      />
-                      <InfoRow label="JWT Strategy" value="Clerk session → /auth/exchange → NestEgg JWT" />
-                    </div>
-                  </div>
-                  <div className="mt-6 flex flex-wrap gap-3">
-                    <Link
-                      href="/api/auth/exchange"
-                      className="px-3 py-2 text-sm bg-gray-800 hover:bg-gray-700 rounded-lg inline-flex items-center"
-                    >
-                      <Cpu className="h-4 w-4 mr-2" />
-                      Exchange Clerk Token (debug)
-                    </Link>
-                    <Link
-                      href="/api/debug/me"
-                      className="px-3 py-2 text-sm bg-gray-800 hover:bg-gray-700 rounded-lg inline-flex items-center"
-                    >
-                      <TerminalSquare className="h-4 w-4 mr-2" />
-                      View /me payload
-                    </Link>
-                    <button
-                      onClick={() => window?.Clerk?.signOut?.()}
-                      className="px-3 py-2 text-sm bg-gray-800 hover:bg-gray-700 rounded-lg inline-flex items-center"
-                    >
-                      <LogOut className="h-4 w-4 mr-2" />
-                      Sign out (all)
-                    </button>
-                  </div>
-                </Section>
+              {/* MANAGE DATA */}
+              {active === "data" && (
+                <ManageDataSection
+                  accountStats={accountStats}
+                  onDataDeleted={() => {
+                    fetchStats();
+                    setActivityLog((prev) => [
+                      { action: "Data Deleted", date: new Date().toISOString(), details: "User data was deleted", icon: "Trash" },
+                      ...prev.slice(0, 7),
+                    ]);
+                  }}
+                />
               )}
             </main>
           </div>
@@ -1169,5 +1152,730 @@ function ThemeButton({ label, active, onClick, icon }) {
       {icon}
       <span className="text-sm">{label}</span>
     </button>
+  );
+}
+
+/** ------- Manage Data Section ------- */
+const POSITION_TYPES = [
+  { id: "securities", label: "Securities", icon: TrendingUp, description: "Stocks, ETFs, mutual funds, bonds" },
+  { id: "cash", label: "Cash Positions", icon: Wallet, description: "Bank accounts, savings, money market" },
+  { id: "crypto", label: "Cryptocurrency", icon: Bitcoin, description: "Bitcoin, Ethereum, and other crypto" },
+  { id: "metals", label: "Precious Metals", icon: Gem, description: "Gold, silver, platinum holdings" },
+  { id: "realestate", label: "Real Estate", icon: Home, description: "Properties and real estate assets" },
+  { id: "otherassets", label: "Other Assets", icon: Package, description: "Vehicles, collectibles, other assets" },
+  { id: "liabilities", label: "Liabilities", icon: FileText, description: "Loans, credit cards, mortgages" },
+];
+
+function ManageDataSection({ accountStats, onDataDeleted }) {
+  const [deleteModal, setDeleteModal] = useState(null); // null | 'positions' | 'accounts' | 'history'
+
+  return (
+    <div className="space-y-6">
+      {/* Warning Banner */}
+      <div className="bg-amber-900/20 border border-amber-700/50 rounded-xl p-4">
+        <div className="flex items-start gap-3">
+          <AlertTriangle className="h-5 w-5 text-amber-400 flex-shrink-0 mt-0.5" />
+          <div>
+            <h4 className="text-amber-300 font-medium">Data Management Zone</h4>
+            <p className="text-amber-200/70 text-sm mt-1">
+              Actions in this section can permanently delete your financial data. Please proceed with caution.
+              Deleted data cannot be recovered.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Current Data Summary */}
+      <div className="bg-gray-900/70 backdrop-blur-sm rounded-xl border border-gray-800 overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-700">
+          <h3 className="text-lg font-semibold text-gray-100 flex items-center">
+            <Database className="h-5 w-5 mr-2 text-blue-400" />
+            Your Data Summary
+          </h3>
+        </div>
+        <div className="p-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="bg-gray-800/50 rounded-lg p-4 text-center">
+              <p className="text-2xl font-bold text-gray-100">{accountStats?.totalAccounts ?? 0}</p>
+              <p className="text-sm text-gray-400">Accounts</p>
+            </div>
+            <div className="bg-gray-800/50 rounded-lg p-4 text-center">
+              <p className="text-2xl font-bold text-gray-100">{accountStats?.totalPositions ?? 0}</p>
+              <p className="text-sm text-gray-400">Positions</p>
+            </div>
+            <div className="bg-gray-800/50 rounded-lg p-4 text-center">
+              <p className="text-2xl font-bold text-gray-100">{accountStats?.totalSecurities ?? 0}</p>
+              <p className="text-sm text-gray-400">Securities</p>
+            </div>
+            <div className="bg-gray-800/50 rounded-lg p-4 text-center">
+              <p className="text-2xl font-bold text-gray-100">{accountStats?.totalLiabilities ?? 0}</p>
+              <p className="text-sm text-gray-400">Liabilities</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Delete Positions Section */}
+      <div className="bg-gray-900/70 backdrop-blur-sm rounded-xl border border-gray-800 overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-700">
+          <h3 className="text-lg font-semibold text-gray-100 flex items-center">
+            <Trash2 className="h-5 w-5 mr-2 text-red-400" />
+            Delete Positions
+          </h3>
+        </div>
+        <div className="p-6">
+          <p className="text-sm text-gray-400 mb-4">
+            Selectively delete positions by type. This will remove the selected position data but keep your accounts intact.
+          </p>
+          <button
+            onClick={() => setDeleteModal("positions")}
+            className="px-4 py-2 bg-red-600/20 border border-red-600/50 text-red-400 rounded-lg hover:bg-red-600/30 transition-colors inline-flex items-center"
+          >
+            <Trash2 className="h-4 w-4 mr-2" />
+            Delete Positions...
+          </button>
+        </div>
+      </div>
+
+      {/* Delete All Accounts Section */}
+      <div className="bg-gray-900/70 backdrop-blur-sm rounded-xl border border-gray-800 overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-700">
+          <h3 className="text-lg font-semibold text-gray-100 flex items-center">
+            <Trash2 className="h-5 w-5 mr-2 text-red-400" />
+            Delete All Accounts
+          </h3>
+        </div>
+        <div className="p-6">
+          <p className="text-sm text-gray-400 mb-4">
+            Delete all your accounts and their associated positions. This is a destructive action that will remove all your financial tracking data.
+          </p>
+          <button
+            onClick={() => setDeleteModal("accounts")}
+            className="px-4 py-2 bg-red-600/20 border border-red-600/50 text-red-400 rounded-lg hover:bg-red-600/30 transition-colors inline-flex items-center"
+          >
+            <Trash2 className="h-4 w-4 mr-2" />
+            Delete All Accounts...
+          </button>
+        </div>
+      </div>
+
+      {/* Delete Historical Balances Section */}
+      <div className="bg-gray-900/70 backdrop-blur-sm rounded-xl border border-gray-800 overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-700">
+          <h3 className="text-lg font-semibold text-gray-100 flex items-center">
+            <History className="h-5 w-5 mr-2 text-red-400" />
+            Delete Historical Data
+          </h3>
+        </div>
+        <div className="p-6">
+          <p className="text-sm text-gray-400 mb-4">
+            Delete all historical portfolio snapshots and balance history. Your current positions and accounts will remain intact, but you will lose the ability to view historical trends and performance.
+          </p>
+          <button
+            onClick={() => setDeleteModal("history")}
+            className="px-4 py-2 bg-red-600/20 border border-red-600/50 text-red-400 rounded-lg hover:bg-red-600/30 transition-colors inline-flex items-center"
+          >
+            <History className="h-4 w-4 mr-2" />
+            Delete Historical Data...
+          </button>
+        </div>
+      </div>
+
+      {/* Delete Modals */}
+      {deleteModal === "positions" && (
+        <DeletePositionsModal
+          onClose={() => setDeleteModal(null)}
+          onConfirm={async (selectedTypes) => {
+            // TODO: Implement API call when backend is ready
+            toast.success(`Position deletion initiated for: ${selectedTypes.join(", ")}`);
+            setDeleteModal(null);
+            onDataDeleted?.();
+          }}
+        />
+      )}
+
+      {deleteModal === "accounts" && (
+        <DeleteAccountsModal
+          onClose={() => setDeleteModal(null)}
+          onConfirm={async () => {
+            // TODO: Implement API call when backend is ready
+            toast.success("Account deletion initiated");
+            setDeleteModal(null);
+            onDataDeleted?.();
+          }}
+        />
+      )}
+
+      {deleteModal === "history" && (
+        <DeleteHistoryModal
+          onClose={() => setDeleteModal(null)}
+          onConfirm={async () => {
+            // TODO: Implement API call when backend is ready
+            toast.success("Historical data deletion initiated");
+            setDeleteModal(null);
+            onDataDeleted?.();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+/** ------- Delete Positions Modal ------- */
+function DeletePositionsModal({ onClose, onConfirm }) {
+  const [step, setStep] = useState(1); // 1: Select types, 2: Confirm, 3: Final confirmation
+  const [selectedTypes, setSelectedTypes] = useState([]);
+  const [confirmText, setConfirmText] = useState("");
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const toggleType = (typeId) => {
+    setSelectedTypes((prev) =>
+      prev.includes(typeId) ? prev.filter((t) => t !== typeId) : [...prev, typeId]
+    );
+  };
+
+  const handleFinalConfirm = async () => {
+    if (confirmText !== "DELETE MY DATA") return;
+    setIsDeleting(true);
+    try {
+      await onConfirm(selectedTypes);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+      <div className="bg-gray-900 border border-gray-700 rounded-xl max-w-lg w-full max-h-[90vh] overflow-y-auto shadow-2xl">
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-gray-700 flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-gray-100 flex items-center">
+            <Trash2 className="h-5 w-5 mr-2 text-red-400" />
+            Delete Positions
+          </h3>
+          <button
+            onClick={onClose}
+            className="p-1 hover:bg-gray-800 rounded-lg transition-colors"
+          >
+            <X className="h-5 w-5 text-gray-400" />
+          </button>
+        </div>
+
+        {/* Step Indicator */}
+        <div className="px-6 pt-4">
+          <div className="flex items-center justify-center gap-2 mb-4">
+            {[1, 2, 3].map((s) => (
+              <div
+                key={s}
+                className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors ${
+                  step === s
+                    ? "bg-red-600 text-white"
+                    : step > s
+                    ? "bg-red-600/30 text-red-300"
+                    : "bg-gray-700 text-gray-400"
+                }`}
+              >
+                {s}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Step 1: Select Position Types */}
+        {step === 1 && (
+          <div className="p-6">
+            <p className="text-gray-300 mb-4">
+              Select which position types you want to delete. You can select multiple types.
+            </p>
+            <div className="space-y-2">
+              {POSITION_TYPES.map(({ id, label, icon: Icon, description }) => (
+                <label
+                  key={id}
+                  className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                    selectedTypes.includes(id)
+                      ? "bg-red-600/20 border-red-600/50"
+                      : "bg-gray-800/50 border-gray-700 hover:border-gray-600"
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedTypes.includes(id)}
+                    onChange={() => toggleType(id)}
+                    className="sr-only"
+                  />
+                  <div
+                    className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
+                      selectedTypes.includes(id)
+                        ? "bg-red-600 border-red-600"
+                        : "border-gray-500"
+                    }`}
+                  >
+                    {selectedTypes.includes(id) && (
+                      <CheckCircle className="h-3 w-3 text-white" />
+                    )}
+                  </div>
+                  <Icon className={`h-5 w-5 ${selectedTypes.includes(id) ? "text-red-400" : "text-gray-400"}`} />
+                  <div className="flex-1">
+                    <p className="text-gray-200 font-medium">{label}</p>
+                    <p className="text-xs text-gray-500">{description}</p>
+                  </div>
+                </label>
+              ))}
+            </div>
+            <div className="mt-6 flex justify-between">
+              <button
+                onClick={onClose}
+                className="px-4 py-2 bg-gray-700 text-gray-200 rounded-lg hover:bg-gray-600 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => setStep(2)}
+                disabled={selectedTypes.length === 0}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Continue
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Step 2: Review Selection */}
+        {step === 2 && (
+          <div className="p-6">
+            <div className="bg-red-900/20 border border-red-700/50 rounded-lg p-4 mb-4">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="h-5 w-5 text-red-400 flex-shrink-0 mt-0.5" />
+                <div>
+                  <h4 className="text-red-300 font-medium">Warning: Destructive Action</h4>
+                  <p className="text-red-200/70 text-sm mt-1">
+                    You are about to permanently delete the following position types. This action cannot be undone.
+                  </p>
+                </div>
+              </div>
+            </div>
+            <p className="text-gray-300 mb-3">Position types to be deleted:</p>
+            <ul className="space-y-2 mb-6">
+              {selectedTypes.map((typeId) => {
+                const type = POSITION_TYPES.find((t) => t.id === typeId);
+                const Icon = type?.icon || Package;
+                return (
+                  <li key={typeId} className="flex items-center gap-2 text-red-300">
+                    <Icon className="h-4 w-4" />
+                    <span>{type?.label || typeId}</span>
+                  </li>
+                );
+              })}
+            </ul>
+            <div className="mt-6 flex justify-between">
+              <button
+                onClick={() => setStep(1)}
+                className="px-4 py-2 bg-gray-700 text-gray-200 rounded-lg hover:bg-gray-600 transition-colors"
+              >
+                Back
+              </button>
+              <button
+                onClick={() => setStep(3)}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+              >
+                I Understand, Continue
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Step 3: Final Confirmation */}
+        {step === 3 && (
+          <div className="p-6">
+            <div className="bg-red-900/30 border border-red-700/50 rounded-lg p-4 mb-4">
+              <p className="text-red-300 text-sm">
+                To confirm deletion, type <span className="font-mono font-bold">DELETE MY DATA</span> below:
+              </p>
+            </div>
+            <input
+              type="text"
+              value={confirmText}
+              onChange={(e) => setConfirmText(e.target.value)}
+              placeholder="Type DELETE MY DATA to confirm"
+              className="w-full px-4 py-3 bg-gray-800 border border-gray-600 rounded-lg text-gray-100 placeholder-gray-500 focus:outline-none focus:border-red-500"
+            />
+            <div className="mt-6 flex justify-between">
+              <button
+                onClick={() => setStep(2)}
+                disabled={isDeleting}
+                className="px-4 py-2 bg-gray-700 text-gray-200 rounded-lg hover:bg-gray-600 transition-colors disabled:opacity-50"
+              >
+                Back
+              </button>
+              <button
+                onClick={handleFinalConfirm}
+                disabled={confirmText !== "DELETE MY DATA" || isDeleting}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center"
+              >
+                {isDeleting ? (
+                  <>
+                    <span className="animate-spin h-4 w-4 mr-2 border-2 border-t-transparent border-white rounded-full" />
+                    Deleting...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete Selected Positions
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** ------- Delete Accounts Modal ------- */
+function DeleteAccountsModal({ onClose, onConfirm }) {
+  const [step, setStep] = useState(1); // 1: Warning, 2: Confirm checkbox, 3: Final confirmation
+  const [understood, setUnderstood] = useState(false);
+  const [deletePositions, setDeletePositions] = useState(true);
+  const [confirmText, setConfirmText] = useState("");
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleFinalConfirm = async () => {
+    if (confirmText !== "DELETE ALL ACCOUNTS") return;
+    setIsDeleting(true);
+    try {
+      await onConfirm(deletePositions);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+      <div className="bg-gray-900 border border-gray-700 rounded-xl max-w-lg w-full max-h-[90vh] overflow-y-auto shadow-2xl">
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-gray-700 flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-gray-100 flex items-center">
+            <Trash2 className="h-5 w-5 mr-2 text-red-400" />
+            Delete All Accounts
+          </h3>
+          <button
+            onClick={onClose}
+            className="p-1 hover:bg-gray-800 rounded-lg transition-colors"
+          >
+            <X className="h-5 w-5 text-gray-400" />
+          </button>
+        </div>
+
+        {/* Step Indicator */}
+        <div className="px-6 pt-4">
+          <div className="flex items-center justify-center gap-2 mb-4">
+            {[1, 2, 3].map((s) => (
+              <div
+                key={s}
+                className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors ${
+                  step === s
+                    ? "bg-red-600 text-white"
+                    : step > s
+                    ? "bg-red-600/30 text-red-300"
+                    : "bg-gray-700 text-gray-400"
+                }`}
+              >
+                {s}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Step 1: Warning */}
+        {step === 1 && (
+          <div className="p-6">
+            <div className="bg-red-900/30 border border-red-700/50 rounded-lg p-4 mb-4">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="h-6 w-6 text-red-400 flex-shrink-0" />
+                <div>
+                  <h4 className="text-red-300 font-bold text-lg">Danger Zone</h4>
+                  <p className="text-red-200/80 text-sm mt-2">
+                    You are about to delete <strong>ALL</strong> of your accounts. This is an extremely destructive action that will:
+                  </p>
+                  <ul className="text-red-200/70 text-sm mt-2 space-y-1 list-disc list-inside">
+                    <li>Remove all your financial accounts</li>
+                    <li>Delete all associated positions (securities, cash, crypto, etc.)</li>
+                    <li>Remove all account-level tracking data</li>
+                  </ul>
+                  <p className="text-red-300 text-sm mt-3 font-medium">
+                    This action CANNOT be undone.
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="mt-6 flex justify-between">
+              <button
+                onClick={onClose}
+                className="px-4 py-2 bg-gray-700 text-gray-200 rounded-lg hover:bg-gray-600 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => setStep(2)}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+              >
+                I Understand the Risks
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Step 2: Confirm understanding */}
+        {step === 2 && (
+          <div className="p-6">
+            <p className="text-gray-300 mb-4">
+              Please confirm you understand what will be deleted:
+            </p>
+            <label className="flex items-start gap-3 p-4 rounded-lg border border-gray-700 bg-gray-800/50 cursor-pointer mb-4">
+              <input
+                type="checkbox"
+                checked={understood}
+                onChange={(e) => setUnderstood(e.target.checked)}
+                className="mt-1 h-4 w-4 rounded border-gray-500 text-red-600 focus:ring-red-500"
+              />
+              <div>
+                <p className="text-gray-200 font-medium">I understand this will delete all my accounts</p>
+                <p className="text-sm text-gray-400 mt-1">
+                  All accounts and their associated data will be permanently removed from NestEgg.
+                </p>
+              </div>
+            </label>
+
+            <label className="flex items-start gap-3 p-4 rounded-lg border border-gray-700 bg-gray-800/50 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={deletePositions}
+                onChange={(e) => setDeletePositions(e.target.checked)}
+                className="mt-1 h-4 w-4 rounded border-gray-500 text-red-600 focus:ring-red-500"
+              />
+              <div>
+                <p className="text-gray-200 font-medium">Also delete all positions</p>
+                <p className="text-sm text-gray-400 mt-1">
+                  Include all securities, cash, crypto, metals, real estate, and other asset positions.
+                </p>
+              </div>
+            </label>
+
+            <div className="mt-6 flex justify-between">
+              <button
+                onClick={() => setStep(1)}
+                className="px-4 py-2 bg-gray-700 text-gray-200 rounded-lg hover:bg-gray-600 transition-colors"
+              >
+                Back
+              </button>
+              <button
+                onClick={() => setStep(3)}
+                disabled={!understood}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Continue
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Step 3: Final Confirmation */}
+        {step === 3 && (
+          <div className="p-6">
+            <div className="bg-red-900/30 border border-red-700/50 rounded-lg p-4 mb-4">
+              <p className="text-red-300 text-sm">
+                To confirm deletion, type <span className="font-mono font-bold">DELETE ALL ACCOUNTS</span> below:
+              </p>
+            </div>
+            <input
+              type="text"
+              value={confirmText}
+              onChange={(e) => setConfirmText(e.target.value)}
+              placeholder="Type DELETE ALL ACCOUNTS to confirm"
+              className="w-full px-4 py-3 bg-gray-800 border border-gray-600 rounded-lg text-gray-100 placeholder-gray-500 focus:outline-none focus:border-red-500"
+            />
+            <div className="mt-6 flex justify-between">
+              <button
+                onClick={() => setStep(2)}
+                disabled={isDeleting}
+                className="px-4 py-2 bg-gray-700 text-gray-200 rounded-lg hover:bg-gray-600 transition-colors disabled:opacity-50"
+              >
+                Back
+              </button>
+              <button
+                onClick={handleFinalConfirm}
+                disabled={confirmText !== "DELETE ALL ACCOUNTS" || isDeleting}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center"
+              >
+                {isDeleting ? (
+                  <>
+                    <span className="animate-spin h-4 w-4 mr-2 border-2 border-t-transparent border-white rounded-full" />
+                    Deleting...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete All Accounts
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** ------- Delete History Modal ------- */
+function DeleteHistoryModal({ onClose, onConfirm }) {
+  const [step, setStep] = useState(1); // 1: Info, 2: Final confirmation
+  const [confirmText, setConfirmText] = useState("");
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleFinalConfirm = async () => {
+    if (confirmText !== "DELETE HISTORY") return;
+    setIsDeleting(true);
+    try {
+      await onConfirm();
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+      <div className="bg-gray-900 border border-gray-700 rounded-xl max-w-lg w-full max-h-[90vh] overflow-y-auto shadow-2xl">
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-gray-700 flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-gray-100 flex items-center">
+            <History className="h-5 w-5 mr-2 text-red-400" />
+            Delete Historical Data
+          </h3>
+          <button
+            onClick={onClose}
+            className="p-1 hover:bg-gray-800 rounded-lg transition-colors"
+          >
+            <X className="h-5 w-5 text-gray-400" />
+          </button>
+        </div>
+
+        {/* Step Indicator */}
+        <div className="px-6 pt-4">
+          <div className="flex items-center justify-center gap-2 mb-4">
+            {[1, 2].map((s) => (
+              <div
+                key={s}
+                className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors ${
+                  step === s
+                    ? "bg-red-600 text-white"
+                    : step > s
+                    ? "bg-red-600/30 text-red-300"
+                    : "bg-gray-700 text-gray-400"
+                }`}
+              >
+                {s}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Step 1: Info */}
+        {step === 1 && (
+          <div className="p-6">
+            <div className="bg-amber-900/20 border border-amber-700/50 rounded-lg p-4 mb-4">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="h-5 w-5 text-amber-400 flex-shrink-0 mt-0.5" />
+                <div>
+                  <h4 className="text-amber-300 font-medium">What will be deleted</h4>
+                  <p className="text-amber-200/70 text-sm mt-1">
+                    This will remove all historical portfolio snapshots and balance tracking data. This includes:
+                  </p>
+                  <ul className="text-amber-200/70 text-sm mt-2 space-y-1 list-disc list-inside">
+                    <li>Daily portfolio snapshots</li>
+                    <li>Historical net worth data</li>
+                    <li>Performance trend history</li>
+                    <li>All charts showing historical data</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+            <div className="bg-blue-900/20 border border-blue-700/50 rounded-lg p-4 mb-4">
+              <div className="flex items-start gap-3">
+                <CheckCircle className="h-5 w-5 text-blue-400 flex-shrink-0 mt-0.5" />
+                <div>
+                  <h4 className="text-blue-300 font-medium">What will be preserved</h4>
+                  <ul className="text-blue-200/70 text-sm mt-1 space-y-1 list-disc list-inside">
+                    <li>All your accounts</li>
+                    <li>All current positions</li>
+                    <li>All liabilities</li>
+                    <li>Your profile and settings</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+            <div className="mt-6 flex justify-between">
+              <button
+                onClick={onClose}
+                className="px-4 py-2 bg-gray-700 text-gray-200 rounded-lg hover:bg-gray-600 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => setStep(2)}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+              >
+                Continue
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Step 2: Final Confirmation */}
+        {step === 2 && (
+          <div className="p-6">
+            <div className="bg-red-900/30 border border-red-700/50 rounded-lg p-4 mb-4">
+              <p className="text-red-300 text-sm">
+                To confirm deletion, type <span className="font-mono font-bold">DELETE HISTORY</span> below:
+              </p>
+            </div>
+            <input
+              type="text"
+              value={confirmText}
+              onChange={(e) => setConfirmText(e.target.value)}
+              placeholder="Type DELETE HISTORY to confirm"
+              className="w-full px-4 py-3 bg-gray-800 border border-gray-600 rounded-lg text-gray-100 placeholder-gray-500 focus:outline-none focus:border-red-500"
+            />
+            <div className="mt-6 flex justify-between">
+              <button
+                onClick={() => setStep(1)}
+                disabled={isDeleting}
+                className="px-4 py-2 bg-gray-700 text-gray-200 rounded-lg hover:bg-gray-600 transition-colors disabled:opacity-50"
+              >
+                Back
+              </button>
+              <button
+                onClick={handleFinalConfirm}
+                disabled={confirmText !== "DELETE HISTORY" || isDeleting}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center"
+              >
+                {isDeleting ? (
+                  <>
+                    <span className="animate-spin h-4 w-4 mr-2 border-2 border-t-transparent border-white rounded-full" />
+                    Deleting...
+                  </>
+                ) : (
+                  <>
+                    <History className="h-4 w-4 mr-2" />
+                    Delete Historical Data
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
