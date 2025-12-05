@@ -24,33 +24,19 @@ import {
   useGroupedLiabilities
 } from "@/store/hooks";
 
-// Optional: useTheme if your app has next-themes installed. We also provide a no-lib fallback.
-let useTheme;
-try {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  useTheme = require("next-themes").useTheme;
-} catch (_) {
-  useTheme = null;
-}
 
 import {
   User,
   Calendar,
   Shield,
   CheckCircle,
-  Clock,
   PiggyBank,
   Edit,
   Save,
   X,
   CreditCard,
-  Bell,
-  Settings as SettingsIcon,
   ArrowRight,
   Zap,
-  Moon,
-  Sun,
-  Globe,
   Trash2,
   AlertTriangle,
   Database,
@@ -63,7 +49,6 @@ import {
   Package,
   FileText,
   BarChart3,
-  Monitor,
 } from "lucide-react";
 
 /** ----------------------------
@@ -124,9 +109,6 @@ function ProfileContent() {
       { id: "profile", label: "Profile", icon: User },
       { id: "subscription", label: "Subscription", icon: CreditCard },
       { id: "security", label: "Security", icon: Shield },
-      { id: "notifications", label: "Notifications", icon: Bell },
-      { id: "activity", label: "Activity", icon: Clock },
-      { id: "settings", label: "Settings", icon: SettingsIcon },
       { id: "data", label: "Manage Data", icon: Database },
     ],
     []
@@ -198,17 +180,6 @@ function ProfileContent() {
     bio: "",
   });
 
-  // Notifications
-  const [notifications, setNotifications] = useState({
-    emailUpdates: true,
-    marketAlerts: true,
-    performanceReports: true,
-    securityAlerts: true,
-    newsletterUpdates: false,
-  });
-
-  // Activity
-  const [activityLog, setActivityLog] = useState([]);
 
   // Feature gates & plans
   const FEATURE_KEYS = [
@@ -227,29 +198,6 @@ function ProfileContent() {
   const [features, setFeatures] = useState({});
   const [plans, setPlans] = useState({});
 
-  // Theme (with graceful fallback)
-  const themeHook = useTheme ? useTheme() : null;
-  const [localTheme, setLocalTheme] = useState("system");
-
-  const getTheme = () => (themeHook ? themeHook.theme : localTheme);
-  const setTheme = (next) => {
-    if (themeHook?.setTheme) {
-      themeHook.setTheme(next);
-    } else {
-      // basic fallback using html class + localStorage
-      if (next === "dark") {
-        document.documentElement.classList.add("dark");
-        localStorage.setItem("theme", "dark");
-      } else if (next === "light") {
-        document.documentElement.classList.remove("dark");
-        localStorage.setItem("theme", "light");
-      } else {
-        localStorage.removeItem("theme");
-        // leave as-is; browser/OS controls prefer-color-scheme
-      }
-      setLocalTheme(next);
-    }
-  };
 
   // Init
   useEffect(() => {
@@ -264,7 +212,7 @@ function ProfileContent() {
   const bootstrap = async () => {
     setLoading(true);
     try {
-      await Promise.all([fetchProfile(), fetchEvents()]);
+      await fetchProfile();
       // Also fetch snapshots for historical data count
       fetchSnapshots?.();
       computeFeatureAccess();
@@ -344,59 +292,6 @@ function ProfileContent() {
     }
   };
 
-  const fetchEvents = async () => {
-    try {
-      const res = await fetchWithAuth("/system/events?limit=8");
-      if (res.ok) {
-        const data = await res.json();
-        const items =
-          data?.events?.map((e) => ({
-            action: prettify(e.event_type),
-            date: e.started_at,
-            details: e.status === "failed" ? `Failed: ${e.error_message || "Unknown error"}` : `Status: ${e.status || "unknown"}`,
-            icon: pickIcon(e.event_type),
-          })) ?? [];
-        setActivityLog(items);
-      } else {
-        setActivityLog([]);
-      }
-    } catch {
-      setActivityLog([]);
-    }
-  };
-
-  const prettify = (s = "") =>
-    s.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
-
-  const pickIcon = (eventType = "") => {
-    if (eventType.includes("security") || eventType.includes("price")) return "Shield";
-    if (eventType.includes("portfolio")) return "PiggyBank";
-    if (eventType.includes("user") || eventType.includes("login")) return "User";
-    if (eventType.includes("profile") || eventType.includes("update")) return "Edit";
-    return "Clock";
-  };
-
-  const ActivityIcon = ({ name }) => {
-    const map = {
-      User: <User className="h-5 w-5" />,
-      Shield: <Shield className="h-5 w-5" />,
-      PiggyBank: <PiggyBank className="h-5 w-5" />,
-      Edit: <Edit className="h-5 w-5" />,
-      Clock: <Clock className="h-5 w-5" />,
-      Trash: <Trash2 className="h-5 w-5" />,
-      Bell: <Bell className="h-5 w-5" />,
-    };
-    return map[name] || <Clock className="h-5 w-5" />;
-  };
-
-  const formatDate = (d) => {
-    if (!d) return "N/A";
-    try {
-      return new Date(d).toLocaleString();
-    } catch {
-      return String(d);
-    }
-  };
 
   const membershipBadge = () => {
     let label = "New Egg";
@@ -442,10 +337,6 @@ function ProfileContent() {
       }
       setOk("Profile updated!");
       setEditMode(false);
-      setActivityLog((prev) => [
-        { action: "Profile Updated", date: new Date().toISOString(), details: "Your profile information was updated", icon: "Edit" },
-        ...prev.slice(0, 7),
-      ]);
     } catch (e) {
       setError(e.message || "Update failed.");
     } finally {
@@ -454,34 +345,6 @@ function ProfileContent() {
     }
   };
 
-  const saveNotifications = async () => {
-    setSaving(true);
-    setError("");
-    setOk("");
-    try {
-      const res = await fetchWithAuth("/user/profile", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ notification_preferences: notifications }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err?.detail || `Failed (${res.status})`);
-      }
-      setOk("Notification preferences saved.");
-      toast.success("Notification preferences saved");
-      setActivityLog((prev) => [
-        { action: "Preferences Updated", date: new Date().toISOString(), details: "Notification preferences were updated", icon: "Bell" },
-        ...prev.slice(0, 7),
-      ]);
-    } catch (e) {
-      setError(e.message || "Failed to save notification preferences.");
-      toast.error("Failed to save notification preferences");
-    } finally {
-      setSaving(false);
-      setTimeout(() => setOk(""), 3000);
-    }
-  };
 
   const currentPlan = () => {
     const activeByHas = Object.entries(plans).find(([, val]) => val)?.[0];
@@ -891,168 +754,13 @@ function ProfileContent() {
                 </Section>
               )}
 
-              {/* NOTIFICATIONS */}
-              {active === "notifications" && (
-                <Section title="Notification Preferences" icon={Bell}>
-                  <p className="text-sm text-gray-400 mb-6">
-                    Choose which notifications you'd like to receive about your investments, account activity, and platform updates.
-                  </p>
-                  <div className="space-y-5">
-                    {Object.entries(notifications).map(([key, enabled], idx) => {
-                      const labelMap = {
-                        emailUpdates: ["Email Updates", "Important announcements and account activity"],
-                        marketAlerts: ["Market Alerts", "Price changes and market events for your holdings"],
-                        performanceReports: ["Performance Reports", "Weekly and monthly performance summaries"],
-                        securityAlerts: ["Security Alerts", "Login attempts and security notifications"],
-                        newsletterUpdates: ["Newsletter Updates", "Educational content and investment insights"],
-                      };
-                      const [title, desc] = labelMap[key] || [key, ""];
-                      return (
-                        <div key={key} className={`${idx ? "border-t border-gray-700 pt-5" : ""} flex items-center justify-between`}>
-                          <div>
-                            <label htmlFor={key} className="font-medium text-gray-100">
-                              {title}
-                            </label>
-                            <p className="text-sm text-gray-400">{desc}</p>
-                          </div>
-                          <label className="relative inline-flex items-center cursor-pointer">
-                            <input
-                              type="checkbox"
-                              id={key}
-                              checked={enabled}
-                              onChange={() => setNotifications((n) => ({ ...n, [key]: !n[key] }))}
-                              className="sr-only peer"
-                            />
-                            <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600" />
-                          </label>
-                        </div>
-                      );
-                    })}
-                  </div>
-                  <div className="mt-6 flex justify-end">
-                    <button
-                      onClick={saveNotifications}
-                      disabled={saving}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 inline-flex items-center disabled:bg-blue-400"
-                    >
-                      {saving ? (
-                        <>
-                          <span className="animate-spin h-4 w-4 mr-2 border-2 border-t-transparent border-white rounded-full" />
-                          Saving...
-                        </>
-                      ) : (
-                        <>
-                          <Bell className="h-4 w-4 mr-2" />
-                          Save Preferences
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </Section>
-              )}
-
-              {/* ACTIVITY */}
-              {active === "activity" && (
-                <Section title="Recent Activity" icon={Clock}>
-                  {activityLog.length === 0 ? (
-                    <div className="text-center py-8">
-                      <Clock className="h-12 w-12 mx-auto text-gray-500 mb-4" />
-                      <h4 className="text-lg font-medium text-gray-100 mb-2">No activity yet</h4>
-                      <p className="text-gray-400">Your account activity will appear here as you use the platform.</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-6">
-                      {activityLog.map((a, i) => (
-                        <div key={i} className="flex items-start">
-                          <div
-                            className={`flex-shrink-0 h-10 w-10 rounded-full flex items-center justify-center mr-4 ${
-                              a.icon === "Shield"
-                                ? "bg-green-500/20 text-green-400"
-                                : a.icon === "PiggyBank"
-                                ? "bg-purple-500/20 text-purple-400"
-                                : a.icon === "Edit"
-                                ? "bg-yellow-500/20 text-yellow-400"
-                                : "bg-gray-500/20 text-gray-400"
-                            }`}
-                          >
-                            <ActivityIcon name={a.icon} />
-                          </div>
-                          <div>
-                            <p className="text-sm font-medium text-gray-100">{a.action}</p>
-                            <p className="text-sm text-gray-400">{a.details}</p>
-                            <p className="text-xs text-gray-500 mt-1">{formatDate(a.date)}</p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </Section>
-              )}
-
-              {/* SETTINGS (Custom Tab) */}
-              {active === "settings" && (
-                <Section title="Display & App Settings" icon={SettingsIcon}>
-                  <div className="grid grid-cols-1 gap-6">
-                    <div className="p-4 bg-gray-800/50 rounded-lg space-y-3">
-                      <p className="text-sm font-medium text-gray-200 flex items-center gap-2">
-                        <Monitor className="h-4 w-4" /> Theme
-                      </p>
-                      <div className="flex flex-wrap gap-3">
-                        <ThemeButton
-                          label="System"
-                          active={getTheme() === "system"}
-                          onClick={() => setTheme("system")}
-                          icon={<Globe className="h-4 w-4" />}
-                        />
-                        <ThemeButton
-                          label="Dark"
-                          active={getTheme() === "dark"}
-                          onClick={() => setTheme("dark")}
-                          icon={<Moon className="h-4 w-4" />}
-                        />
-                        <ThemeButton
-                          label="Light"
-                          active={getTheme() === "light"}
-                          onClick={() => setTheme("light")}
-                          icon={<Sun className="h-4 w-4" />}
-                        />
-                      </div>
-                      <p className="text-xs text-gray-400">
-                        Your preference is saved {useTheme ? "via next-themes" : "locally"}.
-                      </p>
-                    </div>
-
-                    <div className="p-4 bg-gray-800/50 rounded-lg space-y-3">
-                      <p className="text-sm font-medium text-gray-200 flex items-center gap-2">
-                        <Database className="h-4 w-4" /> Data Management
-                      </p>
-                      <p className="text-sm text-gray-400">
-                        Need to manage or delete your data? Visit the <button onClick={() => setActive("data")} className="text-blue-400 hover:text-blue-300 underline">Manage Data</button> tab for data export and deletion options.
-                      </p>
-                    </div>
-
-                    <div className="p-4 bg-gray-800/50 rounded-lg space-y-3">
-                      <p className="text-sm font-medium text-gray-200 flex items-center gap-2">
-                        <Shield className="h-4 w-4" /> Privacy
-                      </p>
-                      <p className="text-sm text-gray-400">
-                        NestEgg does not require bank credentials. All your financial data is entered manually or imported via CSV, giving you complete control over your information.
-                      </p>
-                    </div>
-                  </div>
-                </Section>
-              )}
-
               {/* MANAGE DATA */}
               {active === "data" && (
                 <ManageDataSection
                   dataStats={dataStats}
                   onDataDeleted={() => {
                     // DataStore will auto-refresh when data changes
-                    setActivityLog((prev) => [
-                      { action: "Data Deleted", date: new Date().toISOString(), details: "User data was deleted", icon: "Trash" },
-                      ...prev.slice(0, 7),
-                    ]);
+                    // You can add additional refresh logic here if needed
                   }}
                 />
               )}
@@ -1105,19 +813,6 @@ function StatBox({ label, value }) {
   );
 }
 
-function ThemeButton({ label, active, onClick, icon }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`px-3 py-2 rounded-lg border transition-colors inline-flex items-center gap-2 ${
-        active ? "border-blue-500 bg-blue-500/10 text-blue-300" : "border-gray-700 bg-gray-800 text-gray-200 hover:bg-gray-700"
-      }`}
-    >
-      {icon}
-      <span className="text-sm">{label}</span>
-    </button>
-  );
-}
 
 /** ------- Manage Data Section ------- */
 const POSITION_TYPES = [
@@ -1250,10 +945,24 @@ function ManageDataSection({ dataStats, onDataDeleted }) {
         <DeletePositionsModal
           onClose={() => setDeleteModal(null)}
           onConfirm={async (selectedTypes) => {
-            // TODO: Implement API call when backend is ready
-            toast.success(`Position deletion initiated for: ${selectedTypes.join(", ")}`);
-            setDeleteModal(null);
-            onDataDeleted?.();
+            try {
+              const res = await fetchWithAuth("/user/data/positions", {
+                method: "DELETE",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ position_types: selectedTypes }),
+              });
+              if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err?.detail || `Failed to delete positions (${res.status})`);
+              }
+              const result = await res.json();
+              toast.success(result.message || `Successfully deleted positions for: ${selectedTypes.join(", ")}`);
+              setDeleteModal(null);
+              onDataDeleted?.();
+            } catch (e) {
+              toast.error(e.message || "Failed to delete positions");
+              throw e;
+            }
           }}
         />
       )}
@@ -1261,11 +970,25 @@ function ManageDataSection({ dataStats, onDataDeleted }) {
       {deleteModal === "accounts" && (
         <DeleteAccountsModal
           onClose={() => setDeleteModal(null)}
-          onConfirm={async () => {
-            // TODO: Implement API call when backend is ready
-            toast.success("Account deletion initiated");
-            setDeleteModal(null);
-            onDataDeleted?.();
+          onConfirm={async (includePositions) => {
+            try {
+              const res = await fetchWithAuth("/user/data/accounts", {
+                method: "DELETE",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ include_positions: includePositions }),
+              });
+              if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err?.detail || `Failed to delete accounts (${res.status})`);
+              }
+              const result = await res.json();
+              toast.success(result.message || "Successfully deleted all accounts");
+              setDeleteModal(null);
+              onDataDeleted?.();
+            } catch (e) {
+              toast.error(e.message || "Failed to delete accounts");
+              throw e;
+            }
           }}
         />
       )}
@@ -1274,10 +997,22 @@ function ManageDataSection({ dataStats, onDataDeleted }) {
         <DeleteHistoryModal
           onClose={() => setDeleteModal(null)}
           onConfirm={async () => {
-            // TODO: Implement API call when backend is ready
-            toast.success("Historical data deletion initiated");
-            setDeleteModal(null);
-            onDataDeleted?.();
+            try {
+              const res = await fetchWithAuth("/user/data/history", {
+                method: "DELETE",
+              });
+              if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err?.detail || `Failed to delete historical data (${res.status})`);
+              }
+              const result = await res.json();
+              toast.success(result.message || "Successfully deleted historical data");
+              setDeleteModal(null);
+              onDataDeleted?.();
+            } catch (e) {
+              toast.error(e.message || "Failed to delete historical data");
+              throw e;
+            }
           }}
         />
       )}
