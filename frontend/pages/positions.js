@@ -13,6 +13,7 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from 'recharts';
 import UnifiedGroupPositionsTable from '@/components/tables/UnifiedGroupPositionsTable';
+import QuickStartModalV2 from '@/components/modals/quickstart/QuickStartModalV2';
 import { formatCurrency } from '@/utils/formatters';
 
 // DataStore hooks - no API methods!
@@ -34,6 +35,7 @@ export default function PositionsPage() {
   const [showValues, setShowValues] = useState(true);
   const [selectedTimeframe, setSelectedTimeframe] = useState('1m');
   const [hoveredLine, setHoveredLine] = useState(null);
+  const [showQuickStart, setShowQuickStart] = useState(false);
 
   // Get data from the store - no API calls!
   const {
@@ -240,13 +242,13 @@ export default function PositionsPage() {
                 Start tracking your investments by adding positions to your accounts.
               </p>
               <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-                <Link
-                  href="/accounts"
+                <button
+                  onClick={() => setShowQuickStart(true)}
                   className="inline-flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 rounded-xl text-white font-medium transition-colors"
                 >
                   <Plus className="w-5 h-5" />
                   Add Positions
-                </Link>
+                </button>
                 <Link
                   href="/tutorial"
                   className="inline-flex items-center gap-2 px-6 py-3 bg-gray-800 hover:bg-gray-700 rounded-xl text-gray-300 hover:text-white font-medium transition-colors"
@@ -255,6 +257,12 @@ export default function PositionsPage() {
                   View Tutorial
                 </Link>
               </div>
+
+              {/* QuickStart Modal */}
+              <QuickStartModalV2
+                isOpen={showQuickStart}
+                onClose={() => setShowQuickStart(false)}
+              />
             </motion.div>
           </div>
         </div>
