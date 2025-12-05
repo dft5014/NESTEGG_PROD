@@ -902,6 +902,37 @@ export const DataStoreProvider = ({ children }) => {
     dispatch({ type: ActionTypes.MARK_ACCOUNTS_STALE });
   }, []);
 
+  // Generic markStale function that accepts a data type string
+  const markStale = useCallback((dataType) => {
+    switch (dataType) {
+      case 'accounts':
+        dispatch({ type: ActionTypes.MARK_ACCOUNTS_STALE });
+        break;
+      case 'portfolioSummary':
+        dispatch({ type: ActionTypes.MARK_DATA_STALE });
+        break;
+      case 'positions':
+      case 'groupedPositions':
+        dispatch({ type: ActionTypes.MARK_GROUPED_POSITIONS_STALE });
+        break;
+      case 'detailedPositions':
+        dispatch({ type: ActionTypes.MARK_DETAILED_POSITIONS_STALE });
+        break;
+      case 'liabilities':
+      case 'groupedLiabilities':
+        dispatch({ type: ActionTypes.MARK_GROUPED_LIABILITIES_STALE });
+        break;
+      case 'accountPositions':
+        dispatch({ type: ActionTypes.MARK_ACCOUNT_POSITIONS_STALE });
+        break;
+      case 'accountsSummaryPositions':
+        dispatch({ type: ActionTypes.MARK_ACCOUNTS_SUMMARY_POSITIONS_STALE });
+        break;
+      default:
+        console.warn(`[DataStore] Unknown data type for markStale: ${dataType}`);
+    }
+  }, []);
+
   // ---------- Auth boundary handling ----------
   useEffect(() => {
     const handleLogout = () => clearStore('auth-logout');
@@ -1013,7 +1044,7 @@ export const DataStoreProvider = ({ children }) => {
       clearStore, // exposed for diagnostics/tests if needed
       fetchPortfolioData,
       fetchAccountsData,
-      fetchAccountPositionsData,  // ← ADD THIS LINE
+      fetchAccountPositionsData,
       fetchGroupedPositionsData,
       fetchPositionHistory,
       markDataStale,
@@ -1030,6 +1061,8 @@ export const DataStoreProvider = ({ children }) => {
       refreshAccountsSummaryPositions: (accountId, assetType) => fetchAccountsSummaryPositionsData(accountId, assetType, true),
       markAccountsSummaryPositionsStale: () => dispatch({ type: ActionTypes.MARK_ACCOUNTS_SUMMARY_POSITIONS_STALE }),
     },
+    // Top-level markStale for convenient access (used by modals)
+    markStale,
   };
 
   return <DataStoreContext.Provider value={value}>{children}</DataStoreContext.Provider>;
