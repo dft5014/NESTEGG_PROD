@@ -180,18 +180,84 @@ const validatePosition = (position) => {
 
 const MATCH_TOLERANCE_PERCENT = 0.01; // 1% tolerance for "matches"
 
+// Keywords that indicate a row is a total/summary row, not a real position
+const EXCLUDED_ROW_KEYWORDS = [
+  'total', 'subtotal', 'grand total', 'sum', 'summary',
+  'account total', 'portfolio total', 'net total',
+  'cash', 'money market', 'pending', 'accrued',
+  'dividend', 'interest', 'fee', 'commission',
+  '--', '---', '****', '====',
+  'n/a', 'none', 'blank'
+];
+
+/**
+ * Check if a row appears to be a total/summary row or otherwise invalid for import
+ * @param {Object} row - The row data
+ * @param {Object} columnMappings - Field mappings
+ * @returns {Object|null} - { reason: string } if excluded, null if valid
+ */
+const checkIfExcludedRow = (row, columnMappings) => {
+  const ticker = (row[columnMappings.symbol] || '').toString().trim();
+  const tickerLower = ticker.toLowerCase();
+  const description = (row[columnMappings.description] || '').toString().toLowerCase();
+  const quantity = row[columnMappings.quantity];
+  const price = row[columnMappings.purchasePrice];
+
+  // Check for excluded keywords in ticker
+  for (const keyword of EXCLUDED_ROW_KEYWORDS) {
+    if (tickerLower.includes(keyword)) {
+      return { reason: `Ticker contains "${keyword}" - likely a summary row` };
+    }
+  }
+
+  // Check for excluded keywords in description
+  for (const keyword of EXCLUDED_ROW_KEYWORDS) {
+    if (description.includes(keyword) && !ticker) {
+      return { reason: `Description suggests summary/total row` };
+    }
+  }
+
+  // Check for missing ticker
+  if (!ticker) {
+    return { reason: 'Missing ticker/symbol' };
+  }
+
+  // Check for invalid ticker format (too long, has spaces, special chars)
+  if (ticker.length > 10) {
+    return { reason: 'Ticker too long - may be a description row' };
+  }
+  if (/\s/.test(ticker) && ticker.length > 5) {
+    return { reason: 'Ticker contains spaces - likely not a valid symbol' };
+  }
+
+  // Check for missing or invalid quantity
+  const parsedQty = parseFormattedNumber(quantity);
+  if (isNaN(parsedQty) || parsedQty <= 0) {
+    return { reason: 'Invalid or zero quantity' };
+  }
+
+  // Check for missing price (warning but not always excluded)
+  const parsedPrice = parseFormattedNumber(price);
+  if (isNaN(parsedPrice) || parsedPrice < 0) {
+    return { reason: 'Invalid price value' };
+  }
+
+  return null; // Not excluded
+};
+
 /**
  * Categorize imported positions by comparing to existing positions in the account
  * @param {Array} importedRows - Parsed rows from statement with mapped fields
  * @param {Array} existingPositions - Raw positions (tax lots) from the specific account
  * @param {Object} columnMappings - Field mappings from import
- * @returns {Object} - { new: [], differs: [], matches: [] }
+ * @returns {Object} - { new: [], differs: [], matches: [], excluded: [] }
  */
 const categorizeImportedPositions = (importedRows, existingPositions, columnMappings) => {
   const result = {
     new: [],      // Symbol not in account - will be added
     differs: [],  // Symbol exists but quantity different - can update
-    matches: []   // Symbol exists and values match - no action needed
+    matches: [],  // Symbol exists and values match - no action needed
+    excluded: []  // Rows that appear to be totals, summaries, or invalid
   };
 
   // Build a lookup map of existing positions by ticker (uppercase)
@@ -218,16 +284,34 @@ const categorizeImportedPositions = (importedRows, existingPositions, columnMapp
 
   // Process each imported row
   importedRows.forEach((row, index) => {
-    const ticker = (row[columnMappings.symbol] || '').toString().toUpperCase().trim();
-    const importedQty = parseFloat(row[columnMappings.quantity]) || 0;
-    const importedPrice = parseFloat(row[columnMappings.purchasePrice]) || 0;
-    const importedValue = parseFloat(row[columnMappings.currentValue]) || (importedQty * importedPrice);
-    const description = row[columnMappings.description] || '';
+    // First check if this row should be excluded
+    const exclusionCheck = checkIfExcludedRow(row, columnMappings);
+    if (exclusionCheck) {
+      const ticker = (row[columnMappings.symbol] || '').toString().trim();
+      const description = row[columnMappings.description] || '';
+      const rawQty = row[columnMappings.quantity];
+      const rawPrice = row[columnMappings.purchasePrice];
+      const rawValue = row[columnMappings.currentValue];
 
-    // Skip invalid rows
-    if (!ticker || importedQty <= 0) {
+      result.excluded.push({
+        index,
+        ticker: ticker || '(empty)',
+        description: description || ticker || '(no description)',
+        rawQuantity: rawQty,
+        rawPrice: rawPrice,
+        rawValue: rawValue,
+        reason: exclusionCheck.reason,
+        rawRow: row,
+        category: 'excluded'
+      });
       return;
     }
+
+    const ticker = (row[columnMappings.symbol] || '').toString().toUpperCase().trim();
+    const importedQty = parseFormattedNumber(row[columnMappings.quantity]) || 0;
+    const importedPrice = parseFormattedNumber(row[columnMappings.purchasePrice]) || 0;
+    const importedValue = parseFormattedNumber(row[columnMappings.currentValue]) || (importedQty * importedPrice);
+    const description = row[columnMappings.description] || '';
 
     const importedItem = {
       index,
@@ -417,6 +501,84 @@ const CategorySection = ({
   );
 };
 
+// Excluded rows section - shows rows that were skipped with reasons
+const ExcludedSection = ({ items, defaultExpanded = false }) => {
+  const [expanded, setExpanded] = useState(defaultExpanded);
+
+  if (items.length === 0) return null;
+
+  return (
+    <div className="rounded-xl border border-gray-700/50 overflow-hidden">
+      {/* Header */}
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center justify-between p-4 bg-gray-800/30 transition-colors hover:bg-gray-800/50"
+      >
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-gray-700/50">
+            <AlertTriangle className="w-5 h-5 text-gray-400" />
+          </div>
+          <div className="text-left">
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-gray-300">Excluded Rows</span>
+              <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-700/50 text-gray-400">
+                {items.length}
+              </span>
+            </div>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Rows skipped (totals, summaries, or invalid data)
+            </p>
+          </div>
+        </div>
+        <ChevronRight className={`w-5 h-5 text-gray-500 transition-transform ${expanded ? 'rotate-90' : ''}`} />
+      </button>
+
+      {/* Expanded content */}
+      {expanded && (
+        <div className="bg-gray-900/30">
+          <div className="max-h-48 overflow-y-auto">
+            {items.map((item, idx) => (
+              <div
+                key={item.index}
+                className="flex items-start gap-3 px-4 py-3 border-b border-gray-800/50 last:border-b-0"
+              >
+                <AlertTriangle className="w-4 h-4 text-gray-500 flex-shrink-0 mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-gray-400">
+                      {item.ticker}
+                    </span>
+                    {item.description && item.description !== item.ticker && (
+                      <span className="text-xs text-gray-600 truncate">
+                        {item.description.slice(0, 40)}
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-xs text-orange-400/70 mt-1">
+                    {item.reason}
+                  </div>
+                  {/* Show raw values for debugging */}
+                  <div className="flex items-center gap-3 text-xs text-gray-600 mt-1">
+                    {item.rawQuantity !== undefined && (
+                      <span>Qty: {String(item.rawQuantity || '-')}</span>
+                    )}
+                    {item.rawPrice !== undefined && (
+                      <span>Price: {String(item.rawPrice || '-')}</span>
+                    )}
+                    {item.rawValue !== undefined && (
+                      <span>Value: {String(item.rawValue || '-')}</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const InsightsView = ({
   categorizedData,
   selectedNew,
@@ -425,21 +587,77 @@ const InsightsView = ({
   onToggleNewAll,
   onToggleDiffers,
   onToggleDiffersAll,
-  isLoading
+  isLoading,
+  evaluationProgress = {}
 }) => {
   if (isLoading) {
+    const { phase, total, processed, newCount, differsCount, matchesCount, excludedCount } = evaluationProgress;
+
     return (
-      <div className="flex flex-col items-center justify-center py-12">
-        <Loader2 className="w-8 h-8 text-blue-400 animate-spin mb-4" />
-        <p className="text-gray-400">Analyzing statement against your account...</p>
+      <div className="flex flex-col items-center justify-center py-12 space-y-6">
+        <div className="text-center">
+          <Loader2 className="w-10 h-10 text-blue-400 animate-spin mx-auto mb-4" />
+          <p className="text-white font-medium mb-1">
+            {phase === 'fetching' && 'Fetching existing positions...'}
+            {phase === 'evaluating' && 'Evaluating statement rows...'}
+            {!phase && 'Analyzing statement against your account...'}
+          </p>
+          <p className="text-sm text-gray-400">
+            {total > 0 ? `${total} rows to analyze` : 'Preparing analysis...'}
+          </p>
+        </div>
+
+        {/* Progress indicators */}
+        {phase === 'evaluating' && total > 0 && (
+          <div className="w-full max-w-md space-y-4">
+            {/* Progress bar */}
+            <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-blue-500 rounded-full transition-all duration-300"
+                style={{ width: `${Math.round((processed / total) * 100)}%` }}
+              />
+            </div>
+
+            {/* Live counters */}
+            <div className="grid grid-cols-4 gap-2 text-center">
+              <div className="p-2 bg-green-900/20 rounded-lg">
+                <div className="text-lg font-bold text-green-400">{newCount}</div>
+                <div className="text-xs text-green-300/70">New</div>
+              </div>
+              <div className="p-2 bg-yellow-900/20 rounded-lg">
+                <div className="text-lg font-bold text-yellow-400">{differsCount}</div>
+                <div className="text-xs text-yellow-300/70">Update</div>
+              </div>
+              <div className="p-2 bg-blue-900/20 rounded-lg">
+                <div className="text-lg font-bold text-blue-400">{matchesCount}</div>
+                <div className="text-xs text-blue-300/70">Match</div>
+              </div>
+              <div className="p-2 bg-gray-800/50 rounded-lg">
+                <div className="text-lg font-bold text-gray-400">{excludedCount}</div>
+                <div className="text-xs text-gray-500">Excluded</div>
+              </div>
+            </div>
+
+            {/* Exclusion warning if many rows excluded */}
+            {excludedCount > 0 && (
+              <div className="flex items-center gap-2 p-2 bg-orange-900/20 border border-orange-700/30 rounded-lg">
+                <AlertTriangle className="w-4 h-4 text-orange-400 flex-shrink-0" />
+                <p className="text-xs text-orange-300">
+                  {excludedCount} row{excludedCount !== 1 ? 's' : ''} excluded (totals, invalid data, or missing values)
+                </p>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     );
   }
 
-  const { new: newItems, differs, matches } = categorizedData;
-  const totalItems = newItems.length + differs.length + matches.length;
+  const { new: newItems, differs, matches, excluded = [] } = categorizedData;
+  const totalValidItems = newItems.length + differs.length + matches.length;
+  const totalRows = totalValidItems + excluded.length;
 
-  if (totalItems === 0) {
+  if (totalValidItems === 0 && excluded.length === 0) {
     return (
       <div className="text-center py-12">
         <AlertCircle className="w-12 h-12 text-yellow-400 mx-auto mb-4" />
@@ -454,7 +672,7 @@ const InsightsView = ({
   return (
     <div className="space-y-4">
       {/* Summary banner */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className={`grid gap-3 ${excluded.length > 0 ? 'grid-cols-4' : 'grid-cols-3'}`}>
         <div className="p-3 bg-green-900/20 border border-green-700/30 rounded-lg text-center">
           <div className="text-2xl font-bold text-green-400">{newItems.length}</div>
           <div className="text-xs text-green-300/70">New Positions</div>
@@ -467,6 +685,17 @@ const InsightsView = ({
           <div className="text-2xl font-bold text-blue-400">{matches.length}</div>
           <div className="text-xs text-blue-300/70">Already Match</div>
         </div>
+        {excluded.length > 0 && (
+          <div className="p-3 bg-gray-800/50 border border-gray-700/30 rounded-lg text-center">
+            <div className="text-2xl font-bold text-gray-400">{excluded.length}</div>
+            <div className="text-xs text-gray-500">Excluded</div>
+          </div>
+        )}
+      </div>
+
+      {/* Row count info */}
+      <div className="text-xs text-gray-500 text-center">
+        Analyzed {totalRows} rows: {totalValidItems} valid positions, {excluded.length} excluded
       </div>
 
       {/* Instructions */}
@@ -522,6 +751,12 @@ const InsightsView = ({
           onToggleAll={() => {}}
           showQuantityComparison={true}
           defaultExpanded={false}
+        />
+
+        {/* Excluded rows section */}
+        <ExcludedSection
+          items={excluded}
+          defaultExpanded={excluded.length > 0 && excluded.length <= 5}
         />
       </div>
 
@@ -1261,23 +1496,45 @@ const ColumnMappingUI = ({
   const dataRowCount = parsedData[0]?.data?.length || 0;
 
   const fieldLabels = {
-    symbol: 'Ticker/Symbol',
-    quantity: 'Quantity/Shares',
-    purchasePrice: 'Purchase Price',
-    currentValue: 'Current Value',
-    description: 'Description/Name',
+    symbol: 'Ticker / Symbol',
+    quantity: 'Quantity / Shares',
+    purchasePrice: 'Price per Share',
+    currentValue: 'Current Market Value',
+    description: 'Security Name',
     purchaseDate: 'Purchase Date',
-    costBasis: 'Cost Basis'
+    costBasis: 'Total Cost Basis'
   };
 
   const fieldDescriptions = {
-    symbol: 'Stock ticker or symbol (required)',
-    quantity: 'Number of shares or units (required)',
-    purchasePrice: 'Price per share at purchase (required)',
-    currentValue: 'Total position value (optional)',
-    description: 'Security name or description (optional)',
-    purchaseDate: 'Date of purchase (optional)',
-    costBasis: 'Total amount invested (optional)'
+    symbol: 'The stock ticker symbol (e.g., AAPL, MSFT, VTI)',
+    quantity: 'Number of shares or units you own',
+    purchasePrice: 'Price paid per share when purchased',
+    currentValue: 'Total current value of the position',
+    description: 'Full name of the security or fund',
+    purchaseDate: 'Date the position was purchased',
+    costBasis: 'Total amount invested (shares × purchase price)'
+  };
+
+  // Common column names to help users identify the right mapping
+  const fieldHints = {
+    symbol: 'Look for: Symbol, Ticker, Security ID, CUSIP',
+    quantity: 'Look for: Shares, Qty, Quantity, Units, Holdings',
+    purchasePrice: 'Look for: Price, Cost/Share, Avg Cost, Purchase Price',
+    currentValue: 'Look for: Market Value, Current Value, Value, Amount',
+    description: 'Look for: Name, Description, Security Name, Security',
+    purchaseDate: 'Look for: Date, Acquired, Purchase Date, Trade Date',
+    costBasis: 'Look for: Cost Basis, Total Cost, Book Value, Invested'
+  };
+
+  // Example values for each field type
+  const fieldExamples = {
+    symbol: 'e.g., AAPL',
+    quantity: 'e.g., 100',
+    purchasePrice: 'e.g., $150.00',
+    currentValue: 'e.g., $18,500.00',
+    description: 'e.g., Apple Inc.',
+    purchaseDate: 'e.g., 2024-01-15',
+    costBasis: 'e.g., $15,000.00'
   };
 
   // Confidence badge colors
@@ -1381,6 +1638,18 @@ const ColumnMappingUI = ({
         </div>
       )}
 
+      {/* Mapping instructions */}
+      <div className="flex items-start gap-3 p-3 bg-blue-900/20 border border-blue-700/30 rounded-lg">
+        <Info className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" />
+        <div className="text-sm">
+          <p className="font-medium text-blue-300 mb-1">Map your statement columns</p>
+          <p className="text-gray-400 text-xs">
+            Match each field below to the corresponding column in your statement.
+            Required fields must be mapped before proceeding.
+          </p>
+        </div>
+      </div>
+
       {/* Mapping grid */}
       <div className="space-y-3">
         {displayFields.map(field => {
@@ -1391,7 +1660,7 @@ const ColumnMappingUI = ({
             <div
               key={field}
               className={`
-                p-3 rounded-lg border transition-all
+                p-4 rounded-lg border transition-all
                 ${isMapped
                   ? 'bg-gray-800/50 border-green-700/50'
                   : isRequired
@@ -1400,40 +1669,60 @@ const ColumnMappingUI = ({
                 }
               `}
             >
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center space-x-2 mb-1">
-                    <label className="text-sm font-medium text-white">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1 min-w-0">
+                  {/* Field header */}
+                  <div className="flex items-center gap-2 mb-1">
+                    <label className="text-sm font-semibold text-white">
                       {fieldLabels[field]}
                     </label>
-                    {isRequired && (
-                      <span className="px-1.5 py-0.5 bg-red-900/50 text-red-300 text-xs rounded">
+                    {isRequired ? (
+                      <span className="px-1.5 py-0.5 bg-red-900/50 text-red-300 text-xs rounded font-medium">
                         Required
+                      </span>
+                    ) : (
+                      <span className="px-1.5 py-0.5 bg-gray-700/50 text-gray-400 text-xs rounded">
+                        Optional
                       </span>
                     )}
                     {isMapped && (
                       <Check className="w-4 h-4 text-green-400" />
                     )}
                   </div>
-                  <p className="text-xs text-gray-400">{fieldDescriptions[field]}</p>
+
+                  {/* Field description */}
+                  <p className="text-xs text-gray-300 mb-1.5">{fieldDescriptions[field]}</p>
+
+                  {/* Field hints and example */}
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                    <span className="text-xs text-gray-500">{fieldHints[field]}</span>
+                    <span className="text-xs text-gray-600">|</span>
+                    <span className="text-xs text-blue-400/70">{fieldExamples[field]}</span>
+                  </div>
                 </div>
 
-                <select
-                  value={mappings[field] || ''}
-                  onChange={(e) => onMappingChange(field, e.target.value)}
-                  className={`
-                    ml-4 px-3 py-1.5 bg-gray-900 border rounded-lg text-sm
-                    ${isMapped ? 'border-green-700 text-white' : 'border-gray-700 text-gray-400'}
-                    focus:outline-none focus:ring-2 focus:ring-blue-500
-                  `}
-                >
-                  <option value="">-- Select column --</option>
-                  {availableColumns.map(col => (
-                    <option key={col} value={col}>
-                      {col}
-                    </option>
-                  ))}
-                </select>
+                {/* Column selector */}
+                <div className="flex flex-col items-end gap-1">
+                  <select
+                    value={mappings[field] || ''}
+                    onChange={(e) => onMappingChange(field, e.target.value)}
+                    className={`
+                      min-w-[180px] px-3 py-2 bg-gray-900 border rounded-lg text-sm
+                      ${isMapped ? 'border-green-700 text-white' : 'border-gray-700 text-gray-400'}
+                      focus:outline-none focus:ring-2 focus:ring-blue-500
+                    `}
+                  >
+                    <option value="">-- Select column --</option>
+                    {availableColumns.map(col => (
+                      <option key={col} value={col}>
+                        {col}
+                      </option>
+                    ))}
+                  </select>
+                  {isMapped && (
+                    <span className="text-xs text-green-400">Mapped</span>
+                  )}
+                </div>
               </div>
             </div>
           );
@@ -1546,10 +1835,19 @@ const AddStatementImportModal = ({ isOpen, onClose }) => {
 
   // New state for insights step
   const [existingPositions, setExistingPositions] = useState([]);
-  const [categorizedData, setCategorizedData] = useState({ new: [], differs: [], matches: [] });
+  const [categorizedData, setCategorizedData] = useState({ new: [], differs: [], matches: [], excluded: [] });
   const [selectedNew, setSelectedNew] = useState(new Set());
   const [selectedDiffers, setSelectedDiffers] = useState(new Set());
   const [isLoadingInsights, setIsLoadingInsights] = useState(false);
+  const [evaluationProgress, setEvaluationProgress] = useState({
+    phase: '', // 'fetching' | 'evaluating' | 'complete'
+    total: 0,
+    processed: 0,
+    newCount: 0,
+    differsCount: 0,
+    matchesCount: 0,
+    excludedCount: 0
+  });
 
   const steps = [
     { id: 'upload', label: 'Upload', sublabel: 'Select files', icon: Upload },
@@ -1757,14 +2055,32 @@ const AddStatementImportModal = ({ isOpen, onClose }) => {
     if (!selectedAccount || parsedData.length === 0) return;
 
     setIsLoadingInsights(true);
+
+    // Aggregate all imported rows from all files
+    const allImportedRows = parsedData.flatMap(fileData => fileData.data);
+
+    // Initialize progress
+    setEvaluationProgress({
+      phase: 'fetching',
+      total: allImportedRows.length,
+      processed: 0,
+      newCount: 0,
+      differsCount: 0,
+      matchesCount: 0,
+      excludedCount: 0
+    });
+
     try {
       // Fetch individual tax lots for this specific account
       // The matching logic will aggregate them by ticker for comparison
       const positions = await fetchPositions(selectedAccount);
       setExistingPositions(positions);
 
-      // Aggregate all imported rows from all files
-      const allImportedRows = parsedData.flatMap(fileData => fileData.data);
+      // Update phase to evaluating
+      setEvaluationProgress(prev => ({
+        ...prev,
+        phase: 'evaluating'
+      }));
 
       // Categorize imported positions
       const categorized = categorizeImportedPositions(
@@ -1772,6 +2088,17 @@ const AddStatementImportModal = ({ isOpen, onClose }) => {
         positions,
         columnMappings
       );
+
+      // Update progress with final counts
+      setEvaluationProgress({
+        phase: 'complete',
+        total: allImportedRows.length,
+        processed: allImportedRows.length,
+        newCount: categorized.new.length,
+        differsCount: categorized.differs.length,
+        matchesCount: categorized.matches.length,
+        excludedCount: categorized.excluded.length
+      });
 
       setCategorizedData(categorized);
 
@@ -1782,6 +2109,7 @@ const AddStatementImportModal = ({ isOpen, onClose }) => {
     } catch (error) {
       console.error('[AddStatementImportModal] Error loading insights:', error);
       toast.error('Failed to analyze positions. Please try again.');
+      setEvaluationProgress(prev => ({ ...prev, phase: 'error' }));
     } finally {
       setIsLoadingInsights(false);
     }
@@ -1964,10 +2292,19 @@ const AddStatementImportModal = ({ isOpen, onClose }) => {
     setHeaderReason('');
     // Reset insights state
     setExistingPositions([]);
-    setCategorizedData({ new: [], differs: [], matches: [] });
+    setCategorizedData({ new: [], differs: [], matches: [], excluded: [] });
     setSelectedNew(new Set());
     setSelectedDiffers(new Set());
     setIsLoadingInsights(false);
+    setEvaluationProgress({
+      phase: '',
+      total: 0,
+      processed: 0,
+      newCount: 0,
+      differsCount: 0,
+      matchesCount: 0,
+      excludedCount: 0
+    });
   };
 
   const handleClose = () => {
@@ -2110,6 +2447,7 @@ const AddStatementImportModal = ({ isOpen, onClose }) => {
             onToggleDiffers={handleToggleDiffers}
             onToggleDiffersAll={handleToggleDiffersAll}
             isLoading={isLoadingInsights}
+            evaluationProgress={evaluationProgress}
           />
         );
 
@@ -2265,7 +2603,7 @@ const AddStatementImportModal = ({ isOpen, onClose }) => {
       subtitle="Import, compare, and sync positions from your brokerage statements"
       maxWidth="3xl"
     >
-      <div className="space-y-6">
+      <div className="p-6 space-y-6">
         {/* Step indicator */}
         <StepIndicator steps={steps} currentStep={currentStep} />
 
