@@ -131,8 +131,10 @@ export default function QuickStartModalV2({ isOpen, onClose, onSuccess, initialP
         }
       } else if (type === 'positions') {
         markStale('positions');
-        markStale('portfolioSummary');
         markStale('groupedPositions');
+        markStale('detailedPositions');
+        markStale('portfolioSummary');
+        markStale('accountPositions');
       } else if (type === 'liabilities') {
         markStale('liabilities');
         markStale('portfolioSummary');
