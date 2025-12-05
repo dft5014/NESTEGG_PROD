@@ -10,6 +10,7 @@ import {
   getSupportedInstitutions
 } from '@/utils/institutionTemplates';
 import { useAccounts } from '@/store/hooks/useAccounts';
+import { useDataStore } from '@/store/DataStore';
 import {
   addSecurityPositionBulk,
   fetchPositions,
@@ -1532,6 +1533,9 @@ const PreviewTable = ({ data, mappings, limit = 10 }) => {
 
 // Main modal component
 const AddStatementImportModal = ({ isOpen, onClose }) => {
+  // DataStore for marking data stale after successful imports
+  const { markStale } = useDataStore();
+
   const [currentStep, setCurrentStep] = useState(0);
   const [files, setFiles] = useState([]);
   const [parsedData, setParsedData] = useState([]);
@@ -1973,6 +1977,15 @@ const AddStatementImportModal = ({ isOpen, onClose }) => {
         failed: failedCount,
         errors
       });
+
+      // Mark data as stale to trigger UI refresh after successful imports
+      if (addedCount + updatedCount > 0) {
+        markStale('positions');
+        markStale('groupedPositions');
+        markStale('detailedPositions');
+        markStale('portfolioSummary');
+        markStale('accountPositions');
+      }
 
       if (failedCount === 0) {
         toast.success(`Successfully processed ${addedCount + updatedCount} positions!`);
