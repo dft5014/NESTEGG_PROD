@@ -3,7 +3,7 @@ import Link from 'next/link';
 import {
   LayoutGrid, Wallet, Coins, CreditCard,
   LogOut, Plus, Target, BarChart3, Menu, X,
-  Search, Smartphone
+  Search, Smartphone, User
 } from 'lucide-react';
 import { useContext, useState, useEffect, useRef } from 'react';
 import { AuthContext } from '@/context/AuthContext';
