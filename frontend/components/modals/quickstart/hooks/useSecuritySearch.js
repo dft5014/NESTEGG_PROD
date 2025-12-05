@@ -173,8 +173,6 @@ export default function useSecuritySearch({
 
     if (toHydrate.length === 0) return;
 
-    console.log(`Hydrating ${toHydrate.length} positions...`);
-
     // Process in batches to avoid overwhelming the API
     for (const item of toHydrate) {
       await hydratePrice(item.assetType, item.id, item.query);

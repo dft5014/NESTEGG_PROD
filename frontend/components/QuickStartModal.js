@@ -1668,9 +1668,6 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                         // Optionally refresh data or show success
                     }}
                     onPositionsSaved={(count, positions) => {
-                        console.log('Received count:', count);
-                        console.log('Received positions:', positions);
-                        
                         setImportedPositions(count);
                         setImportedPositionsData(positions);
                         setActiveTab('success');

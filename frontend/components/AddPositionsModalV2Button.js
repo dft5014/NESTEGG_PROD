@@ -18,9 +18,7 @@ export function AddPositionsModalV2Button() {
       <AddPositionsModalV2
         isOpen={isOpen}
         onClose={() => setIsOpen(false)}
-        onSuccess={(count) => {
-          console.log(`✅ Successfully added ${count} positions`);
-        }}
+        onSuccess={() => {}}
       />
     </>
   );

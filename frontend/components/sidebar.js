@@ -1,13 +1,13 @@
 // components/sidebar.js
 import Link from 'next/link';
 import {
-  LayoutGrid, TrendingUp, Wallet, Coins, CreditCard,
-  Settings, LogOut, Plus, Target, BarChart3, Menu, X,
-  Search, Bell, Moon, Sun, Smartphone, User, Shield, Clock, HelpCircle, ChevronDown
+  LayoutGrid, Wallet, Coins, CreditCard,
+  LogOut, Plus, Target, BarChart3, Menu, X,
+  Search, Smartphone
 } from 'lucide-react';
 import { useContext, useState, useEffect, useRef } from 'react';
 import { AuthContext } from '@/context/AuthContext';
-import { UserButton, UserProfile, useUser } from '@clerk/nextjs';
+import { UserButton, useUser } from '@clerk/nextjs';
 import { useRouter } from 'next/router';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSidebar } from '@/pages/_app';
@@ -21,7 +21,6 @@ const Sidebar = () => {
   const [hoveredItem, setHoveredItem] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearch, setShowSearch] = useState(false);
-  const [darkMode, setDarkMode] = useState(true);
   const [mounted, setMounted] = useState(false);
   const router = useRouter();
 

@@ -38,7 +38,6 @@ export default function useLocalPersistence({ state, dispatch, enabled = true })
     if (hasData) {
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave));
-        console.log('Draft saved to localStorage');
       } catch (e) {
         console.error('Failed to save draft:', e);
       }
@@ -120,7 +119,6 @@ export default function useLocalPersistence({ state, dispatch, enabled = true })
 
       setHasPendingDraft(false);
       setDraftInfo(null);
-      console.log('Draft restored from localStorage');
 
       return true;
     } catch (e) {
@@ -142,7 +140,6 @@ export default function useLocalPersistence({ state, dispatch, enabled = true })
       localStorage.removeItem(STORAGE_KEY);
       setHasPendingDraft(false);
       setDraftInfo(null);
-      console.log('Draft cleared from localStorage');
     } catch (e) {
       console.error('Failed to clear draft:', e);
     }

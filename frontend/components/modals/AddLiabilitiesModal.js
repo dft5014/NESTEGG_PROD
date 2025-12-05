@@ -370,7 +370,6 @@ export const AddLiabilitiesModal = ({ isOpen, onClose, onLiabilitiesSaved }) => 
             
             setShowSuccessAnimation(true);
                 setTimeout(() => {
-                    console.log('Saved liabilities:', savedLiabilities); // Debug log
                     if (onLiabilitiesSaved && savedLiabilities.length > 0) {
                         onLiabilitiesSaved(savedLiabilities.length, savedLiabilities);
                     }
