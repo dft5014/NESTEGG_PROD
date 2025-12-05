@@ -64,6 +64,21 @@ This document tracks all outstanding tasks, improvements, and known issues for t
   - [ ] Add audit logging for data deletion events
   - [ ] Consider soft-delete with grace period for recovery
 
+### User Activity Tracking (Profile Page)
+- [ ] **Create user_activity table in database**
+  - Currently the Activity tab in profile shows system events, but we need user-specific activity
+  - [ ] Create `user_sessions` or `user_activity` table with:
+    - `id`, `user_id`, `activity_type`, `description`, `metadata` (JSON), `ip_address`, `user_agent`, `created_at`
+  - [ ] Track meaningful user actions:
+    - Login/logout events
+    - Position additions/updates/deletions
+    - Account changes
+    - Settings changes
+    - Data exports
+  - [ ] Create API endpoint `GET /user/activity` to fetch user's activity log
+  - [ ] Update Activity tab in profile to use real user activity data
+  - This will provide users visibility into their account actions for security awareness
+
 ---
 
 ## 🚀 High Priority
@@ -389,7 +404,19 @@ When a bug is discovered, add it to the "Known Bugs" section with:
 
 *Move completed items here to track progress while keeping the main list focused*
 
-### 2025-12-05: Profile Page Production Optimization
+### 2025-12-05: Profile Page Production Optimization (Round 2)
+- [x] Removed Sessions tab (redundant with Security tab)
+- [x] Integrated DataStore hooks for stats (useAccounts, useDetailedPositions, useGroupedLiabilities, useSnapshots)
+- [x] Updated sidebar stats to show: Accounts, Positions (actual count), Liabilities, History Days
+- [x] Added position breakdown by type in sidebar
+- [x] Removed Access Control Status section from Subscription tab (simplified)
+- [x] Removed unused Protect import and related code
+- [x] Cleaned up Clerk imports (removed unused Monitor)
+- [x] Updated ManageDataSection to use DataStore stats
+- [x] Added BarChart3 icon for "Your Data" section
+- [x] Documented user activity tracking need in TODO.md
+
+### 2025-12-05: Profile Page Production Optimization (Round 1)
 - [x] Removed placeholder data (random loginStreak, fake notification save)
 - [x] Removed Developer tab (debug-only, not production appropriate)
 - [x] Replaced with "Manage Data" tab for user data management
