@@ -523,10 +523,10 @@ function ProfileContent() {
               </div>
             </SignedIn>
             <Link
-              href="/dashboard"
+              href="/portfolio"
               className="px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors inline-flex items-center"
             >
-              <span>Back to Dashboard</span>
+              <span>Back to Portfolio</span>
               <ArrowRight className="ml-2 h-4 w-4" />
             </Link>
           </div>
