@@ -1,5 +1,5 @@
 // pages/profile.js
-import { useState, useEffect, useContext, useMemo, useCallback } from "react";
+import { useState, useEffect, useContext, useMemo } from "react";
 import Link from "next/link";
 import {
   SignedIn,
@@ -8,12 +8,21 @@ import {
   useAuth,
   UserButton,
   UserProfile,
-  Protect,
 } from "@clerk/nextjs";
 import { SubscriptionDetailsButton, useSubscription } from "@clerk/nextjs/experimental";
 import { AuthContext } from "@/context/AuthContext";
 import { fetchWithAuth } from "@/utils/api";
 import toast from "react-hot-toast";
+
+// DataStore hooks
+import { useDataStore } from "@/store/DataStore";
+import {
+  usePortfolioSummary,
+  useAccounts,
+  useDetailedPositions,
+  useSnapshots,
+  useGroupedLiabilities
+} from "@/store/hooks";
 
 // Optional: useTheme if your app has next-themes installed. We also provide a no-lib fallback.
 let useTheme;
@@ -39,7 +48,6 @@ import {
   Settings as SettingsIcon,
   ArrowRight,
   Zap,
-  Monitor,
   Moon,
   Sun,
   Globe,
@@ -54,6 +62,7 @@ import {
   Home,
   Package,
   FileText,
+  BarChart3,
 } from "lucide-react";
 
 /** ----------------------------
@@ -108,20 +117,58 @@ function ProfileContent() {
   const { data: subscription, isLoaded: subscriptionLoaded } = useSubscription();
   const { user: ctxUser, setUser } = useContext(AuthContext);
 
-  // Tabs
+  // Tabs - simplified for production
   const TABS = useMemo(
     () => [
       { id: "profile", label: "Profile", icon: User },
-      { id: "subscription", label: "Subscription & Billing", icon: CreditCard },
+      { id: "subscription", label: "Subscription", icon: CreditCard },
       { id: "security", label: "Security", icon: Shield },
       { id: "notifications", label: "Notifications", icon: Bell },
       { id: "activity", label: "Activity", icon: Clock },
       { id: "settings", label: "Settings", icon: SettingsIcon },
-      { id: "sessions", label: "Sessions", icon: Monitor },
       { id: "data", label: "Manage Data", icon: Database },
     ],
     []
   );
+
+  // Initialize DataStore
+  useDataStore();
+
+  // DataStore hooks for stats
+  const { accounts } = useAccounts();
+  const { positions: detailedPositions } = useDetailedPositions();
+  const { groupedLiabilities } = useGroupedLiabilities();
+  const { dates: snapshotDates, refetch: fetchSnapshots } = useSnapshots();
+  const { summary } = usePortfolioSummary();
+
+  // Computed stats from DataStore
+  const dataStats = useMemo(() => {
+    const accountCount = accounts?.length || 0;
+    const positionCount = detailedPositions?.length || 0;
+    const liabilityCount = groupedLiabilities?.length || 0;
+    const historyDays = snapshotDates?.length || 0;
+
+    // Count by asset type from detailed positions
+    const assetTypeCounts = (detailedPositions || []).reduce((acc, pos) => {
+      const type = pos.assetType || pos.item_type || 'unknown';
+      acc[type] = (acc[type] || 0) + 1;
+      return acc;
+    }, {});
+
+    return {
+      accountCount,
+      positionCount,
+      liabilityCount,
+      historyDays,
+      assetTypeCounts,
+      securitiesCount: assetTypeCounts['security'] || 0,
+      cashCount: assetTypeCounts['cash'] || 0,
+      cryptoCount: assetTypeCounts['crypto'] || 0,
+      metalsCount: assetTypeCounts['metal'] || 0,
+      realEstateCount: assetTypeCounts['real_estate'] || 0,
+      otherAssetsCount: assetTypeCounts['other_asset'] || 0,
+    };
+  }, [accounts, detailedPositions, groupedLiabilities, snapshotDates]);
 
   // Core UI state
   const [active, setActive] = useState("profile");
@@ -133,7 +180,6 @@ function ProfileContent() {
   // Profile data
   const [memberSince, setMemberSince] = useState(null);
   const [daysAsMember, setDaysAsMember] = useState(0);
-  const [accountStats, setAccountStats] = useState(null);
   const [editMode, setEditMode] = useState(false);
   const [profileData, setProfileData] = useState({
     firstName: "",
@@ -216,7 +262,9 @@ function ProfileContent() {
   const bootstrap = async () => {
     setLoading(true);
     try {
-      await Promise.all([fetchProfile(), fetchStats(), fetchEvents()]);
+      await Promise.all([fetchProfile(), fetchEvents()]);
+      // Also fetch snapshots for historical data count
+      fetchSnapshots?.();
       computeFeatureAccess();
     } catch (e) {
       setError(e?.message ?? "Failed to initialize profile.");
@@ -294,45 +342,6 @@ function ProfileContent() {
     }
   };
 
-  const fetchStats = async () => {
-    try {
-      const res = await fetchWithAuth("/portfolio/summary");
-      if (res.ok) {
-        const s = await res.json();
-        setAccountStats({
-          priceUpdates: s?.last_price_update ? "Real-time" : "Daily",
-          totalAccounts: s?.accounts_count ?? 0,
-          totalPositions: s?.positions_count ?? 0,
-          // Summary metrics from portfolio
-          totalSecurities: s?.security_count ?? 0,
-          totalCrypto: s?.crypto_count ?? 0,
-          totalCash: s?.cash_count ?? 0,
-          totalLiabilities: s?.liability_count ?? 0,
-        });
-      } else {
-        setAccountStats({
-          priceUpdates: "Daily",
-          totalAccounts: 0,
-          totalPositions: 0,
-          totalSecurities: 0,
-          totalCrypto: 0,
-          totalCash: 0,
-          totalLiabilities: 0,
-        });
-      }
-    } catch {
-      setAccountStats({
-        priceUpdates: "Daily",
-        totalAccounts: 0,
-        totalPositions: 0,
-        totalSecurities: 0,
-        totalCrypto: 0,
-        totalCash: 0,
-        totalLiabilities: 0,
-      });
-    }
-  };
-
   const fetchEvents = async () => {
     try {
       const res = await fetchWithAuth("/system/events?limit=8");
@@ -368,11 +377,12 @@ function ProfileContent() {
   const ActivityIcon = ({ name }) => {
     const map = {
       User: <User className="h-5 w-5" />,
-      Lock: <Lock className="h-5 w-5" />,
       Shield: <Shield className="h-5 w-5" />,
       PiggyBank: <PiggyBank className="h-5 w-5" />,
       Edit: <Edit className="h-5 w-5" />,
       Clock: <Clock className="h-5 w-5" />,
+      Trash: <Trash2 className="h-5 w-5" />,
+      Bell: <Bell className="h-5 w-5" />,
     };
     return map[name] || <Clock className="h-5 w-5" />;
   };
@@ -616,16 +626,56 @@ function ProfileContent() {
                 </div>
               </div>
 
-              <Section title="Portfolio Stats">
+              <Section title="Your Data" icon={BarChart3}>
                 <div className="space-y-3">
-                  <InfoRow label="Total Accounts" value={accountStats?.totalAccounts ?? 0} />
-                  <InfoRow label="Total Positions" value={accountStats?.totalPositions ?? 0} />
-                  <InfoRow label="Securities" value={accountStats?.totalSecurities ?? 0} />
-                  <InfoRow label="Crypto" value={accountStats?.totalCrypto ?? 0} />
-                  <InfoRow label="Cash Positions" value={accountStats?.totalCash ?? 0} />
-                  <InfoRow label="Liabilities" value={accountStats?.totalLiabilities ?? 0} />
-                  <InfoRow label="Price Updates" value={accountStats?.priceUpdates ?? "Daily"} />
+                  <InfoRow label="Accounts" value={dataStats.accountCount} />
+                  <InfoRow label="Positions" value={dataStats.positionCount} />
+                  <InfoRow label="Liabilities" value={dataStats.liabilityCount} />
+                  <InfoRow label="History Days" value={dataStats.historyDays > 0 ? `${dataStats.historyDays} snapshots` : "No history"} />
                 </div>
+                {dataStats.positionCount > 0 && (
+                  <div className="mt-4 pt-4 border-t border-gray-700">
+                    <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">By Type</p>
+                    <div className="space-y-2 text-xs">
+                      {dataStats.securitiesCount > 0 && (
+                        <div className="flex justify-between text-gray-400">
+                          <span>Securities</span>
+                          <span className="text-gray-300">{dataStats.securitiesCount}</span>
+                        </div>
+                      )}
+                      {dataStats.cashCount > 0 && (
+                        <div className="flex justify-between text-gray-400">
+                          <span>Cash</span>
+                          <span className="text-gray-300">{dataStats.cashCount}</span>
+                        </div>
+                      )}
+                      {dataStats.cryptoCount > 0 && (
+                        <div className="flex justify-between text-gray-400">
+                          <span>Crypto</span>
+                          <span className="text-gray-300">{dataStats.cryptoCount}</span>
+                        </div>
+                      )}
+                      {dataStats.metalsCount > 0 && (
+                        <div className="flex justify-between text-gray-400">
+                          <span>Metals</span>
+                          <span className="text-gray-300">{dataStats.metalsCount}</span>
+                        </div>
+                      )}
+                      {dataStats.realEstateCount > 0 && (
+                        <div className="flex justify-between text-gray-400">
+                          <span>Real Estate</span>
+                          <span className="text-gray-300">{dataStats.realEstateCount}</span>
+                        </div>
+                      )}
+                      {dataStats.otherAssetsCount > 0 && (
+                        <div className="flex justify-between text-gray-400">
+                          <span>Other</span>
+                          <span className="text-gray-300">{dataStats.otherAssetsCount}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </Section>
             </aside>
 
@@ -803,69 +853,6 @@ function ProfileContent() {
                           </button>
                         </SubscriptionDetailsButton>
                       </div>
-                    </div>
-                  </Section>
-
-                  <Section title="Access Control Status" icon={Shield}>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div>
-                        <h4 className="text-sm font-semibold text-gray-300 mb-3 uppercase tracking-wide">Features</h4>
-                        <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
-                          {FEATURE_KEYS.map((key) => (
-                            <div key={key} className="flex items-center justify-between py-2 px-3 bg-gray-800/50 rounded-lg">
-                              <span className="text-sm text-gray-300 capitalize">{key.replace(/_/g, " ")}</span>
-                              {features[key] ? (
-                                <CheckCircle className="h-4 w-4 text-green-400" />
-                              ) : (
-                                <X className="h-4 w-4 text-red-400" />
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                      <div>
-                        <h4 className="text-sm font-semibold text-gray-300 mb-3 uppercase tracking-wide">Plans</h4>
-                        <div className="space-y-2">
-                          {PLAN_KEYS.map((key) => (
-                            <div key={key} className="flex items-center justify-between py-2 px-3 bg-gray-800/50 rounded-lg">
-                              <span className="text-sm text-gray-300 capitalize">{key}</span>
-                              {plans[key] ? (
-                                <CheckCircle className="h-4 w-4 text-green-400" />
-                              ) : (
-                                <X className="h-4 w-4 text-red-400" />
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="mt-6 space-y-4">
-                      <Protect
-                        feature="ai_assistant"
-                        fallback={
-                          <div className="p-4 border border-red-800/50 bg-red-900/20 rounded-lg text-red-300 text-sm">
-                            🔒 AI Assistant requires an upgraded plan.
-                          </div>
-                        }
-                      >
-                        <div className="p-4 border border-green-800/50 bg-green-900/20 rounded-lg text-green-300 text-sm">
-                          ✨ You have access to the AI Assistant feature!
-                        </div>
-                      </Protect>
-
-                      <Protect
-                        feature="advanced_analytics"
-                        fallback={
-                          <div className="p-4 border border-red-800/50 bg-red-900/20 rounded-lg text-red-300 text-sm">
-                            📊 Advanced Analytics requires a paid plan.
-                          </div>
-                        }
-                      >
-                        <div className="p-4 border border-green-800/50 bg-green-900/20 rounded-lg text-green-300 text-sm">
-                          📈 Advanced Analytics is available to you!
-                        </div>
-                      </Protect>
                     </div>
                   </Section>
                 </>
@@ -1054,37 +1041,12 @@ function ProfileContent() {
                 </Section>
               )}
 
-              {/* SESSIONS (surface Clerk sessions via UserProfile or a hint) */}
-              {active === "sessions" && (
-                <Section title="Active Sessions & Devices" icon={Monitor}>
-                  <p className="text-sm text-gray-400 mb-4">
-                    Manage sessions and sign out devices below. This embeds Clerk’s session manager.
-                  </p>
-                  <div className="rounded-lg border border-gray-800 overflow-hidden">
-                    <UserProfile
-                      appearance={{
-                        baseTheme: "dark",
-                        elements: {
-                          card: "bg-gray-900 border-gray-800",
-                          navbar: "bg-gray-900 border-b border-gray-800",
-                        },
-                      }}
-                      routing="hash"
-                      // This anchors the UserProfile to the Sessions page on load.
-                      // Users can also navigate to other security pages from the left nav.
-                      // (Clerk handles the internal tabs)
-                      // NOTE: If Clerk changes internal anchors, this still works as a full profile console.
-                    />
-                  </div>
-                </Section>
-              )}
-
               {/* MANAGE DATA */}
               {active === "data" && (
                 <ManageDataSection
-                  accountStats={accountStats}
+                  dataStats={dataStats}
                   onDataDeleted={() => {
-                    fetchStats();
+                    // DataStore will auto-refresh when data changes
                     setActivityLog((prev) => [
                       { action: "Data Deleted", date: new Date().toISOString(), details: "User data was deleted", icon: "Trash" },
                       ...prev.slice(0, 7),
@@ -1166,7 +1128,7 @@ const POSITION_TYPES = [
   { id: "liabilities", label: "Liabilities", icon: FileText, description: "Loans, credit cards, mortgages" },
 ];
 
-function ManageDataSection({ accountStats, onDataDeleted }) {
+function ManageDataSection({ dataStats, onDataDeleted }) {
   const [deleteModal, setDeleteModal] = useState(null); // null | 'positions' | 'accounts' | 'history'
 
   return (
@@ -1196,20 +1158,20 @@ function ManageDataSection({ accountStats, onDataDeleted }) {
         <div className="p-6">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="bg-gray-800/50 rounded-lg p-4 text-center">
-              <p className="text-2xl font-bold text-gray-100">{accountStats?.totalAccounts ?? 0}</p>
+              <p className="text-2xl font-bold text-gray-100">{dataStats?.accountCount ?? 0}</p>
               <p className="text-sm text-gray-400">Accounts</p>
             </div>
             <div className="bg-gray-800/50 rounded-lg p-4 text-center">
-              <p className="text-2xl font-bold text-gray-100">{accountStats?.totalPositions ?? 0}</p>
+              <p className="text-2xl font-bold text-gray-100">{dataStats?.positionCount ?? 0}</p>
               <p className="text-sm text-gray-400">Positions</p>
             </div>
             <div className="bg-gray-800/50 rounded-lg p-4 text-center">
-              <p className="text-2xl font-bold text-gray-100">{accountStats?.totalSecurities ?? 0}</p>
-              <p className="text-sm text-gray-400">Securities</p>
+              <p className="text-2xl font-bold text-gray-100">{dataStats?.liabilityCount ?? 0}</p>
+              <p className="text-sm text-gray-400">Liabilities</p>
             </div>
             <div className="bg-gray-800/50 rounded-lg p-4 text-center">
-              <p className="text-2xl font-bold text-gray-100">{accountStats?.totalLiabilities ?? 0}</p>
-              <p className="text-sm text-gray-400">Liabilities</p>
+              <p className="text-2xl font-bold text-gray-100">{dataStats?.historyDays ?? 0}</p>
+              <p className="text-sm text-gray-400">History Days</p>
             </div>
           </div>
         </div>
