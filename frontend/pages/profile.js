@@ -15,7 +15,6 @@ import { fetchWithAuth } from "@/utils/api";
 import toast from "react-hot-toast";
 
 // DataStore hooks
-import { useDataStore } from "@/store/DataStore";
 import {
   usePortfolioSummary,
   useAccounts,
@@ -114,15 +113,12 @@ function ProfileContent() {
     []
   );
 
-  // Initialize DataStore
-  useDataStore();
-
-  // DataStore hooks for stats
-  const { accounts } = useAccounts();
-  const { positions: detailedPositions } = useDetailedPositions();
-  const { liabilities, summary: liabilitySummary } = useGroupedLiabilities();
-  const { dates: snapshotDates, refetch: fetchSnapshots } = useSnapshots();
-  const { summary } = usePortfolioSummary();
+  // DataStore hooks for stats - these only fetch if data is stale/error
+  const { accounts, loading: accountsLoading, lastFetched: accountsLastFetched } = useAccounts();
+  const { positions: detailedPositions, loading: positionsLoading, lastFetched: positionsLastFetched } = useDetailedPositions();
+  const { liabilities, summary: liabilitySummary, loading: liabilitiesLoading } = useGroupedLiabilities();
+  const { dates: snapshotDates, refetch: fetchSnapshots, isLoading: snapshotsLoading, lastFetched: snapshotsLastFetched } = useSnapshots();
+  const { summary, loading: summaryLoading } = usePortfolioSummary();
 
   // Computed stats from DataStore
   const dataStats = useMemo(() => {
@@ -213,8 +209,11 @@ function ProfileContent() {
     setLoading(true);
     try {
       await fetchProfile();
-      // Also fetch snapshots for historical data count
-      fetchSnapshots?.();
+      // Only fetch snapshots if not already loaded (within last 5 minutes)
+      const fiveMinutesAgo = Date.now() - 300000;
+      if (!snapshotsLoading && (!snapshotsLastFetched || snapshotsLastFetched < fiveMinutesAgo)) {
+        fetchSnapshots?.();
+      }
       computeFeatureAccess();
     } catch (e) {
       setError(e?.message ?? "Failed to initialize profile.");
