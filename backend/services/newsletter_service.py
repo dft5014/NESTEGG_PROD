@@ -296,94 +296,31 @@ class NewsletterService:
 
         return " ".join(commentaries[:3])  # Limit to 3 commentaries
 
-    def generate_newsletter_html(
-        self,
-        user: Dict[str, Any],
-        summary: Dict[str, Any],
-        accounts: List[Dict[str, Any]],
-        commentary: str
-    ) -> str:
-        """
-        Generate the full newsletter HTML.
+    def _get_default_content_options(self) -> Dict[str, bool]:
+        """Get default content options for newsletter."""
+        return {
+            "includeNetWorth": True,
+            "includePeriodChanges": True,
+            "includeBalanceSummary": True,
+            "includeAccountDetails": True,
+            "includeTopPerformers": True,
+            "includeCommentary": True,
+            "includeAssetAllocation": False
+        }
 
-        Args:
-            user: User dict with name and email
-            summary: Portfolio summary dict
-            accounts: List of account dicts
-            commentary: Generated commentary string
-
-        Returns:
-            Complete HTML email string
-        """
-        first_name = user.get("first_name") or "there"
-
-        # Format summary values
+    def _generate_net_worth_section(self, summary: Dict[str, Any], include_period_changes: bool = True) -> str:
+        """Generate the net worth card section."""
         net_worth = format_currency(summary.get("net_worth", 0))
-        total_assets = format_currency(summary.get("total_assets", 0))
-        total_liabilities = format_currency(summary.get("total_liabilities", 0))
-        liquid_assets = format_currency(summary.get("liquid_assets", 0))
-
-        # Period changes
         nw_1d_change = summary.get("net_worth_1d_change", 0) or 0
         nw_1w_change = summary.get("net_worth_1w_change", 0) or 0
         nw_1m_change = summary.get("net_worth_1m_change", 0) or 0
-
         nw_1d_pct = summary.get("net_worth_1d_change_pct", 0) or 0
         nw_1w_pct = summary.get("net_worth_1w_change_pct", 0) or 0
         nw_1m_pct = summary.get("net_worth_1m_change_pct", 0) or 0
 
-        # Unrealized gains
-        unrealized_gain = summary.get("liquid_unrealized_gain", 0) or 0
-        unrealized_gain_pct = summary.get("liquid_unrealized_gain_percent", 0) or 0
-
-        # Generate accounts table rows
-        accounts_rows = ""
-        for acc in accounts[:10]:  # Limit to top 10 accounts
-            gain_color = get_change_color(acc.get("unrealized_gain", 0))
-            accounts_rows += f"""
-            <tr>
-                <td style="padding: 12px; border-bottom: 1px solid #374151;">
-                    <strong style="color: #f3f4f6;">{acc.get('name', 'Unknown')}</strong><br>
-                    <span style="color: #9ca3af; font-size: 12px;">{acc.get('institution', '')} - {acc.get('account_type', '')}</span>
-                </td>
-                <td style="padding: 12px; border-bottom: 1px solid #374151; text-align: right;">
-                    <span style="color: #f3f4f6; font-weight: 600;">{format_currency(acc.get('current_value', 0))}</span><br>
-                    <span style="color: {gain_color}; font-size: 12px;">{format_change(acc.get('unrealized_gain', 0))} ({format_percentage(acc.get('unrealized_gain_percent', 0))})</span>
-                </td>
-            </tr>
-            """
-
-        # Get today's date
-        today = datetime.now().strftime("%B %d, %Y")
-
-        html = f"""
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NestEgg Portfolio Summary</title>
-</head>
-<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #0f172a;">
-    <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
-        <!-- Header -->
-        <div style="text-align: center; padding: 30px 0; border-bottom: 1px solid #1e293b;">
-            <h1 style="margin: 0; color: #3b82f6; font-size: 28px;">NestEgg</h1>
-            <p style="margin: 10px 0 0; color: #94a3b8; font-size: 14px;">Your Portfolio Summary for {today}</p>
-        </div>
-
-        <!-- Greeting -->
-        <div style="padding: 30px 0;">
-            <h2 style="margin: 0 0 15px; color: #f3f4f6; font-size: 22px;">Hi {first_name},</h2>
-            <p style="margin: 0; color: #cbd5e1; line-height: 1.6;">
-                {commentary}
-            </p>
-        </div>
-
-        <!-- Net Worth Card -->
-        <div style="background: linear-gradient(135deg, #1e40af 0%, #7c3aed 100%); border-radius: 16px; padding: 30px; margin-bottom: 20px;">
-            <p style="margin: 0 0 8px; color: #c4b5fd; font-size: 14px; text-transform: uppercase; letter-spacing: 1px;">Net Worth</p>
-            <h2 style="margin: 0; color: #ffffff; font-size: 36px; font-weight: 700;">{net_worth}</h2>
+        period_changes_html = ""
+        if include_period_changes:
+            period_changes_html = f"""
             <div style="margin-top: 20px; display: flex; gap: 20px;">
                 <div>
                     <p style="margin: 0; color: #c4b5fd; font-size: 12px;">1 Day</p>
@@ -398,9 +335,25 @@ class NewsletterService:
                     <p style="margin: 4px 0 0; color: {get_change_color(nw_1m_change)}; font-weight: 600;">{format_change(nw_1m_change)} ({format_percentage(nw_1m_pct)})</p>
                 </div>
             </div>
-        </div>
+            """
 
-        <!-- Balance Summary -->
+        return f"""
+        <div style="background: linear-gradient(135deg, #1e40af 0%, #7c3aed 100%); border-radius: 16px; padding: 30px; margin-bottom: 20px;">
+            <p style="margin: 0 0 8px; color: #c4b5fd; font-size: 14px; text-transform: uppercase; letter-spacing: 1px;">Net Worth</p>
+            <h2 style="margin: 0; color: #ffffff; font-size: 36px; font-weight: 700;">{net_worth}</h2>
+            {period_changes_html}
+        </div>
+        """
+
+    def _generate_balance_summary_section(self, summary: Dict[str, Any]) -> str:
+        """Generate the balance summary section."""
+        total_assets = format_currency(summary.get("total_assets", 0))
+        total_liabilities = format_currency(summary.get("total_liabilities", 0))
+        liquid_assets = format_currency(summary.get("liquid_assets", 0))
+        unrealized_gain = summary.get("liquid_unrealized_gain", 0) or 0
+        unrealized_gain_pct = summary.get("liquid_unrealized_gain_percent", 0) or 0
+
+        return f"""
         <div style="background-color: #1e293b; border-radius: 12px; padding: 25px; margin-bottom: 20px;">
             <h3 style="margin: 0 0 20px; color: #f3f4f6; font-size: 18px;">Balance Summary</h3>
             <div style="display: grid; gap: 15px;">
@@ -422,8 +375,30 @@ class NewsletterService:
                 </div>
             </div>
         </div>
+        """
 
-        <!-- Accounts Table -->
+    def _generate_accounts_section(self, accounts: List[Dict[str, Any]]) -> str:
+        """Generate the accounts table section."""
+        if not accounts:
+            return ""
+
+        accounts_rows = ""
+        for acc in accounts[:10]:
+            gain_color = get_change_color(acc.get("unrealized_gain", 0))
+            accounts_rows += f"""
+            <tr>
+                <td style="padding: 12px; border-bottom: 1px solid #374151;">
+                    <strong style="color: #f3f4f6;">{acc.get('name', 'Unknown')}</strong><br>
+                    <span style="color: #9ca3af; font-size: 12px;">{acc.get('institution', '')} - {acc.get('account_type', '')}</span>
+                </td>
+                <td style="padding: 12px; border-bottom: 1px solid #374151; text-align: right;">
+                    <span style="color: #f3f4f6; font-weight: 600;">{format_currency(acc.get('current_value', 0))}</span><br>
+                    <span style="color: {gain_color}; font-size: 12px;">{format_change(acc.get('unrealized_gain', 0))} ({format_percentage(acc.get('unrealized_gain_percent', 0))})</span>
+                </td>
+            </tr>
+            """
+
+        return f"""
         <div style="background-color: #1e293b; border-radius: 12px; padding: 25px; margin-bottom: 20px;">
             <h3 style="margin: 0 0 20px; color: #f3f4f6; font-size: 18px;">Account Details</h3>
             <table style="width: 100%; border-collapse: collapse;">
@@ -438,6 +413,186 @@ class NewsletterService:
                 </tbody>
             </table>
         </div>
+        """
+
+    def _generate_top_performers_section(self, summary: Dict[str, Any]) -> str:
+        """Generate top performers section from summary data."""
+        top_performers = summary.get("top_performers_percent") or []
+        if not top_performers or not isinstance(top_performers, list):
+            return ""
+
+        performers_rows = ""
+        for pos in top_performers[:5]:
+            if isinstance(pos, dict):
+                gain_pct = pos.get("gain_loss_percent", 0) or 0
+                gain_color = get_change_color(gain_pct)
+                performers_rows += f"""
+                <div style="display: flex; justify-content: space-between; padding: 12px; background-color: #0f172a; border-radius: 8px;">
+                    <div>
+                        <span style="color: #f3f4f6; font-weight: 600;">{pos.get('identifier', 'Unknown')}</span>
+                        <span style="color: #9ca3af; font-size: 12px; margin-left: 8px;">{pos.get('name', '')[:20]}</span>
+                    </div>
+                    <span style="color: {gain_color}; font-weight: 600;">{format_percentage(gain_pct)}</span>
+                </div>
+                """
+
+        if not performers_rows:
+            return ""
+
+        return f"""
+        <div style="background-color: #1e293b; border-radius: 12px; padding: 25px; margin-bottom: 20px;">
+            <h3 style="margin: 0 0 20px; color: #f3f4f6; font-size: 18px;">Top Performers</h3>
+            <div style="display: grid; gap: 10px;">
+                {performers_rows}
+            </div>
+        </div>
+        """
+
+    def _generate_asset_allocation_section(self, summary: Dict[str, Any]) -> str:
+        """Generate asset allocation breakdown section."""
+        # Extract asset allocation data
+        securities_val = summary.get("security_value", 0) or 0
+        cash_val = summary.get("cash_value", 0) or 0
+        crypto_val = summary.get("crypto_value", 0) or 0
+        metals_val = summary.get("metal_value", 0) or 0
+        real_estate_val = summary.get("real_estate_value", 0) or 0
+
+        total = securities_val + cash_val + crypto_val + metals_val + real_estate_val
+        if total == 0:
+            return ""
+
+        allocations = [
+            ("Securities", securities_val, "#3b82f6"),
+            ("Cash", cash_val, "#22c55e"),
+            ("Crypto", crypto_val, "#f59e0b"),
+            ("Metals", metals_val, "#a855f7"),
+            ("Real Estate", real_estate_val, "#ec4899")
+        ]
+
+        rows = ""
+        for name, value, color in allocations:
+            if value > 0:
+                pct = (value / total) * 100
+                rows += f"""
+                <div style="display: flex; justify-content: space-between; padding: 12px; background-color: #0f172a; border-radius: 8px;">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <div style="width: 12px; height: 12px; border-radius: 3px; background-color: {color};"></div>
+                        <span style="color: #f3f4f6;">{name}</span>
+                    </div>
+                    <div style="text-align: right;">
+                        <span style="color: #f3f4f6; font-weight: 600;">{format_currency(value)}</span>
+                        <span style="color: #9ca3af; font-size: 12px; margin-left: 8px;">({pct:.1f}%)</span>
+                    </div>
+                </div>
+                """
+
+        return f"""
+        <div style="background-color: #1e293b; border-radius: 12px; padding: 25px; margin-bottom: 20px;">
+            <h3 style="margin: 0 0 20px; color: #f3f4f6; font-size: 18px;">Asset Allocation</h3>
+            <div style="display: grid; gap: 10px;">
+                {rows}
+            </div>
+        </div>
+        """
+
+    def generate_newsletter_html(
+        self,
+        user: Dict[str, Any],
+        summary: Dict[str, Any],
+        accounts: List[Dict[str, Any]],
+        commentary: str,
+        content_options: Optional[Dict[str, bool]] = None
+    ) -> str:
+        """
+        Generate the full newsletter HTML.
+
+        Args:
+            user: User dict with name and email
+            summary: Portfolio summary dict
+            accounts: List of account dicts
+            commentary: Generated commentary string
+            content_options: Optional dict controlling which sections to include
+
+        Returns:
+            Complete HTML email string
+        """
+        # Merge with defaults
+        options = self._get_default_content_options()
+        if content_options:
+            options.update(content_options)
+
+        first_name = user.get("first_name") or "there"
+        today = datetime.now().strftime("%B %d, %Y")
+
+        # Build sections based on options
+        sections = []
+
+        # Commentary/greeting section
+        if options.get("includeCommentary", True):
+            sections.append(f"""
+            <div style="padding: 30px 0;">
+                <h2 style="margin: 0 0 15px; color: #f3f4f6; font-size: 22px;">Hi {first_name},</h2>
+                <p style="margin: 0; color: #cbd5e1; line-height: 1.6;">
+                    {commentary}
+                </p>
+            </div>
+            """)
+        else:
+            sections.append(f"""
+            <div style="padding: 30px 0;">
+                <h2 style="margin: 0 0 15px; color: #f3f4f6; font-size: 22px;">Hi {first_name},</h2>
+                <p style="margin: 0; color: #cbd5e1; line-height: 1.6;">
+                    Here's your portfolio summary.
+                </p>
+            </div>
+            """)
+
+        # Net worth section
+        if options.get("includeNetWorth", True):
+            sections.append(self._generate_net_worth_section(
+                summary,
+                include_period_changes=options.get("includePeriodChanges", True)
+            ))
+
+        # Balance summary section
+        if options.get("includeBalanceSummary", True):
+            sections.append(self._generate_balance_summary_section(summary))
+
+        # Top performers section
+        if options.get("includeTopPerformers", True):
+            top_performers_html = self._generate_top_performers_section(summary)
+            if top_performers_html:
+                sections.append(top_performers_html)
+
+        # Asset allocation section
+        if options.get("includeAssetAllocation", False):
+            asset_allocation_html = self._generate_asset_allocation_section(summary)
+            if asset_allocation_html:
+                sections.append(asset_allocation_html)
+
+        # Account details section
+        if options.get("includeAccountDetails", True):
+            sections.append(self._generate_accounts_section(accounts))
+
+        content_html = "\n".join(sections)
+
+        html = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NestEgg Portfolio Summary</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #0f172a;">
+    <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+        <!-- Header -->
+        <div style="text-align: center; padding: 30px 0; border-bottom: 1px solid #1e293b;">
+            <h1 style="margin: 0; color: #3b82f6; font-size: 28px;">NestEgg</h1>
+            <p style="margin: 10px 0 0; color: #94a3b8; font-size: 14px;">Your Portfolio Summary for {today}</p>
+        </div>
+
+        {content_html}
 
         <!-- CTA Button -->
         <div style="text-align: center; padding: 20px 0;">

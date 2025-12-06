@@ -585,6 +585,16 @@ class PasswordChangeRequest(BaseModel):
     current_password: str
     new_password: str
 
+class NewsletterContentPreferences(BaseModel):
+    """Configurable content sections for the newsletter"""
+    includeNetWorth: bool = True
+    includePeriodChanges: bool = True
+    includeBalanceSummary: bool = True
+    includeAccountDetails: bool = True
+    includeTopPerformers: bool = True
+    includeCommentary: bool = True
+    includeAssetAllocation: bool = False
+
 class NotificationPreferences(BaseModel):
     emailUpdates: bool = True
     marketAlerts: bool = True
@@ -592,6 +602,7 @@ class NotificationPreferences(BaseModel):
     securityAlerts: bool = True
     newsletterUpdates: bool = False
     newsletterFrequency: str = "weekly"  # Options: daily, weekly, monthly, never
+    newsletterContent: Optional[NewsletterContentPreferences] = None
 
 # Crypto Models
 class CryptoPositionCreate(BaseModel):
@@ -1478,6 +1489,68 @@ async def update_notification_preferences(
     except Exception as e:
         logger.error(f"Error updating notification preferences: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to update notification preferences")
+
+@app.post("/user/newsletter/preview")
+async def get_newsletter_preview(
+    content_prefs: Optional[NewsletterContentPreferences] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Generate a newsletter preview for the current user.
+    Returns the HTML content for preview display.
+    """
+    try:
+        from backend.services.newsletter_service import NewsletterService
+
+        newsletter_service = NewsletterService(database)
+
+        # Get user data
+        user = {
+            "id": current_user["id"],
+            "email": current_user.get("email", ""),
+            "first_name": current_user.get("first_name", ""),
+            "last_name": current_user.get("last_name", "")
+        }
+
+        # Get portfolio data
+        summary = await newsletter_service.get_user_portfolio_summary(current_user["id"])
+        if not summary:
+            return {
+                "html": None,
+                "message": "No portfolio data available for preview"
+            }
+
+        accounts = await newsletter_service.get_user_accounts(current_user["id"])
+
+        # Use provided content preferences or defaults
+        content_options = content_prefs.dict() if content_prefs else None
+
+        # Generate commentary
+        commentary = newsletter_service.generate_commentary(summary, accounts)
+
+        # Generate HTML with content options
+        html = newsletter_service.generate_newsletter_html(
+            user=user,
+            summary=summary,
+            accounts=accounts,
+            commentary=commentary,
+            content_options=content_options
+        )
+
+        return {
+            "html": html,
+            "summary": {
+                "net_worth": summary.get("net_worth"),
+                "total_assets": summary.get("total_assets"),
+                "total_liabilities": summary.get("total_liabilities"),
+                "account_count": len(accounts)
+            }
+        }
+    except Exception as e:
+        logger.error(f"Error generating newsletter preview: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"Failed to generate newsletter preview: {str(e)}")
 
 # ----- USER DATA MANAGEMENT (BULK DELETE) -----
 # These endpoints allow users to delete their own data in bulk

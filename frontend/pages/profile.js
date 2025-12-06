@@ -52,6 +52,11 @@ import {
   Bell,
   Mail,
   Clock,
+  Eye,
+  Settings2,
+  PieChart,
+  X as XIcon,
+  Loader2,
 } from "lucide-react";
 
 /** ----------------------------
@@ -171,7 +176,21 @@ function ProfileContent() {
     securityAlerts: true,
     newsletterUpdates: false,
     newsletterFrequency: "weekly",
+    newsletterContent: {
+      includeNetWorth: true,
+      includePeriodChanges: true,
+      includeBalanceSummary: true,
+      includeAccountDetails: true,
+      includeTopPerformers: true,
+      includeCommentary: true,
+      includeAssetAllocation: false,
+    },
   });
+
+  // Newsletter preview state
+  const [showPreview, setShowPreview] = useState(false);
+  const [previewHtml, setPreviewHtml] = useState("");
+  const [previewLoading, setPreviewLoading] = useState(false);
 
   // Profile data
   const [memberSince, setMemberSince] = useState(null);
@@ -389,6 +408,42 @@ function ProfileContent() {
 
   const setNewsletterFrequency = (frequency) => {
     setNotifications((prev) => ({ ...prev, newsletterFrequency: frequency }));
+  };
+
+  const toggleNewsletterContent = (key) => {
+    setNotifications((prev) => ({
+      ...prev,
+      newsletterContent: {
+        ...prev.newsletterContent,
+        [key]: !prev.newsletterContent?.[key],
+      },
+    }));
+  };
+
+  const loadNewsletterPreview = async () => {
+    setPreviewLoading(true);
+    setShowPreview(true);
+    try {
+      const res = await fetchWithAuth("/user/newsletter/preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(notifications.newsletterContent || {}),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.detail || `Failed (${res.status})`);
+      }
+      const data = await res.json();
+      if (data.html) {
+        setPreviewHtml(data.html);
+      } else {
+        setPreviewHtml("<p style='color: #9ca3af; text-align: center; padding: 40px;'>No portfolio data available for preview. Add some positions first.</p>");
+      }
+    } catch (e) {
+      setPreviewHtml(`<p style='color: #ef4444; text-align: center; padding: 40px;'>Error loading preview: ${e.message}</p>`);
+    } finally {
+      setPreviewLoading(false);
+    }
   };
 
   const currentPlan = () => {
@@ -776,33 +831,95 @@ function ProfileContent() {
                       />
 
                       {notifications.newsletterUpdates && (
-                        <div className="ml-6 mt-4 p-4 bg-gray-800/50 rounded-lg border border-gray-700">
-                          <label className="text-sm font-medium text-gray-300 flex items-center mb-3">
-                            <Clock className="h-4 w-4 mr-2 text-gray-400" />
-                            Newsletter Frequency
-                          </label>
-                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                            <FrequencyOption
-                              label="Daily"
-                              description="Every morning"
-                              value="daily"
-                              selected={notifications.newsletterFrequency === "daily"}
-                              onSelect={() => setNewsletterFrequency("daily")}
-                            />
-                            <FrequencyOption
-                              label="Weekly"
-                              description="Every Monday"
-                              value="weekly"
-                              selected={notifications.newsletterFrequency === "weekly"}
-                              onSelect={() => setNewsletterFrequency("weekly")}
-                            />
-                            <FrequencyOption
-                              label="Monthly"
-                              description="1st of each month"
-                              value="monthly"
-                              selected={notifications.newsletterFrequency === "monthly"}
-                              onSelect={() => setNewsletterFrequency("monthly")}
-                            />
+                        <div className="ml-6 mt-4 space-y-4">
+                          {/* Frequency Selection */}
+                          <div className="p-4 bg-gray-800/50 rounded-lg border border-gray-700">
+                            <label className="text-sm font-medium text-gray-300 flex items-center mb-3">
+                              <Clock className="h-4 w-4 mr-2 text-gray-400" />
+                              Newsletter Frequency
+                            </label>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                              <FrequencyOption
+                                label="Daily"
+                                description="Every morning"
+                                value="daily"
+                                selected={notifications.newsletterFrequency === "daily"}
+                                onSelect={() => setNewsletterFrequency("daily")}
+                              />
+                              <FrequencyOption
+                                label="Weekly"
+                                description="Every Monday"
+                                value="weekly"
+                                selected={notifications.newsletterFrequency === "weekly"}
+                                onSelect={() => setNewsletterFrequency("weekly")}
+                              />
+                              <FrequencyOption
+                                label="Monthly"
+                                description="1st of each month"
+                                value="monthly"
+                                selected={notifications.newsletterFrequency === "monthly"}
+                                onSelect={() => setNewsletterFrequency("monthly")}
+                              />
+                            </div>
+                          </div>
+
+                          {/* Content Customization */}
+                          <div className="p-4 bg-gray-800/50 rounded-lg border border-gray-700">
+                            <label className="text-sm font-medium text-gray-300 flex items-center mb-3">
+                              <Settings2 className="h-4 w-4 mr-2 text-gray-400" />
+                              Newsletter Content
+                            </label>
+                            <p className="text-xs text-gray-500 mb-4">
+                              Select which sections to include in your newsletter
+                            </p>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              <ContentToggle
+                                label="Net Worth Summary"
+                                checked={notifications.newsletterContent?.includeNetWorth !== false}
+                                onChange={() => toggleNewsletterContent("includeNetWorth")}
+                              />
+                              <ContentToggle
+                                label="Period Changes (1D/1W/1M)"
+                                checked={notifications.newsletterContent?.includePeriodChanges !== false}
+                                onChange={() => toggleNewsletterContent("includePeriodChanges")}
+                              />
+                              <ContentToggle
+                                label="Balance Summary"
+                                checked={notifications.newsletterContent?.includeBalanceSummary !== false}
+                                onChange={() => toggleNewsletterContent("includeBalanceSummary")}
+                              />
+                              <ContentToggle
+                                label="Account Details"
+                                checked={notifications.newsletterContent?.includeAccountDetails !== false}
+                                onChange={() => toggleNewsletterContent("includeAccountDetails")}
+                              />
+                              <ContentToggle
+                                label="Top Performers"
+                                checked={notifications.newsletterContent?.includeTopPerformers !== false}
+                                onChange={() => toggleNewsletterContent("includeTopPerformers")}
+                              />
+                              <ContentToggle
+                                label="AI Commentary"
+                                checked={notifications.newsletterContent?.includeCommentary !== false}
+                                onChange={() => toggleNewsletterContent("includeCommentary")}
+                              />
+                              <ContentToggle
+                                label="Asset Allocation"
+                                checked={notifications.newsletterContent?.includeAssetAllocation === true}
+                                onChange={() => toggleNewsletterContent("includeAssetAllocation")}
+                              />
+                            </div>
+                          </div>
+
+                          {/* Preview Button */}
+                          <div className="flex justify-center">
+                            <button
+                              onClick={loadNewsletterPreview}
+                              className="px-4 py-2 bg-purple-600/20 border border-purple-600/50 text-purple-400 rounded-lg hover:bg-purple-600/30 transition-colors inline-flex items-center"
+                            >
+                              <Eye className="h-4 w-4 mr-2" />
+                              Preview Newsletter
+                            </button>
                           </div>
                         </div>
                       )}
@@ -925,6 +1042,55 @@ function ProfileContent() {
               )}
             </main>
           </div>
+
+          {/* Newsletter Preview Modal */}
+          {showPreview && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+              <div className="relative w-full max-w-2xl max-h-[90vh] bg-gray-900 rounded-xl border border-gray-700 shadow-2xl overflow-hidden flex flex-col">
+                {/* Modal Header */}
+                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-700">
+                  <h3 className="text-lg font-semibold text-gray-100 flex items-center">
+                    <Eye className="h-5 w-5 mr-2 text-purple-400" />
+                    Newsletter Preview
+                  </h3>
+                  <button
+                    onClick={() => setShowPreview(false)}
+                    className="p-2 text-gray-400 hover:text-gray-200 hover:bg-gray-800 rounded-lg transition-colors"
+                  >
+                    <XIcon className="h-5 w-5" />
+                  </button>
+                </div>
+
+                {/* Modal Content */}
+                <div className="flex-1 overflow-auto">
+                  {previewLoading ? (
+                    <div className="flex items-center justify-center h-64">
+                      <Loader2 className="h-8 w-8 text-purple-400 animate-spin" />
+                    </div>
+                  ) : (
+                    <div
+                      className="newsletter-preview"
+                      dangerouslySetInnerHTML={{ __html: previewHtml }}
+                      style={{ backgroundColor: "#0f172a" }}
+                    />
+                  )}
+                </div>
+
+                {/* Modal Footer */}
+                <div className="flex items-center justify-between px-6 py-4 border-t border-gray-700 bg-gray-800/50">
+                  <p className="text-xs text-gray-500">
+                    This is a preview of how your newsletter will appear
+                  </p>
+                  <button
+                    onClick={() => setShowPreview(false)}
+                    className="px-4 py-2 bg-gray-700 text-gray-200 rounded-lg hover:bg-gray-600 transition-colors"
+                  >
+                    Close Preview
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </SignedIn>
       </div>
     </div>
@@ -1013,6 +1179,33 @@ function FrequencyOption({ label, description, value, selected, onSelect }) {
   );
 }
 
+function ContentToggle({ label, checked, onChange }) {
+  return (
+    <div
+      onClick={onChange}
+      className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-all ${
+        checked
+          ? "border-purple-500/50 bg-purple-500/10"
+          : "border-gray-700 bg-gray-800/30 hover:border-gray-600"
+      }`}
+    >
+      <span className={`text-sm ${checked ? "text-purple-300" : "text-gray-400"}`}>
+        {label}
+      </span>
+      <div
+        className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${
+          checked ? "border-purple-500 bg-purple-500" : "border-gray-500"
+        }`}
+      >
+        {checked && (
+          <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+          </svg>
+        )}
+      </div>
+    </div>
+  );
+}
 
 /** ------- Manage Data Section ------- */
 const POSITION_TYPES = [
