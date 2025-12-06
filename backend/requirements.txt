@@ -14,4 +14,5 @@ pandas==2.0.3
 pytz==2023.3
 yahoo-fin==0.8.9.1
 yahooquery==2.3.3
+resend==2.0.0
 

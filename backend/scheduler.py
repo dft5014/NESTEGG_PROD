@@ -14,6 +14,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from backend.services.price_updater_v2 import PriceUpdaterV2
 from backend.utils.common import record_system_event, update_system_event
 from backend.services.portfolio_calculator import PortfolioCalculator
+from backend.services.newsletter_service import NewsletterService
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, 
@@ -35,11 +36,23 @@ METRICS_UPDATE_TIME = os.getenv("METRICS_UPDATE_TIME", "02:00")  # Time in HH:MM
 HISTORY_UPDATE_TIME = os.getenv("HISTORY_UPDATE_TIME", "03:00")  # Time in HH:MM format, default 3 AM
 PORTFOLIO_SNAPSHOT_TIME = os.getenv("PORTFOLIO_SNAPSHOT_TIME", "04:00")  # Time in HH:MM format, default 4 AM
 
+# Newsletter configuration
+NEWSLETTER_ENABLED = os.getenv("NEWSLETTER_ENABLED", "true").lower() == "true"
+DAILY_NEWSLETTER_TIME = os.getenv("DAILY_NEWSLETTER_TIME", "07:00")  # Time in HH:MM format, default 7 AM
+WEEKLY_NEWSLETTER_DAY = os.getenv("WEEKLY_NEWSLETTER_DAY", "monday").lower()  # Day of week
+WEEKLY_NEWSLETTER_TIME = os.getenv("WEEKLY_NEWSLETTER_TIME", "08:00")  # Time in HH:MM format, default 8 AM
+MONTHLY_NEWSLETTER_DAY = int(os.getenv("MONTHLY_NEWSLETTER_DAY", "1"))  # Day of month (1-28)
+MONTHLY_NEWSLETTER_TIME = os.getenv("MONTHLY_NEWSLETTER_TIME", "08:00")  # Time in HH:MM format, default 8 AM
+
 # Log frequency settings
 logger.info(f"Price updates configured for every {PRICE_UPDATE_FREQUENCY} minutes")
 logger.info(f"Company metrics updates configured for daily at {METRICS_UPDATE_TIME}")
 logger.info(f"Historical price updates configured for daily at {HISTORY_UPDATE_TIME}")
 logger.info(f"Portfolio snapshots configured for daily at {PORTFOLIO_SNAPSHOT_TIME}")
+if NEWSLETTER_ENABLED:
+    logger.info(f"Daily newsletter configured for {DAILY_NEWSLETTER_TIME}")
+    logger.info(f"Weekly newsletter configured for {WEEKLY_NEWSLETTER_DAY} at {WEEKLY_NEWSLETTER_TIME}")
+    logger.info(f"Monthly newsletter configured for day {MONTHLY_NEWSLETTER_DAY} at {MONTHLY_NEWSLETTER_TIME}")
 
 # Create a database connection
 import databases
@@ -215,6 +228,123 @@ async def snapshot_portfolio_values():
             )
         return {"status": "error", "error": str(e)}
 
+async def send_daily_newsletters():
+    """Send daily newsletters to subscribed users"""
+    if not NEWSLETTER_ENABLED:
+        logger.info("Newsletter sending is disabled")
+        return {"status": "disabled"}
+
+    try:
+        event_id = await record_system_event(
+            database,
+            "scheduled_daily_newsletter",
+            "started",
+            {"source": "scheduler", "frequency": "daily"}
+        )
+
+        newsletter_service = NewsletterService(database)
+        result = await newsletter_service.send_newsletters(frequency="daily")
+
+        await update_system_event(
+            database,
+            event_id,
+            "completed",
+            {"result": result}
+        )
+
+        logger.info(f"Daily newsletter send completed: {result.get('sent', 0)} emails sent")
+        return result
+    except Exception as e:
+        logger.error(f"Error in daily newsletter send: {str(e)}")
+        if 'event_id' in locals():
+            await update_system_event(
+                database,
+                event_id,
+                "failed",
+                {"error": str(e)}
+            )
+        return {"status": "error", "error": str(e)}
+
+async def send_weekly_newsletters():
+    """Send weekly newsletters to subscribed users"""
+    if not NEWSLETTER_ENABLED:
+        logger.info("Newsletter sending is disabled")
+        return {"status": "disabled"}
+
+    try:
+        event_id = await record_system_event(
+            database,
+            "scheduled_weekly_newsletter",
+            "started",
+            {"source": "scheduler", "frequency": "weekly"}
+        )
+
+        newsletter_service = NewsletterService(database)
+        result = await newsletter_service.send_newsletters(frequency="weekly")
+
+        await update_system_event(
+            database,
+            event_id,
+            "completed",
+            {"result": result}
+        )
+
+        logger.info(f"Weekly newsletter send completed: {result.get('sent', 0)} emails sent")
+        return result
+    except Exception as e:
+        logger.error(f"Error in weekly newsletter send: {str(e)}")
+        if 'event_id' in locals():
+            await update_system_event(
+                database,
+                event_id,
+                "failed",
+                {"error": str(e)}
+            )
+        return {"status": "error", "error": str(e)}
+
+async def send_monthly_newsletters():
+    """Send monthly newsletters to subscribed users"""
+    if not NEWSLETTER_ENABLED:
+        logger.info("Newsletter sending is disabled")
+        return {"status": "disabled"}
+
+    # Check if today is the configured day of month
+    today = datetime.now(eastern).day
+    if today != MONTHLY_NEWSLETTER_DAY:
+        logger.info(f"Skipping monthly newsletter - today is day {today}, configured for day {MONTHLY_NEWSLETTER_DAY}")
+        return {"status": "skipped", "reason": "not_newsletter_day"}
+
+    try:
+        event_id = await record_system_event(
+            database,
+            "scheduled_monthly_newsletter",
+            "started",
+            {"source": "scheduler", "frequency": "monthly"}
+        )
+
+        newsletter_service = NewsletterService(database)
+        result = await newsletter_service.send_newsletters(frequency="monthly")
+
+        await update_system_event(
+            database,
+            event_id,
+            "completed",
+            {"result": result}
+        )
+
+        logger.info(f"Monthly newsletter send completed: {result.get('sent', 0)} emails sent")
+        return result
+    except Exception as e:
+        logger.error(f"Error in monthly newsletter send: {str(e)}")
+        if 'event_id' in locals():
+            await update_system_event(
+                database,
+                event_id,
+                "failed",
+                {"error": str(e)}
+            )
+        return {"status": "error", "error": str(e)}
+
 # Run an async task in the sync scheduler
 def run_async_task(coroutine):
     try:
@@ -249,7 +379,27 @@ def setup_schedules():
     schedule.every().day.at(PORTFOLIO_SNAPSHOT_TIME).do(
         lambda: run_async_task(snapshot_portfolio_values())
     )
-    
+
+    # Newsletter schedules (if enabled)
+    if NEWSLETTER_ENABLED:
+        # Daily newsletter
+        schedule.every().day.at(DAILY_NEWSLETTER_TIME).do(
+            lambda: run_async_task(send_daily_newsletters())
+        )
+
+        # Weekly newsletter (schedule based on configured day)
+        weekly_schedule = getattr(schedule.every(), WEEKLY_NEWSLETTER_DAY, schedule.every().monday)
+        weekly_schedule.at(WEEKLY_NEWSLETTER_TIME).do(
+            lambda: run_async_task(send_weekly_newsletters())
+        )
+
+        # Monthly newsletter (runs daily but checks day of month internally)
+        schedule.every().day.at(MONTHLY_NEWSLETTER_TIME).do(
+            lambda: run_async_task(send_monthly_newsletters())
+        )
+
+        logger.info("Newsletter schedules configured")
+
     logger.info("All scheduled tasks have been set up successfully")
 
 async def main():

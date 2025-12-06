@@ -591,6 +591,7 @@ class NotificationPreferences(BaseModel):
     performanceReports: bool = True
     securityAlerts: bool = True
     newsletterUpdates: bool = False
+    newsletterFrequency: str = "weekly"  # Options: daily, weekly, monthly, never
 
 # Crypto Models
 class CryptoPositionCreate(BaseModel):

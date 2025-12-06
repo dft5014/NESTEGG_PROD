@@ -28,7 +28,7 @@ users = sqlalchemy.Table(
     sqlalchemy.Column("subscription_plan", sqlalchemy.Text, nullable=True, server_default=sqlalchemy.text("'basic'::text")),
     sqlalchemy.Column("notification_preferences", sqlalchemy.dialects.postgresql.JSONB, nullable=True,
                       server_default=sqlalchemy.text(
-                          '\'{"emailUpdates": true, "marketAlerts": true, "securityAlerts": true, "newsletterUpdates": false, "performanceReports": true}\'::jsonb'
+                          '\'{"emailUpdates": true, "marketAlerts": true, "securityAlerts": true, "newsletterUpdates": false, "performanceReports": true, "newsletterFrequency": "weekly"}\'::jsonb'
                       )),
     sqlalchemy.Column("clerk_id", sqlalchemy.String, unique=True, nullable=True),
     sqlalchemy.Column("image_url", sqlalchemy.String, nullable=True),

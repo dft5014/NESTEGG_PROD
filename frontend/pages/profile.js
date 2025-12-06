@@ -49,6 +49,9 @@ import {
   FileText,
   BarChart3,
   RefreshCw,
+  Bell,
+  Mail,
+  Clock,
 } from "lucide-react";
 
 /** ----------------------------
@@ -107,6 +110,7 @@ function ProfileContent() {
   const TABS = useMemo(
     () => [
       { id: "profile", label: "Profile", icon: User },
+      { id: "notifications", label: "Notifications", icon: Bell },
       { id: "subscription", label: "Subscription", icon: CreditCard },
       { id: "security", label: "Security", icon: Shield },
       { id: "data", label: "Manage Data", icon: Database },
@@ -155,8 +159,19 @@ function ProfileContent() {
   const [active, setActive] = useState("profile");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savingNotifications, setSavingNotifications] = useState(false);
   const [error, setError] = useState("");
   const [ok, setOk] = useState("");
+
+  // Notification preferences state
+  const [notifications, setNotifications] = useState({
+    emailUpdates: true,
+    marketAlerts: true,
+    performanceReports: true,
+    securityAlerts: true,
+    newsletterUpdates: false,
+    newsletterFrequency: "weekly",
+  });
 
   // Profile data
   const [memberSince, setMemberSince] = useState(null);
@@ -345,6 +360,36 @@ function ProfileContent() {
     }
   };
 
+  const handleSaveNotifications = async () => {
+    setSavingNotifications(true);
+    setError("");
+    setOk("");
+    try {
+      const res = await fetchWithAuth("/user/notifications", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(notifications),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.detail || `Failed (${res.status})`);
+      }
+      setOk("Notification preferences updated!");
+    } catch (e) {
+      setError(e.message || "Failed to update notification preferences.");
+    } finally {
+      setSavingNotifications(false);
+      setTimeout(() => setOk(""), 3000);
+    }
+  };
+
+  const toggleNotification = (key) => {
+    setNotifications((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const setNewsletterFrequency = (frequency) => {
+    setNotifications((prev) => ({ ...prev, newsletterFrequency: frequency }));
+  };
 
   const currentPlan = () => {
     const activeByHas = Object.entries(plans).find(([, val]) => val)?.[0];
@@ -673,6 +718,120 @@ function ProfileContent() {
                 </Section>
               )}
 
+              {/* NOTIFICATIONS */}
+              {active === "notifications" && (
+                <Section title="Notification Preferences" icon={Bell}>
+                  <div className="space-y-6">
+                    <p className="text-sm text-gray-400">
+                      Control how and when you receive updates from NestEgg. Your preferences are saved automatically when you click Save.
+                    </p>
+
+                    {/* Email Notifications */}
+                    <div className="space-y-4">
+                      <h4 className="text-md font-medium text-gray-200 flex items-center">
+                        <Mail className="h-4 w-4 mr-2 text-blue-400" />
+                        Email Notifications
+                      </h4>
+
+                      <div className="space-y-3">
+                        <NotificationToggle
+                          label="Email Updates"
+                          description="Receive important account updates and announcements"
+                          checked={notifications.emailUpdates}
+                          onChange={() => toggleNotification("emailUpdates")}
+                        />
+                        <NotificationToggle
+                          label="Market Alerts"
+                          description="Get notified about significant market movements affecting your portfolio"
+                          checked={notifications.marketAlerts}
+                          onChange={() => toggleNotification("marketAlerts")}
+                        />
+                        <NotificationToggle
+                          label="Performance Reports"
+                          description="Weekly and monthly performance summary reports"
+                          checked={notifications.performanceReports}
+                          onChange={() => toggleNotification("performanceReports")}
+                        />
+                        <NotificationToggle
+                          label="Security Alerts"
+                          description="Important security notifications about your account"
+                          checked={notifications.securityAlerts}
+                          onChange={() => toggleNotification("securityAlerts")}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Newsletter Section */}
+                    <div className="border-t border-gray-700 pt-6 space-y-4">
+                      <h4 className="text-md font-medium text-gray-200 flex items-center">
+                        <FileText className="h-4 w-4 mr-2 text-purple-400" />
+                        Portfolio Newsletter
+                      </h4>
+
+                      <NotificationToggle
+                        label="Subscribe to Newsletter"
+                        description="Receive a personalized portfolio summary with insights and commentary"
+                        checked={notifications.newsletterUpdates}
+                        onChange={() => toggleNotification("newsletterUpdates")}
+                      />
+
+                      {notifications.newsletterUpdates && (
+                        <div className="ml-6 mt-4 p-4 bg-gray-800/50 rounded-lg border border-gray-700">
+                          <label className="text-sm font-medium text-gray-300 flex items-center mb-3">
+                            <Clock className="h-4 w-4 mr-2 text-gray-400" />
+                            Newsletter Frequency
+                          </label>
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            <FrequencyOption
+                              label="Daily"
+                              description="Every morning"
+                              value="daily"
+                              selected={notifications.newsletterFrequency === "daily"}
+                              onSelect={() => setNewsletterFrequency("daily")}
+                            />
+                            <FrequencyOption
+                              label="Weekly"
+                              description="Every Monday"
+                              value="weekly"
+                              selected={notifications.newsletterFrequency === "weekly"}
+                              onSelect={() => setNewsletterFrequency("weekly")}
+                            />
+                            <FrequencyOption
+                              label="Monthly"
+                              description="1st of each month"
+                              value="monthly"
+                              selected={notifications.newsletterFrequency === "monthly"}
+                              onSelect={() => setNewsletterFrequency("monthly")}
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Save Button */}
+                    <div className="flex justify-end pt-4 border-t border-gray-700">
+                      <button
+                        onClick={handleSaveNotifications}
+                        disabled={savingNotifications}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 inline-flex items-center disabled:bg-blue-400 transition-colors"
+                      >
+                        {savingNotifications ? (
+                          <>
+                            <span className="animate-spin h-4 w-4 mr-2 border-2 border-t-transparent border-white rounded-full" />
+                            Saving...
+                          </>
+                        ) : (
+                          <>
+                            <Save className="h-4 w-4 mr-2" />
+                            Save Preferences
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </Section>
+              )}
+
               {/* SUBSCRIPTION & BILLING */}
               {active === "subscription" && (
                 <>
@@ -810,6 +969,47 @@ function StatBox({ label, value }) {
       <p className="text-gray-400 text-sm">{label}</p>
       <p className="text-lg font-medium text-gray-100">{value}</p>
     </div>
+  );
+}
+
+function NotificationToggle({ label, description, checked, onChange }) {
+  return (
+    <div className="flex items-center justify-between p-4 bg-gray-800/50 rounded-lg border border-gray-700">
+      <div className="flex-1">
+        <p className="text-sm font-medium text-gray-200">{label}</p>
+        <p className="text-xs text-gray-400 mt-1">{description}</p>
+      </div>
+      <button
+        onClick={onChange}
+        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+          checked ? "bg-blue-600" : "bg-gray-600"
+        }`}
+      >
+        <span
+          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+            checked ? "translate-x-6" : "translate-x-1"
+          }`}
+        />
+      </button>
+    </div>
+  );
+}
+
+function FrequencyOption({ label, description, value, selected, onSelect }) {
+  return (
+    <button
+      onClick={onSelect}
+      className={`p-3 rounded-lg border text-left transition-all ${
+        selected
+          ? "border-blue-500 bg-blue-500/20 ring-1 ring-blue-500"
+          : "border-gray-600 bg-gray-800/50 hover:border-gray-500"
+      }`}
+    >
+      <p className={`text-sm font-medium ${selected ? "text-blue-300" : "text-gray-200"}`}>
+        {label}
+      </p>
+      <p className="text-xs text-gray-400 mt-1">{description}</p>
+    </button>
   );
 }
 
