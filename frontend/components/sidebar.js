@@ -3,7 +3,7 @@ import Link from 'next/link';
 import {
   LayoutGrid, Wallet, Coins, CreditCard,
   LogOut, Plus, Target, BarChart3, Menu, X,
-  Search, Smartphone, User
+  Search, Smartphone, User, Shield
 } from 'lucide-react';
 import { useContext, useState, useEffect, useRef } from 'react';
 import { AuthContext } from '@/context/AuthContext';
@@ -27,8 +27,31 @@ const Sidebar = () => {
   // User dropdown
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const userMenuRef = useRef(null);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => setMounted(true), []);
+
+  // Check admin status
+  useEffect(() => {
+    const checkAdminStatus = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) return;
+
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/check`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setIsAdmin(data.is_admin);
+        }
+      } catch (error) {
+        // Silently fail - user is not admin
+        setIsAdmin(false);
+      }
+    };
+    checkAdminStatus();
+  }, [authUser]);
 
   // Responsive collapse
   useEffect(() => {
@@ -113,7 +136,15 @@ const Sidebar = () => {
       icon: <Target className="w-5 h-5" />,
       isPremium: true,
       description: "Financial planning and retirement tools"
-    }
+    },
+    // Admin item - conditionally rendered based on isAdmin state
+    ...(isAdmin ? [{
+      href: "/control-panel",
+      label: "Control Panel",
+      icon: <Shield className="w-5 h-5" />,
+      isAdmin: true,
+      description: "Admin control panel for monitoring and management"
+    }] : [])
   ];
 
   const filterMenuItems = (items, query) =>
@@ -300,6 +331,12 @@ const Sidebar = () => {
                             <Plus className="w-3 h-3 text-white p-0.5" />
                           </motion.div>
                         )}
+                        {sidebarCollapsed && item.isAdmin && (
+                          <motion.div
+                            variants={badgeVariants} initial="initial" animate="animate" whileHover="hover"
+                            className="absolute -top-1 -right-1 w-3 h-3 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-full"
+                          />
+                        )}
                       </motion.div>
                       {!sidebarCollapsed && <span className="font-medium">{item.label}</span>}
                     </div>
@@ -311,6 +348,16 @@ const Sidebar = () => {
                                    text-white font-semibold shadow-lg"
                       >
                         NestEgg+
+                      </motion.span>
+                    )}
+
+                    {!sidebarCollapsed && item.isAdmin && (
+                      <motion.span
+                        variants={badgeVariants} initial="initial" animate="animate"
+                        className="px-2 py-0.5 text-xs rounded-full bg-gradient-to-r from-emerald-500 to-teal-500
+                                   text-white font-semibold shadow-lg"
+                      >
+                        Admin
                       </motion.span>
                     )}
 
@@ -326,6 +373,12 @@ const Sidebar = () => {
                             <span className="px-2 py-0.5 text-xs rounded-full bg-gradient-to-r
                                              from-purple-500 to-pink-500 text-white font-semibold">
                               NestEgg+
+                            </span>
+                          )}
+                          {item.isAdmin && (
+                            <span className="px-2 py-0.5 text-xs rounded-full bg-gradient-to-r
+                                             from-emerald-500 to-teal-500 text-white font-semibold">
+                              Admin
                             </span>
                           )}
                         </div>

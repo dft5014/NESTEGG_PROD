@@ -1415,9 +1415,24 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
     return {"access_token": access_token, "token_type": "bearer"}
 
 async def get_current_user_admin(current_user: dict = Depends(get_current_user)):
-    # You could implement extra checks here to ensure the user is an admin
-    # For now, we'll just use the regular user authentication
+    """
+    Dependency that ensures the current user has admin privileges.
+    Returns the user if they are an admin, otherwise raises 403 Forbidden.
+    """
+    if not current_user.get("is_admin"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required"
+        )
     return current_user
+
+
+async def check_if_admin(current_user: dict = Depends(get_current_user)):
+    """
+    Returns whether the current user is an admin without blocking access.
+    Useful for endpoints that want to show different data based on admin status.
+    """
+    return {"is_admin": bool(current_user.get("is_admin")), "user": current_user}
 
 @app.post("/user/change-password")
 async def change_password(
@@ -9728,11 +9743,605 @@ async def add_security(security: SecurityCreate, current_user: dict = Depends(ge
             logger.error(f"Error fetching initial price data for {security.ticker.upper()}: {str(e)}")
         
         return {"message": f"Security {security.ticker.upper()} added successfully"}
-    
+
     except Exception as e:
         logger.error(f"Error adding security: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to add security: {str(e)}"
+        )
+
+
+# ============================================================================
+# ADMIN CONTROL PANEL ENDPOINTS
+# ============================================================================
+
+@app.get("/admin/check")
+async def check_admin_status(current_user: dict = Depends(get_current_user)):
+    """Check if the current user has admin privileges."""
+    return {"is_admin": bool(current_user.get("is_admin"))}
+
+
+@app.get("/admin/dashboard/stats")
+async def get_admin_dashboard_stats(admin_user: dict = Depends(get_current_user_admin)):
+    """
+    Get comprehensive dashboard statistics for admin control panel.
+    Requires admin privileges.
+    """
+    try:
+        stats = {}
+
+        # User Statistics
+        user_stats_query = """
+            SELECT
+                COUNT(*) as total_users,
+                COUNT(CASE WHEN created_at > NOW() - INTERVAL '24 hours' THEN 1 END) as new_users_24h,
+                COUNT(CASE WHEN created_at > NOW() - INTERVAL '7 days' THEN 1 END) as new_users_7d,
+                COUNT(CASE WHEN created_at > NOW() - INTERVAL '30 days' THEN 1 END) as new_users_30d,
+                COUNT(CASE WHEN last_login_at > NOW() - INTERVAL '24 hours' THEN 1 END) as active_users_24h,
+                COUNT(CASE WHEN last_login_at > NOW() - INTERVAL '7 days' THEN 1 END) as active_users_7d,
+                COUNT(CASE WHEN last_login_at > NOW() - INTERVAL '30 days' THEN 1 END) as active_users_30d,
+                COUNT(CASE WHEN is_admin = true THEN 1 END) as admin_count,
+                SUM(login_count) as total_logins
+            FROM users
+        """
+        user_stats = await database.fetch_one(user_stats_query)
+        stats["users"] = {
+            "total": user_stats["total_users"] or 0,
+            "newLast24h": user_stats["new_users_24h"] or 0,
+            "newLast7d": user_stats["new_users_7d"] or 0,
+            "newLast30d": user_stats["new_users_30d"] or 0,
+            "activeLast24h": user_stats["active_users_24h"] or 0,
+            "activeLast7d": user_stats["active_users_7d"] or 0,
+            "activeLast30d": user_stats["active_users_30d"] or 0,
+            "adminCount": user_stats["admin_count"] or 0,
+            "totalLogins": int(user_stats["total_logins"] or 0)
+        }
+
+        # Account and Position Statistics
+        account_stats_query = """
+            SELECT
+                COUNT(*) as total_accounts,
+                COUNT(DISTINCT user_id) as users_with_accounts
+            FROM accounts
+        """
+        account_stats = await database.fetch_one(account_stats_query)
+
+        position_stats_query = """
+            SELECT
+                (SELECT COUNT(*) FROM positions) as security_positions,
+                (SELECT COUNT(*) FROM cash_positions) as cash_positions,
+                (SELECT COUNT(*) FROM crypto_positions) as crypto_positions,
+                (SELECT COUNT(*) FROM metal_positions) as metal_positions,
+                (SELECT COUNT(*) FROM real_estate_positions) as real_estate_positions,
+                (SELECT COUNT(*) FROM other_assets) as other_assets,
+                (SELECT COUNT(*) FROM liabilities) as liabilities
+        """
+        position_stats = await database.fetch_one(position_stats_query)
+
+        stats["data"] = {
+            "totalAccounts": account_stats["total_accounts"] or 0,
+            "usersWithAccounts": account_stats["users_with_accounts"] or 0,
+            "positions": {
+                "securities": position_stats["security_positions"] or 0,
+                "cash": position_stats["cash_positions"] or 0,
+                "crypto": position_stats["crypto_positions"] or 0,
+                "metals": position_stats["metal_positions"] or 0,
+                "realEstate": position_stats["real_estate_positions"] or 0,
+                "otherAssets": position_stats["other_assets"] or 0,
+                "liabilities": position_stats["liabilities"] or 0,
+                "total": sum([
+                    position_stats["security_positions"] or 0,
+                    position_stats["cash_positions"] or 0,
+                    position_stats["crypto_positions"] or 0,
+                    position_stats["metal_positions"] or 0,
+                    position_stats["real_estate_positions"] or 0,
+                    position_stats["other_assets"] or 0,
+                    position_stats["liabilities"] or 0
+                ])
+            }
+        }
+
+        # Security/Market Data Statistics
+        security_stats_query = """
+            SELECT
+                COUNT(*) as total_securities,
+                COUNT(CASE WHEN last_updated > NOW() - INTERVAL '1 hour' THEN 1 END) as updated_last_hour,
+                COUNT(CASE WHEN last_updated > NOW() - INTERVAL '24 hours' THEN 1 END) as updated_last_24h,
+                COUNT(CASE WHEN last_updated IS NULL OR last_updated < NOW() - INTERVAL '24 hours' THEN 1 END) as stale_prices,
+                MAX(last_updated) as last_price_update
+            FROM securities
+        """
+        security_stats = await database.fetch_one(security_stats_query)
+
+        stats["marketData"] = {
+            "totalSecurities": security_stats["total_securities"] or 0,
+            "updatedLastHour": security_stats["updated_last_hour"] or 0,
+            "updatedLast24h": security_stats["updated_last_24h"] or 0,
+            "stalePrices": security_stats["stale_prices"] or 0,
+            "lastPriceUpdate": security_stats["last_price_update"].isoformat() if security_stats["last_price_update"] else None
+        }
+
+        # System Events Statistics
+        events_stats_query = """
+            SELECT
+                COUNT(*) as total_events,
+                COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed_events,
+                COUNT(CASE WHEN status = 'failed' THEN 1 END) as failed_events,
+                COUNT(CASE WHEN status = 'started' AND started_at < NOW() - INTERVAL '1 hour' THEN 1 END) as stuck_events,
+                COUNT(CASE WHEN started_at > NOW() - INTERVAL '24 hours' THEN 1 END) as events_last_24h,
+                COUNT(CASE WHEN status = 'failed' AND started_at > NOW() - INTERVAL '24 hours' THEN 1 END) as errors_last_24h
+            FROM system_events
+        """
+        events_stats = await database.fetch_one(events_stats_query)
+
+        stats["systemEvents"] = {
+            "total": events_stats["total_events"] or 0,
+            "completed": events_stats["completed_events"] or 0,
+            "failed": events_stats["failed_events"] or 0,
+            "stuck": events_stats["stuck_events"] or 0,
+            "eventsLast24h": events_stats["events_last_24h"] or 0,
+            "errorsLast24h": events_stats["errors_last_24h"] or 0
+        }
+
+        # Portfolio Snapshots Statistics
+        snapshots_stats_query = """
+            SELECT
+                COUNT(*) as total_snapshots,
+                COUNT(DISTINCT user_id) as users_with_snapshots,
+                MAX(snapshot_date) as latest_snapshot,
+                MIN(snapshot_date) as oldest_snapshot
+            FROM portfolio_snapshots
+        """
+        snapshots_stats = await database.fetch_one(snapshots_stats_query)
+
+        stats["snapshots"] = {
+            "total": snapshots_stats["total_snapshots"] or 0,
+            "usersWithSnapshots": snapshots_stats["users_with_snapshots"] or 0,
+            "latestSnapshot": snapshots_stats["latest_snapshot"].isoformat() if snapshots_stats["latest_snapshot"] else None,
+            "oldestSnapshot": snapshots_stats["oldest_snapshot"].isoformat() if snapshots_stats["oldest_snapshot"] else None
+        }
+
+        return stats
+
+    except Exception as e:
+        logger.error(f"Error getting admin dashboard stats: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get dashboard stats: {str(e)}"
+        )
+
+
+@app.get("/admin/users")
+async def get_admin_users(
+    admin_user: dict = Depends(get_current_user_admin),
+    limit: int = 50,
+    offset: int = 0,
+    search: Optional[str] = None,
+    sort_by: str = "created_at",
+    sort_order: str = "desc"
+):
+    """
+    Get list of all users for admin management.
+    Requires admin privileges.
+    """
+    try:
+        # Build query with optional search
+        base_query = """
+            SELECT
+                id, email, first_name, last_name,
+                subscription_plan, is_admin, auth_provider,
+                created_at, last_login_at, login_count,
+                last_login_city, last_login_country,
+                (SELECT COUNT(*) FROM accounts WHERE user_id = users.id) as account_count,
+                (SELECT COUNT(*) FROM positions p
+                 JOIN accounts a ON p.account_id = a.id
+                 WHERE a.user_id = users.id) as position_count
+            FROM users
+            WHERE 1=1
+        """
+
+        params = {"limit": limit, "offset": offset}
+
+        if search:
+            base_query += " AND (email ILIKE :search OR first_name ILIKE :search OR last_name ILIKE :search)"
+            params["search"] = f"%{search}%"
+
+        # Validate sort columns
+        valid_sort_columns = ["created_at", "last_login_at", "email", "login_count"]
+        if sort_by not in valid_sort_columns:
+            sort_by = "created_at"
+
+        sort_direction = "DESC" if sort_order.lower() == "desc" else "ASC"
+        base_query += f" ORDER BY {sort_by} {sort_direction} NULLS LAST"
+        base_query += " LIMIT :limit OFFSET :offset"
+
+        users_list = await database.fetch_all(base_query, params)
+
+        # Get total count
+        count_query = "SELECT COUNT(*) as count FROM users"
+        if search:
+            count_query += " WHERE email ILIKE :search OR first_name ILIKE :search OR last_name ILIKE :search"
+        total = await database.fetch_one(count_query, {"search": f"%{search}%"} if search else {})
+
+        # Format response
+        formatted_users = []
+        for user in users_list:
+            user_dict = dict(user)
+            if user_dict.get("created_at"):
+                user_dict["created_at"] = user_dict["created_at"].isoformat()
+            if user_dict.get("last_login_at"):
+                user_dict["last_login_at"] = user_dict["last_login_at"].isoformat()
+            formatted_users.append(user_dict)
+
+        return {
+            "users": formatted_users,
+            "total": total["count"],
+            "limit": limit,
+            "offset": offset
+        }
+
+    except Exception as e:
+        logger.error(f"Error getting admin users: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get users: {str(e)}"
+        )
+
+
+@app.get("/admin/activity")
+async def get_admin_activity(
+    admin_user: dict = Depends(get_current_user_admin),
+    limit: int = 50
+):
+    """
+    Get recent user activity (logins) for admin monitoring.
+    Requires admin privileges.
+    """
+    try:
+        # Get recent logins based on last_login_at
+        activity_query = """
+            SELECT
+                id, email, first_name, last_name,
+                last_login_at, last_login_ip, last_login_city,
+                last_login_country, last_login_device, last_login_browser,
+                login_count
+            FROM users
+            WHERE last_login_at IS NOT NULL
+            ORDER BY last_login_at DESC
+            LIMIT :limit
+        """
+
+        activities = await database.fetch_all(activity_query, {"limit": limit})
+
+        formatted_activities = []
+        for activity in activities:
+            activity_dict = dict(activity)
+            if activity_dict.get("last_login_at"):
+                activity_dict["last_login_at"] = activity_dict["last_login_at"].isoformat()
+            formatted_activities.append(activity_dict)
+
+        return {"activities": formatted_activities}
+
+    except Exception as e:
+        logger.error(f"Error getting admin activity: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get activity: {str(e)}"
+        )
+
+
+@app.get("/admin/errors")
+async def get_admin_errors(
+    admin_user: dict = Depends(get_current_user_admin),
+    limit: int = 50
+):
+    """
+    Get recent system errors for admin monitoring.
+    Requires admin privileges.
+    """
+    try:
+        errors_query = """
+            SELECT
+                id, event_type, status, started_at, completed_at,
+                error_message, details
+            FROM system_events
+            WHERE status = 'failed'
+            ORDER BY started_at DESC
+            LIMIT :limit
+        """
+
+        errors = await database.fetch_all(errors_query, {"limit": limit})
+
+        formatted_errors = []
+        for error in errors:
+            error_dict = dict(error)
+            if error_dict.get("started_at"):
+                error_dict["started_at"] = error_dict["started_at"].isoformat()
+            if error_dict.get("completed_at"):
+                error_dict["completed_at"] = error_dict["completed_at"].isoformat()
+            formatted_errors.append(error_dict)
+
+        return {"errors": formatted_errors}
+
+    except Exception as e:
+        logger.error(f"Error getting admin errors: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get errors: {str(e)}"
+        )
+
+
+@app.get("/admin/data-refresh")
+async def get_admin_data_refresh_status(admin_user: dict = Depends(get_current_user_admin)):
+    """
+    Get data refresh status for admin monitoring.
+    Requires admin privileges.
+    """
+    try:
+        # Get latest price update events
+        price_events_query = """
+            SELECT
+                id, event_type, status, started_at, completed_at, details, error_message
+            FROM system_events
+            WHERE event_type ILIKE '%price%' OR event_type ILIKE '%market%'
+            ORDER BY started_at DESC
+            LIMIT 10
+        """
+        price_events = await database.fetch_all(price_events_query)
+
+        # Get latest portfolio calculation events
+        portfolio_events_query = """
+            SELECT
+                id, event_type, status, started_at, completed_at, details, error_message
+            FROM system_events
+            WHERE event_type ILIKE '%portfolio%' OR event_type ILIKE '%calculation%'
+            ORDER BY started_at DESC
+            LIMIT 10
+        """
+        portfolio_events = await database.fetch_all(portfolio_events_query)
+
+        # Get latest snapshot events
+        snapshot_events_query = """
+            SELECT
+                id, event_type, status, started_at, completed_at, details, error_message
+            FROM system_events
+            WHERE event_type ILIKE '%snapshot%'
+            ORDER BY started_at DESC
+            LIMIT 10
+        """
+        snapshot_events = await database.fetch_all(snapshot_events_query)
+
+        def format_events(events):
+            formatted = []
+            for event in events:
+                event_dict = dict(event)
+                if event_dict.get("started_at"):
+                    event_dict["started_at"] = event_dict["started_at"].isoformat()
+                if event_dict.get("completed_at"):
+                    event_dict["completed_at"] = event_dict["completed_at"].isoformat()
+                formatted.append(event_dict)
+            return formatted
+
+        return {
+            "priceUpdates": format_events(price_events),
+            "portfolioCalculations": format_events(portfolio_events),
+            "snapshots": format_events(snapshot_events)
+        }
+
+    except Exception as e:
+        logger.error(f"Error getting data refresh status: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get data refresh status: {str(e)}"
+        )
+
+
+@app.get("/admin/health")
+async def get_admin_health(admin_user: dict = Depends(get_current_user_admin)):
+    """
+    Get system health status for admin monitoring.
+    Requires admin privileges.
+    """
+    try:
+        health = {
+            "status": "online",
+            "lastCheck": datetime.utcnow().isoformat(),
+            "components": {}
+        }
+
+        # Check database connectivity
+        try:
+            start_time = time.time()
+            await database.fetch_one("SELECT 1")
+            db_latency = (time.time() - start_time) * 1000  # Convert to ms
+
+            health["components"]["database"] = {
+                "status": "online" if db_latency < 500 else "degraded",
+                "latency_ms": round(db_latency, 2)
+            }
+        except Exception as e:
+            health["components"]["database"] = {
+                "status": "offline",
+                "error": str(e)
+            }
+            health["status"] = "degraded"
+
+        # API is online if we got here
+        health["components"]["api"] = {
+            "status": "online"
+        }
+
+        # Check for recent failed events (potential issues)
+        recent_failures_query = """
+            SELECT COUNT(*) as count
+            FROM system_events
+            WHERE status = 'failed'
+            AND started_at > NOW() - INTERVAL '1 hour'
+        """
+        recent_failures = await database.fetch_one(recent_failures_query)
+
+        if recent_failures["count"] > 5:
+            health["components"]["scheduler"] = {
+                "status": "degraded",
+                "recentFailures": recent_failures["count"]
+            }
+            health["status"] = "degraded"
+        else:
+            health["components"]["scheduler"] = {
+                "status": "online",
+                "recentFailures": recent_failures["count"]
+            }
+
+        # Check for stale data
+        stale_data_query = """
+            SELECT
+                (SELECT COUNT(*) FROM securities WHERE last_updated < NOW() - INTERVAL '24 hours' OR last_updated IS NULL) as stale_securities
+        """
+        stale_data = await database.fetch_one(stale_data_query)
+
+        health["components"]["dataFreshness"] = {
+            "status": "online" if stale_data["stale_securities"] < 10 else "degraded",
+            "staleSecurities": stale_data["stale_securities"]
+        }
+
+        # Determine overall status
+        component_statuses = [c.get("status") for c in health["components"].values()]
+        if "offline" in component_statuses:
+            health["status"] = "offline"
+        elif "degraded" in component_statuses:
+            health["status"] = "degraded"
+
+        return health
+
+    except Exception as e:
+        logger.error(f"Error getting system health: {str(e)}")
+        return {
+            "status": "error",
+            "lastCheck": datetime.utcnow().isoformat(),
+            "error": str(e),
+            "components": {
+                "database": {"status": "unknown"},
+                "api": {"status": "online"},
+                "scheduler": {"status": "unknown"}
+            }
+        }
+
+
+@app.get("/admin/tables")
+async def get_admin_tables(admin_user: dict = Depends(get_current_user_admin)):
+    """
+    Get database table statistics for admin.
+    Requires admin privileges.
+    """
+    try:
+        tables = {}
+
+        # List of tables to check
+        table_names = [
+            "users", "accounts", "positions", "cash_positions",
+            "crypto_positions", "metal_positions", "real_estate_positions",
+            "other_assets", "liabilities", "securities", "price_history",
+            "portfolio_snapshots", "system_events"
+        ]
+
+        for table_name in table_names:
+            try:
+                count_query = f"SELECT COUNT(*) as count FROM {table_name}"
+                result = await database.fetch_one(count_query)
+
+                # Try to get last updated timestamp if the table has one
+                last_updated = None
+                try:
+                    if table_name in ["users", "securities"]:
+                        ts_query = f"SELECT MAX(last_updated) as last_updated FROM {table_name}"
+                        ts_result = await database.fetch_one(ts_query)
+                        if ts_result and ts_result["last_updated"]:
+                            last_updated = ts_result["last_updated"].isoformat()
+                    elif table_name == "system_events":
+                        ts_query = "SELECT MAX(started_at) as last_updated FROM system_events"
+                        ts_result = await database.fetch_one(ts_query)
+                        if ts_result and ts_result["last_updated"]:
+                            last_updated = ts_result["last_updated"].isoformat()
+                    elif table_name == "portfolio_snapshots":
+                        ts_query = "SELECT MAX(snapshot_date) as last_updated FROM portfolio_snapshots"
+                        ts_result = await database.fetch_one(ts_query)
+                        if ts_result and ts_result["last_updated"]:
+                            last_updated = ts_result["last_updated"].isoformat()
+                except:
+                    pass
+
+                tables[table_name] = {
+                    "count": result["count"],
+                    "last_updated": last_updated
+                }
+            except Exception as table_error:
+                tables[table_name] = {
+                    "count": 0,
+                    "last_updated": None,
+                    "error": str(table_error)
+                }
+
+        return {"tables": tables}
+
+    except Exception as e:
+        logger.error(f"Error getting admin tables: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get table stats: {str(e)}"
+        )
+
+
+@app.put("/admin/users/{user_id}/admin-status")
+async def update_user_admin_status(
+    user_id: str,
+    admin_user: dict = Depends(get_current_user_admin),
+    is_admin: bool = Body(..., embed=True)
+):
+    """
+    Update a user's admin status.
+    Requires admin privileges. Cannot demote yourself.
+    """
+    try:
+        # Prevent self-demotion
+        if user_id == str(admin_user["id"]) and not is_admin:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot remove your own admin status"
+            )
+
+        # Check if user exists
+        user = await database.fetch_one(
+            "SELECT id, email FROM users WHERE id = :user_id",
+            {"user_id": user_id}
+        )
+
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+
+        # Update admin status
+        await database.execute(
+            "UPDATE users SET is_admin = :is_admin WHERE id = :user_id",
+            {"user_id": user_id, "is_admin": is_admin}
+        )
+
+        logger.info(f"Admin status updated for user {user_id} to {is_admin} by {admin_user['email']}")
+
+        return {
+            "message": f"Admin status {'granted' if is_admin else 'revoked'} for user {user['email']}",
+            "user_id": user_id,
+            "is_admin": is_admin
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating admin status: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update admin status: {str(e)}"
         )
 

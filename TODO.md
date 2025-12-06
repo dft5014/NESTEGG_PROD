@@ -1,6 +1,6 @@
 # NestEgg TODO List
 
-**Last Updated:** 2025-12-05
+**Last Updated:** 2025-12-06
 
 This document tracks all outstanding tasks, improvements, and known issues for the NestEgg project. This list should be reviewed and updated regularly by Claude Code sessions as work progresses or new issues are identified.
 
@@ -403,6 +403,28 @@ When a bug is discovered, add it to the "Known Bugs" section with:
 ## ✅ Completed Tasks
 
 *Move completed items here to track progress while keeping the main list focused*
+
+### 2025-12-06: Admin Control Panel
+- [x] Implemented admin access control in backend (`get_current_user_admin` dependency)
+- [x] Created comprehensive admin dashboard API endpoints:
+  - `GET /admin/check` - Check if current user is admin
+  - `GET /admin/dashboard/stats` - Dashboard statistics (users, accounts, positions, events)
+  - `GET /admin/users` - List all users with search and pagination
+  - `GET /admin/activity` - Recent user login activity
+  - `GET /admin/errors` - Failed system events
+  - `GET /admin/data-refresh` - Data refresh status (price updates, calculations, snapshots)
+  - `GET /admin/health` - System health status with component checks
+  - `GET /admin/tables` - Database table statistics
+  - `PUT /admin/users/{id}/admin-status` - Toggle user admin status
+- [x] Created control panel frontend page (`/pages/control-panel.js`):
+  - Overview tab with system health, user stats, data stats, event stats
+  - Users tab with search, sortable table, admin toggle
+  - Activity tab showing recent logins with location/device info
+  - Data Refresh tab showing price updates, portfolio calculations, snapshots
+  - Errors tab with expandable error details
+- [x] Added admin-only sidebar menu item (conditionally shown based on is_admin flag)
+- [x] Uses existing `is_admin` column in users table for access control
+- Access: Users must be marked as admin in database to access the control panel
 
 ### 2025-12-05: Profile Page Production Optimization (Round 2)
 - [x] Removed Sessions tab (redundant with Security tab)
